@@ -19,8 +19,7 @@
 
         <!--¿Qué es el Reto Arjuna?-->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle  " href="#" role="button" data-bs-toggle="dropdown"
-            aria-expanded="false">
+          <a class="nav-link dropdown-toggle  " href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             ¿Qué es el Reto Arjuna?
           </a>
           <ul class="dropdown-menu">
@@ -41,26 +40,19 @@
           <a class="nav-link" href="#temario" onclick="location.href='#temario'">Quiénes somos</a>
         </li>
 
-
         <li class="nav-item">
           <a class="nav-link" href="#temario" onclick="location.href='#temario'">Contacto</a>
         </li>
 
-   
-
-        <div class="collapse navbar-collapse" id="navbarNavDarkDropdown">
-          <ul class="navbar-nav">
-            <li class="nav-item dropstart">
-              <button class="btn btn-transparent dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-person-circle" style="font-size: 2rem;"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-dark">
-                <li><a class="dropdown-item" href="?action=ingreso">Ingresar</a></li>
-                <li><a class="dropdown-item" href="?action=registro">Registrarse</a></li>
-              </ul>
-            </li>
+        <li class="nav-item dropstart">
+          <button class="btn btn-transparent dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="true">
+            <i class="bi bi-person-circle" style="font-size: 2rem;"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li><a class="dropdown-item" href="?action=ingreso">Ingresar</a></li>
+            <li><a class="dropdown-item" href="?action=registro">Registrarse</a></li>
           </ul>
-        </div>
+        </li>
 
       </ul>
     </div>

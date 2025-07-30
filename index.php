@@ -2,6 +2,9 @@
 <html lang="en">
 
 <head>
+  <script>
+    window.location.href = "new/index.html";
+  </script>
   <?php include 'content/head.php'; ?>
 </head>
 

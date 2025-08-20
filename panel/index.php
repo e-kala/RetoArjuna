@@ -4,6 +4,15 @@ session_start();
 $login = $_SESSION['login'];
 $id = $_SESSION['id'];
 $numero = $_SESSION['whatsapp'];
+
+// Comprobar si la sesión está abierta
+if (!isset($_SESSION['login'])) {
+    // Si no está abierta, redirigir a la página de inicio de sesión
+    header("Location: ../?action=ingreso");
+    exit();
+}
+
+// Aquí puedes continuar con el resto de tu código si la sesión está abierta
 /*
 echo $numero;
 
@@ -246,7 +255,7 @@ echo $login;
                 <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
-                    <a class="btn btn-primary" href="login.html">Logout</a>
+                    <a class="btn btn-primary" href="../backend/cerrar_sesion.php">Logout</a>
                 </div>
             </div>
         </div>

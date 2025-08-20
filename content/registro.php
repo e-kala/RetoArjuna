@@ -45,6 +45,7 @@
       const inputPassword = $("#inputPassword").val();
       const confirmPassword = $('#confirmPassword').val();
       //<!--Validar número In-->
+      console.log(inputPassword);
       if (!phoneRegex.test(whatsapp, inputPassword, confirmPassword)) {
         console.log('Por favor, ingresa un número de teléfono válido.');
       $("#inputWhatsapp").notify("Ingresa un número válido");
@@ -67,7 +68,7 @@
     }
 
     // Validar que la contraseña contenga al menos un número y una letra
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-_!@#$%^&*()+=<>?]{8,}$/;
     if (!passwordRegex.test(inputPassword)) {
       console.log('La contraseña debe contener al menos una letra y un número.');
       $("#inputPassword").notify("La contraseña debe contener al menos una letra y un número.");

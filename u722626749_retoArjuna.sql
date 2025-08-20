@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.2
 -- https://www.phpmyadmin.net/
 --
--- Servidor: localhost
--- Tiempo de generación: 23-05-2025 a las 18:15:20
--- Versión del servidor: 10.4.32-MariaDB
--- Versión de PHP: 8.2.12
+-- Servidor: 127.0.0.1:3306
+-- Tiempo de generación: 10-08-2025 a las 17:29:59
+-- Versión del servidor: 10.11.10-MariaDB-log
+-- Versión de PHP: 7.2.34
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -36,9 +36,19 @@ CREATE TABLE `usuarios_ra` (
   `usuario_fecha_nacimiento` date NOT NULL,
   `usuario_direccion_1` varchar(512) NOT NULL,
   `usuario_direccion_2` varchar(512) NOT NULL,
-  `usuario_telefono` tinyint(12) NOT NULL,
+  `usuario_telefono` varchar(20) NOT NULL,
   `usuario_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`usuario_json`))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `usuarios_ra`
+--
+
+INSERT INTO `usuarios_ra` (`usuario_id`, `usuario_nombre`, `usuario_apellido`, `usuario_correo`, `usuario_pass`, `usuario_fecha_nacimiento`, `usuario_direccion_1`, `usuario_direccion_2`, `usuario_telefono`, `usuario_json`) VALUES
+(28, '0', '0', '0', 'a12345678', '0000-00-00', '0', '0', '2711939578', '0'),
+(34, '0', '0', '0', 'a12345678', '0000-00-00', '0', '0', '1234567890', '0'),
+(35, '0', '0', '0', 'a12345678', '0000-00-00', '0', '0', '1234567891', '0'),
+(36, '0', '0', '0', 'a1234567', '0000-00-00', '0', '0', '1234567892', '0');
 
 --
 -- Índices para tablas volcadas
@@ -58,7 +68,7 @@ ALTER TABLE `usuarios_ra`
 -- AUTO_INCREMENT de la tabla `usuarios_ra`
 --
 ALTER TABLE `usuarios_ra`
-  MODIFY `usuario_id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `usuario_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -1,0 +1,399 @@
+/* ===== TEMPORIZADOR Y WHATSAPP JUNTOS ===== */
+
+.floating-timer {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 600px;
+}
+
+/* TEMPORIZADOR */
+.timer-container {
+    background: white;
+    border-radius: 50px !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(0,0,0,0.05);
+    backdrop-filter: blur(5px);
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.timer-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timer-icon {
+    font-size: 20px;
+    background: #fbd609;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.timer-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.timer-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #6c757d;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.countdown {
+    display: flex;
+    gap: 4px;
+}
+
+.countdown-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 28px;
+}
+
+.countdown-number {
+    font-size: 15px;
+    font-weight: 800;
+    background: black;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+}
+
+.countdown-unit {
+    font-size: 7px;
+    color: #9aa0a6;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.timer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timer-cta {
+    background: #fbd609;
+    color: black;
+    padding: 5px 12px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.timer-toggle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: #f0f2f5;
+    color: #495057;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* WHATSAPP */
+.whatsapp-float {
+    width: 50px;
+    height: 50px;
+    background-color: #25d366;
+    color: white;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.whatsapp-float:hover {
+    background-color: #20ba5a;
+    transform: scale(1.1);
+}
+
+.whatsapp-float i {
+    font-size: 28px;
+}
+
+.whatsapp-label {
+    position: absolute;
+    right: 60px;
+    background: #25d366;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 30px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.whatsapp-float:hover .whatsapp-label {
+    opacity: 1;
+    visibility: visible;
+    right: 65px;
+}
+
+/* MINIMIZADO */
+.timer-container.minimized {
+    padding: 8px 12px;
+}
+
+.timer-container.minimized .timer-text {
+    display: none;
+}
+
+/* ===== RESPONSIVE ===== */
+
+/* Pantallas mayores a 450px: ancho normal sin estirar */
+@media (min-width: 451px) and (max-width: 768px) {
+    .floating-timer {
+        bottom: 15px;
+        right: 15px;
+        gap: 8px;
+        width: auto; /* Ancho natural, no se estira */
+        max-width: none;
+    }
+    
+    .timer-container {
+        padding: 6px 12px;
+    }
+    
+    .timer-icon {
+        font-size: 18px;
+    }
+    
+    .countdown-item {
+        min-width: 24px;
+    }
+    
+    .countdown-number {
+        font-size: 14px;
+    }
+    
+    .countdown-unit {
+        font-size: 6px;
+    }
+    
+    .timer-cta {
+        padding: 4px 10px;
+        font-size: 10px;
+    }
+    
+    .timer-toggle {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+    }
+    
+    .whatsapp-float {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .whatsapp-float i {
+        font-size: 24px;
+    }
+    
+    .whatsapp-label {
+        display: none;
+    }
+}
+
+/* Pantallas menores o iguales a 450px: botón desaparece */
+@media (max-width: 450px) {
+    .floating-timer {
+        bottom: 15px;
+        right: 15px;
+        gap: 8px;
+        width: auto; /* Ancho natural */
+    }
+    
+    .timer-container {
+        padding: 6px 12px;
+    }
+
+    .timer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+   }
+
+    .timer-cta {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    font-size: 10px;
+    white-space: nowrap;
+   }
+    
+   .timer-cta {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    }
+    
+    .timer-icon {
+        font-size: 18px;
+    }
+    
+    .countdown-item {
+        min-width: 24px;
+    }
+    
+    .countdown-number {
+        font-size: 14px;
+    }
+    
+    .countdown-unit {
+        font-size: 6px;
+    }
+    
+    .timer-toggle {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+    }
+    
+    .whatsapp-float {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .whatsapp-float i {
+        font-size: 24px;
+    }
+}
+
+/* Punto crítico 340px: más compacto */
+@media (max-width: 340px) {
+    .floating-timer {
+        bottom: 10px;
+        right: 10px;
+        gap: 5px;
+    }
+    
+    .timer-container {
+        padding: 4px 8px;
+    }
+    
+    .timer-icon {
+        font-size: 14px;
+    }
+    
+    .timer-label {
+        font-size: 7px;
+    }
+    
+    .countdown-item {
+        min-width: 18px;
+    }
+    
+    .countdown-number {
+        font-size: 11px;
+    }
+    
+    .countdown-unit {
+        font-size: 5px;
+    }
+    
+    .timer-toggle {
+        width: 20px;
+        height: 20px;
+        font-size: 10px;
+    }
+    
+    .whatsapp-float {
+        width: 35px;
+        height: 35px;
+    }
+    
+    .whatsapp-float i {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 450px) {
+    .floating-timer {
+        bottom: 15px;
+        right: 15px;
+        gap: 8px;
+        width: auto;
+    }
+    
+    .timer-container {
+        padding: 6px 12px;
+    }
+
+    .timer-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .timer-cta {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 10px;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    
+    .timer-icon {
+        font-size: 18px;
+    }
+    
+    .countdown-item {
+        min-width: 24px;
+    }
+    
+    .countdown-number {
+        font-size: 14px;
+    }
+    
+    .countdown-unit {
+        font-size: 6px;
+    }
+    
+    .timer-toggle {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+    }
+    
+    .whatsapp-float {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .whatsapp-float i {
+        font-size: 24px;
+    }
+}

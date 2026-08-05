@@ -1,0 +1,415 @@
+/* ===================================================================
+   Reto Arjuna — Sistema de diseño de la plataforma (2026)
+   Base compartida por: index.php (home), plataforma/ (cursos, ingreso,
+   registro, panel...) y tienda.html. Ligero, cálido, minimalista —
+   independiente de digital-creative/ (plantilla de ventas) y del tema
+   SB Admin 2 del panel de administración.
+=================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --pf-bg: #faf8f3;
+  --pf-surface: #ffffff;
+  --pf-ink: #23262b;
+  --pf-muted: #6b7076;
+  --pf-line: #eae5da;
+  --pf-accent: #f7931e;
+  --pf-accent-ink: #7a4a00;
+  --pf-radius-lg: 20px;
+  --pf-radius-md: 14px;
+  --pf-shadow: 0 8px 24px rgba(35, 38, 43, 0.06);
+  --pf-max: 1120px;
+}
+
+* { box-sizing: border-box; }
+
+body.pf-body {
+  margin: 0;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--pf-bg);
+  color: var(--pf-ink);
+  line-height: 1.6;
+}
+
+.pf-container {
+  max-width: var(--pf-max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+a { text-decoration: none; }
+
+/* ===================================================================
+   Navbar
+=================================================================== */
+.pf-nav {
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.pf-nav .pf-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.pf-logo {
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--pf-ink);
+  letter-spacing: -0.01em;
+}
+.pf-logo-img {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pf-logo-img img { height: 34px; width: auto; display: block; }
+.pf-logo-img span { font-weight: 800; font-size: 18px; color: var(--pf-ink); letter-spacing: -0.01em; }
+.pf-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pf-nav-links a {
+  color: var(--pf-muted);
+  font-weight: 600;
+  font-size: 15px;
+  transition: color 0.2s ease;
+}
+.pf-nav-links a:hover,
+.pf-nav-links a.active { color: var(--pf-ink); }
+
+.pf-nav-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pf-user-menu { position: relative; }
+.pf-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--pf-bg);
+  border: 1px solid var(--pf-line);
+  border-radius: 999px;
+  padding: 6px 16px 6px 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--pf-ink);
+  cursor: pointer;
+}
+.pf-user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--pf-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+}
+.pf-user-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow);
+  min-width: 180px;
+  padding: 8px;
+}
+.pf-user-menu:hover .pf-user-dropdown,
+.pf-user-menu:focus-within .pf-user-dropdown { display: block; }
+.pf-user-dropdown a {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--pf-ink);
+  font-weight: 500;
+  font-size: 14px;
+}
+.pf-user-dropdown a:hover { background: var(--pf-bg); }
+
+/* ===================================================================
+   Botones
+=================================================================== */
+.pf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14.5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.pf-btn-primary {
+  background: var(--pf-accent);
+  color: #fff;
+}
+.pf-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(247, 147, 30, 0.35);
+}
+.pf-btn-outline {
+  background: transparent;
+  border-color: var(--pf-line);
+  color: var(--pf-ink);
+}
+.pf-btn-outline:hover { border-color: var(--pf-ink); }
+.pf-btn-lg { padding: 14px 30px; font-size: 16px; }
+
+/* ===================================================================
+   Hero
+=================================================================== */
+.pf-hero {
+  padding: 88px 0 64px;
+  text-align: center;
+}
+.pf-eyebrow {
+  display: inline-block;
+  background: var(--pf-bg);
+  border: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 999px;
+  margin-bottom: 22px;
+}
+.pf-hero h1 {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  max-width: 780px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pf-hero p {
+  color: var(--pf-muted);
+  font-size: 18px;
+  max-width: 560px;
+  margin: 0 auto 30px;
+}
+.pf-hero-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ===================================================================
+   Tarjetas / pilares (Cursos · Foro · Tienda)
+=================================================================== */
+.pf-section { padding: 56px 0; }
+.pf-section-title {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.pf-section-title h2 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+.pf-section-title p { color: var(--pf-muted); margin: 0; }
+
+.pf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-lg);
+  padding: 32px 28px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.pf-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--pf-bg);
+  color: var(--pf-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 18px;
+}
+.pf-card h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pf-card p {
+  color: var(--pf-muted);
+  font-size: 14.5px;
+  margin: 0 0 20px;
+  flex-grow: 1;
+}
+.pf-card .pf-btn { align-self: flex-start; }
+
+.pf-badge-soon {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--pf-bg);
+  color: var(--pf-muted);
+  border: 1px solid var(--pf-line);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+/* ===================================================================
+   Banda de llamada (Reto Arjuna)
+=================================================================== */
+.pf-callout {
+  background: var(--pf-ink);
+  color: #fff;
+  border-radius: var(--pf-radius-lg);
+  padding: 48px 40px;
+  text-align: center;
+  margin: 0 24px;
+  max-width: calc(var(--pf-max) - 48px);
+  margin-left: auto;
+  margin-right: auto;
+}
+.pf-callout h2 { margin: 0 0 10px; font-size: 26px; font-weight: 800; }
+.pf-callout p { color: rgba(255,255,255,0.72); margin: 0 0 24px; }
+.pf-callout .pf-btn-primary { background: var(--pf-accent); }
+
+/* ===================================================================
+   Footer
+=================================================================== */
+.pf-footer {
+  border-top: 1px solid var(--pf-line);
+  margin-top: 60px;
+  padding: 36px 0;
+}
+.pf-footer .pf-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.pf-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: center;
+}
+.pf-footer-links a {
+  color: var(--pf-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pf-footer-links a:hover { color: var(--pf-ink); }
+.pf-footer-social {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.pf-footer-social img { height: 30px; width: auto; }
+.pf-footer-social a {
+  color: var(--pf-muted);
+  font-size: 18px;
+}
+.pf-footer-social a:hover { color: var(--pf-accent); }
+.pf-footer-copy {
+  color: var(--pf-muted);
+  font-size: 13px;
+}
+
+/* ===================================================================
+   Tarjetas de curso (catálogo)
+=================================================================== */
+.pf-course-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.pf-course-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pf-shadow);
+}
+.pf-course-card img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+.pf-course-card-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+.pf-course-card h3 { font-size: 17px; font-weight: 700; margin: 0 0 8px; }
+.pf-course-card p { color: var(--pf-muted); font-size: 14px; flex-grow: 1; margin: 0 0 16px; }
+.pf-course-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pf-price-tag {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--pf-accent-ink);
+  background: #fff3e0;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* ===================================================================
+   Responsive
+=================================================================== */
+@media (max-width: 860px) {
+  .pf-nav .pf-container { flex-wrap: wrap; }
+  .pf-nav-links {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-bottom: 4px;
+  }
+  .pf-grid-3 { grid-template-columns: 1fr; }
+  .pf-hero h1 { font-size: 32px; }
+  .pf-callout { padding: 36px 24px; margin: 0 16px; }
+}

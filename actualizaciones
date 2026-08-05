@@ -1,7 +1,0 @@
--se modificó regex para admitir caracteres especiales más comunes
-- Se añadió comprobación de inicio de sesión, evita entrar al panel si la sesión no está abierta
-
-registro -> modificar cuando hay un error en el registro -> comunicacion php ->
- retornar error
- 
- - Notificar cuando te regresa al login, cuando la contraseña está mal

@@ -1,0 +1,14 @@
+# Los archivos subidos nunca deben ejecutarse como script, aunque la validación de
+# tipo/extensión falle o alguien logre subir un archivo con extensión falsificada.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "\.(php|phtml|php\d?|phar)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>

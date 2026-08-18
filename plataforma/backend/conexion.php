@@ -22,11 +22,25 @@ if ($raiz_proyecto && $raiz_publica && strpos($raiz_proyecto, $raiz_publica) ===
 }
 define('BASE_URL', str_replace('\\', '/', $base_url));
 
+// SITE_URL es BASE_URL pero con esquema+host — BASE_URL por sí solo es solo una
+// ruta relativa (sirve para href/Location, que el navegador resuelve contra la
+// página actual), pero Stripe (success_url/cancel_url/return_url) y los enlaces
+// dentro de correos NO tienen "página actual" contra qué resolver una ruta
+// relativa — ahí hace falta la URL completa, o Stripe rechaza con "Not a valid
+// URL" y los botones de los correos apuntarían al dominio equivocado.
+$esquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+define('SITE_URL', $esquema . $host . BASE_URL);
+
 // --- Base de datos de la plataforma de cursos ---
-define('DB_HOST', 'localhost');
-define('DB_USER', 'retoarju_platform');
+// DB_HOST/DB_USER/DB_NAME antes se fijaban sin guardia — un config.local.php de
+// otro entorno (ej. pruebas.arjuna.mx con retoarju_pruebas) no podía cambiarlos.
+// Con el guardia, cualquier entorno puede definir su propia base sin tocar este
+// archivo (que sí va en git).
+if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_USER')) define('DB_USER', 'retoarju_platform');
 if (!defined('DB_PASS')) define('DB_PASS', 'reemplazar_db_password');
-define('DB_NAME', 'retoarju_platform');
+if (!defined('DB_NAME')) define('DB_NAME', 'retoarju_platform');
 
 // --- Login con Google (placeholders: reemplazar antes de anunciar la plataforma) ---
 if (!defined('GOOGLE_CLIENT_ID')) define('GOOGLE_CLIENT_ID', 'reemplazar_google_client_id');
@@ -36,14 +50,14 @@ if (!defined('GOOGLE_CLIENT_SECRET')) define('GOOGLE_CLIENT_SECRET', 'reemplazar
 if (!defined('STRIPE_PUBLISHABLE_KEY')) define('STRIPE_PUBLISHABLE_KEY', 'reemplazar_stripe_publishable');
 if (!defined('STRIPE_SECRET_KEY')) define('STRIPE_SECRET_KEY', 'reemplazar_stripe_secret');
 if (!defined('STRIPE_WEBHOOK_SECRET')) define('STRIPE_WEBHOOK_SECRET', 'reemplazar_stripe_webhook_secret');
-define('BANCO_NOMBRE', 'Reemplazar Banco');
-define('BANCO_CLABE', '000000000000000000');
-define('BANCO_TITULAR', 'Reemplazar Titular');
-define('WHATSAPP_PAGOS', '5210000000000');
+if (!defined('BANCO_NOMBRE')) define('BANCO_NOMBRE', 'Reemplazar Banco');
+if (!defined('BANCO_CLABE')) define('BANCO_CLABE', '000000000000000000');
+if (!defined('BANCO_TITULAR')) define('BANCO_TITULAR', 'Reemplazar Titular');
+if (!defined('WHATSAPP_PAGOS')) define('WHATSAPP_PAGOS', '5210000000000');
 
 // --- Correo saliente ---
-define('EMAIL_REMITENTE', 'noreply@retoarjuna.local');
-define('EMAIL_REMITENTE_NOMBRE', 'Reto Arjuna');
+if (!defined('EMAIL_REMITENTE')) define('EMAIL_REMITENTE', 'noreply@retoarjuna.local');
+if (!defined('EMAIL_REMITENTE_NOMBRE')) define('EMAIL_REMITENTE_NOMBRE', 'Reto Arjuna');
 
 function config_esta_lista(string $valor): bool
 {

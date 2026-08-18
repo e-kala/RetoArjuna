@@ -1,7 +1,7 @@
 <?php
 // Resuelve qué se está comprando (curso, evento o producto) a partir de los
-// parámetros de la petición, normalizando lo que checkout/stripe/transferencia/
-// cupón necesitan, para no repetir el branching en cada archivo de pagos.
+// parámetros de la petición, normalizando lo que checkout/stripe/transferencia
+// necesitan, para no repetir el branching en cada archivo de pagos.
 // Devuelve null si no viene ningún id o el item no existe.
 function resolver_item_pago(mysqli $conn, array $params, int $usuarioPerfilId): ?array
 {

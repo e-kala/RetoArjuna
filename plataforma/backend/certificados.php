@@ -58,7 +58,7 @@ function verificar_y_emitir_certificado(int $usuarioPerfilId, int $cursoId): voi
             $usuarioPerfilId,
             $info['email'],
             $info['titulo'],
-            BASE_URL . '/certificado.php?codigo=' . urlencode($codigo)
+            SITE_URL . '/certificado.php?codigo=' . urlencode($codigo)
         );
     }
 }
@@ -103,7 +103,7 @@ function verificar_y_emitir_reconocimiento_evento(int $usuarioPerfilId, int $eve
             $usuarioPerfilId,
             $info['email'],
             $info['titulo'],
-            BASE_URL . '/certificado.php?codigo=' . urlencode($codigo)
+            SITE_URL . '/certificado.php?codigo=' . urlencode($codigo)
         );
     }
 }

@@ -10,11 +10,14 @@ require_once __DIR__ . '/backend/auth.php';
 
 <body class="pf-body">
   <div>
-    <?php include 'content/navbar.php'; ?>
-
     <?php
     $action = $_GET['action'] ?? 'inicio';
+    $navPrefijo = '../';
+    $navActivoContiene = 'action=' . $action;
+    include 'content/navbar.php';
+    ?>
 
+    <?php
     switch ($action) {
       case 'inicio':
         include 'content/inicio.php';
@@ -27,6 +30,9 @@ require_once __DIR__ . '/backend/auth.php';
         break;
       case 'cursos':
         include 'content/cursos_catalogo.php';
+        break;
+      case 'membresia':
+        include 'content/membresia.php';
         break;
       case 'actividades':
         include 'content/actividades.php';

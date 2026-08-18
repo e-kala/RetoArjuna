@@ -40,8 +40,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
         $_SESSION['usuarios_admin_password_temporal'] = ['id' => $id, 'password' => $temporal];
+    } elseif (($_POST['accion'] ?? '') === 'toggle_prueba' && $id > 0) {
+        // Marca/desmarca una cuenta como de prueba — solo etiqueta, no afecta acceso.
+        $stmt = $conn->prepare('UPDATE usuarios_perfil SET es_prueba = 1 - es_prueba WHERE id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+    } elseif (($_POST['accion'] ?? '') === 'quitar_membresia' && $id > 0) {
+        $suscripcionId = (int) ($_POST['suscripcion_id'] ?? 0);
+        $stmt = $conn->prepare("UPDATE membresia_suscripciones SET estado = 'cancelada' WHERE id = ? AND usuario_id = ?");
+        $stmt->bind_param('ii', $suscripcionId, $id);
+        $stmt->execute();
+        $stmt->close();
     }
-    header('Location: usuarios.php');
+    $qRedirect = trim($_POST['q'] ?? '');
+    $tipoRedirect = trim($_POST['tipo'] ?? '');
+    $params = [];
+    if ($qRedirect !== '') {
+        $params[] = 'q=' . urlencode($qRedirect);
+    }
+    if ($tipoRedirect !== '' && $tipoRedirect !== 'todos') {
+        $params[] = 'tipo=' . urlencode($tipoRedirect);
+    }
+    header('Location: usuarios.php' . ($params ? '?' . implode('&', $params) : ''));
     exit;
 }
 
@@ -50,17 +71,38 @@ if (!empty($_SESSION['usuarios_admin_password_temporal'])) {
     unset($_SESSION['usuarios_admin_password_temporal']);
 }
 
-$usuarios = $conn->query('SELECT * FROM usuarios_perfil ORDER BY created_at DESC')->fetch_all(MYSQLI_ASSOC);
+require __DIR__ . '/_usuarios_query.php';
+$listaMembresiasModal = $membresiasDisponibles;
+
+// El aviso de contraseña temporal necesita poder buscar por id sin importar
+// el filtro de búsqueda actual, por eso se resuelve aparte de $usuarios.
 $usuariosPorId = [];
-foreach ($usuarios as $u) {
-    $usuariosPorId[(int) $u['id']] = $u;
+if (!empty($_SESSION['usuarios_admin_password_temporal'])) {
+    foreach ($conn->query('SELECT id, username_cache FROM usuarios_perfil')->fetch_all(MYSQLI_ASSOC) as $u) {
+        $usuariosPorId[(int) $u['id']] = $u;
+    }
 }
 
 $pageTitle = 'Usuarios';
 include __DIR__ . '/_header.php';
 ?>
-<h1 class="h4 mb-3">Usuarios</h1>
-<p class="text-muted small">Usuario, correo, rol y contraseña se administran aquí directamente.</p>
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <h1 class="h4">Usuarios</h1>
+  <a href="usuario_form.php" class="btn btn-success btn-sm">+ Nuevo usuario</a>
+</div>
+<form method="get" id="usuariosBuscarForm" class="mb-3 d-flex gap-2 flex-wrap" style="max-width:560px;">
+  <input type="search" name="q" id="usuariosBuscarQ" class="form-control" placeholder="Buscar por usuario o correo" value="<?= htmlspecialchars($busqueda) ?>" style="max-width:280px;" autocomplete="off">
+  <input type="hidden" name="tipo" value="<?= htmlspecialchars($tipo) ?>">
+  <button class="btn btn-outline-secondary">Buscar</button>
+  <?php if ($busqueda !== ''): ?><a href="usuarios.php<?= $tipo !== 'todos' ? '?tipo=' . urlencode($tipo) : '' ?>" class="btn btn-outline-secondary">Limpiar</a><?php endif; ?>
+  <span id="usuariosBuscarCargando" class="spinner-border spinner-border-sm text-secondary align-self-center" style="display:none;" aria-hidden="true"></span>
+</form>
+<div class="btn-group mb-3" role="group">
+  <a href="?tipo=todos<?= $busqueda !== '' ? '&q=' . urlencode($busqueda) : '' ?>" class="btn btn-sm <?= $tipo === 'todos' ? 'btn-dark' : 'btn-outline-dark' ?>">Todos</a>
+  <a href="?tipo=reales<?= $busqueda !== '' ? '&q=' . urlencode($busqueda) : '' ?>" class="btn btn-sm <?= $tipo === 'reales' ? 'btn-dark' : 'btn-outline-dark' ?>">Reales</a>
+  <a href="?tipo=prueba<?= $busqueda !== '' ? '&q=' . urlencode($busqueda) : '' ?>" class="btn btn-sm <?= $tipo === 'prueba' ? 'btn-dark' : 'btn-outline-dark' ?>">Prueba</a>
+</div>
+<p class="text-muted small">Usuario, correo, rol, membresía y contraseña se administran aquí directamente. Marca "Prueba" en cuentas dummy/testing para separarlas de las reales.</p>
 
 <?php if ($passwordGenerada && isset($usuariosPorId[$passwordGenerada['id']])): ?>
   <div class="alert alert-warning">
@@ -70,58 +112,71 @@ include __DIR__ . '/_header.php';
   </div>
 <?php endif; ?>
 
+<div class="table-responsive">
 <table class="table table-bordered bg-white">
-  <thead><tr><th>Usuario</th><th>Correo</th><th>Registrado</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
-  <tbody>
-    <?php foreach ($usuarios as $u): ?>
-      <tr>
-        <td><?= htmlspecialchars((string) $u['username_cache']) ?></td>
-        <td><?= htmlspecialchars((string) $u['email_cache']) ?></td>
-        <td><?= htmlspecialchars(date('d/m/Y', strtotime($u['created_at']))) ?></td>
-        <td>
-          <?php if ((int) $u['id'] === $miId): ?>
-            <?= htmlspecialchars($u['rol']) ?> <span class="text-muted small">(tú)</span>
-          <?php else: ?>
-            <form method="post" class="d-flex gap-2">
-              <?= csrf_field() ?>
-              <input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
-              <input type="hidden" name="accion" value="cambiar_rol">
-              <select name="rol" class="form-select form-select-sm">
-                <?php foreach (['estudiante', 'instructor', 'admin'] as $r): ?>
-                  <option value="<?= $r ?>" <?= $u['rol'] === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
-                <?php endforeach; ?>
-              </select>
-              <button class="btn btn-sm btn-outline-primary">Guardar</button>
-            </form>
-          <?php endif; ?>
-        </td>
-        <td><?= (int) $u['activo'] === 1 ? 'Activo' : 'Deshabilitado' ?></td>
-        <td class="d-flex gap-2">
-          <?php if ((int) $u['id'] !== $miId): ?>
-            <form method="post">
-              <?= csrf_field() ?>
-              <input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
-              <input type="hidden" name="accion" value="toggle_activo">
-              <button class="btn btn-sm btn-outline-secondary"><?= (int) $u['activo'] === 1 ? 'Deshabilitar' : 'Habilitar' ?></button>
-            </form>
-          <?php endif; ?>
-          <form method="post" onsubmit="return confirm('¿Generar una contraseña temporal para este usuario?');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
-            <input type="hidden" name="accion" value="resetear_password">
-            <button class="btn btn-sm btn-outline-dark">Resetear contraseña</button>
-          </form>
-          <?php if ((int) $u['id'] !== $miId): ?>
-            <form method="post" onsubmit="return confirm('¿Eliminar a <?= htmlspecialchars($u['username_cache'], ENT_QUOTES) ?> permanentemente? Se borrarán también sus pagos, progreso, certificados y publicaciones del foro. Esto no se puede deshacer.');">
-              <?= csrf_field() ?>
-              <input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
-              <input type="hidden" name="accion" value="eliminar_usuario">
-              <button class="btn btn-sm btn-outline-danger">Eliminar</button>
-            </form>
-          <?php endif; ?>
-        </td>
-      </tr>
-    <?php endforeach; ?>
+  <thead><tr><th>Usuario</th><th>Correo</th><th>Registrado</th><th>Tipo</th><th>Rol</th><th>Membresía</th><th>Estado</th><th>Acciones</th></tr></thead>
+  <tbody id="usuariosTbody">
+    <?php include __DIR__ . '/_usuarios_filas.php'; ?>
   </tbody>
 </table>
+</div>
+<script>
+(function () {
+  var form = document.getElementById('usuariosBuscarForm');
+  var input = document.getElementById('usuariosBuscarQ');
+  var tbody = document.getElementById('usuariosTbody');
+  var cargando = document.getElementById('usuariosBuscarCargando');
+  var timer = null;
+  var ultimaPeticion = 0;
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); });
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(buscar, 250);
+  });
+
+  function buscar() {
+    var idPeticion = ++ultimaPeticion;
+    cargando.style.display = 'inline-block';
+    var params = new URLSearchParams(new FormData(form));
+    fetch('usuarios_buscar.php?' + params.toString())
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (idPeticion !== ultimaPeticion) return; // respuesta obsoleta, llegó otra después
+        tbody.innerHTML = html;
+      })
+      .finally(function () {
+        if (idPeticion === ultimaPeticion) cargando.style.display = 'none';
+      });
+  }
+})();
+</script>
+<?php include __DIR__ . '/_membresia_modal.php'; ?>
+<?php
+// Llega aquí después de crear un usuario en usuario_form.php con "asignar
+// membresía" marcado — abre el mismo modal compartido ya con ese usuario
+// elegido, en vez de duplicar los campos de membresía en ese formulario.
+$otorgarMembresiaId = (int) ($_GET['otorgar_membresia_id'] ?? 0);
+if ($otorgarMembresiaId > 0):
+    $volverQueryStr = http_build_query(array_filter([
+        'q' => $busqueda !== '' ? $busqueda : null,
+        'tipo' => $tipo !== 'todos' ? $tipo : null,
+    ]));
+    ?>
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    abrirMembresiaModal({
+      titulo: 'Otorgar membresía',
+      usuarioId: <?= $otorgarMembresiaId ?>,
+      usuarioLabel: <?= json_encode($_GET['otorgar_membresia_label'] ?? '') ?>,
+      volver: 'usuarios.php',
+      volverQuery: <?= json_encode($volverQueryStr) ?>
+    });
+    if (window.history.replaceState) {
+      window.history.replaceState(null, '', 'usuarios.php<?= $volverQueryStr !== '' ? '?' . $volverQueryStr : '' ?>');
+    }
+  });
+  </script>
+<?php endif; ?>
 <?php include __DIR__ . '/_footer.php'; ?>

@@ -48,7 +48,7 @@ function enviar_email_bienvenida(int $usuarioPerfilId, string $destinatario): bo
         '¡Bienvenido a Reto Arjuna!',
         '<p>Tu cuenta ya está lista. Explora el catálogo de cursos cuando quieras.</p>',
         'Ver cursos',
-        BASE_URL . '/index.php?action=cursos'
+        SITE_URL . '/index.php?action=cursos'
     );
     return enviar_email($usuarioPerfilId, $destinatario, 'Bienvenido a Reto Arjuna', $html, 'bienvenida');
 }
@@ -62,6 +62,17 @@ function enviar_email_inscripcion(int $usuarioPerfilId, string $destinatario, st
         $cursoUrl
     );
     return enviar_email($usuarioPerfilId, $destinatario, 'Inscripción confirmada', $html, 'inscripcion');
+}
+
+function enviar_email_membresia_activada(int $usuarioPerfilId, string $destinatario, string $membresiaNombre): bool
+{
+    $html = plantilla_email(
+        '¡Tu membresía ya está activa!',
+        '<p>Tu membresía <strong>' . htmlspecialchars($membresiaNombre, ENT_QUOTES) . '</strong> fue activada — ya tienes acceso a todos los cursos y a los eventos exclusivos para miembros.</p>',
+        'Entrar a mi membresía',
+        SITE_URL . '/index.php?action=membresia'
+    );
+    return enviar_email($usuarioPerfilId, $destinatario, 'Tu membresía Camino Arjuna está activa', $html, 'membresia');
 }
 
 function enviar_email_finalizacion(int $usuarioPerfilId, string $destinatario, string $cursoTitulo, string $certificadoUrl): bool

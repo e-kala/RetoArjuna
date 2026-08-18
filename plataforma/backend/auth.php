@@ -71,6 +71,19 @@ function login_user(int $usuarioPerfilId): void
     $_SESSION['avatar'] = $row['avatar_cache'];
 }
 
+/**
+ * A dónde mandar a alguien justo después de autenticarse (login nativo,
+ * registro o Google) — admins van al panel administrativo de siempre,
+ * cualquier otro rol va al dashboard de estudiante (panel/dashboard.php),
+ * pensado para sentirse como plataforma educativa y no como consola admin.
+ */
+function redirect_post_login(string $accion = ''): string
+{
+    $rol = $_SESSION['rol'] ?? 'estudiante';
+    $destino = BASE_URL . '/panel/' . ($rol === 'admin' ? 'index.php' : 'dashboard.php');
+    return $accion !== '' ? $destino . '?action=' . $accion : $destino;
+}
+
 function logout_user(): void
 {
     $_SESSION = [];
@@ -122,30 +135,33 @@ function require_role(string $rolRequerido): void
 }
 
 /**
- * Gate único de acceso a un curso: gratuito, o pago confirmado. Se reutiliza en el
- * detalle de curso, el visor de lección y el checkout.
+ * Gate único de acceso a un curso: miembro activo, inscripción explícita a un
+ * curso gratuito (curso_inscripciones), o pago confirmado. gratuito=1 YA NO
+ * otorga acceso solo por existir — antes lo hacía, y un usuario recién
+ * registrado aparecía con "acceso" a cualquier curso gratuito sin haberlo
+ * pedido. Se reutiliza en el detalle de curso, el visor de lección y el checkout.
  */
 function usuario_tiene_acceso_curso(int $usuarioPerfilId, int $cursoId): bool
 {
     global $conn;
 
-    $stmt = $conn->prepare('SELECT gratuito FROM cursos WHERE id = ? LIMIT 1');
-    $stmt->bind_param('i', $cursoId);
-    $stmt->execute();
-    $curso = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$curso) {
-        return false;
-    }
-    if ((int) $curso['gratuito'] === 1) {
-        return true;
+    if (usuario_tiene_membresia_activa($usuarioPerfilId)) {
+        $stmt = $conn->prepare('SELECT incluido_membresia FROM cursos WHERE id = ?');
+        $stmt->bind_param('i', $cursoId);
+        $stmt->execute();
+        $curso = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($curso && (int) $curso['incluido_membresia'] === 1) {
+            return true;
+        }
     }
 
     $stmt = $conn->prepare(
-        "SELECT id FROM pagos WHERE usuario_id = ? AND curso_id = ? AND estado = 'confirmado' LIMIT 1"
+        "SELECT 1 FROM curso_inscripciones WHERE usuario_id = ? AND curso_id = ?
+         UNION SELECT 1 FROM pagos WHERE usuario_id = ? AND curso_id = ? AND estado = 'confirmado'
+         LIMIT 1"
     );
-    $stmt->bind_param('ii', $usuarioPerfilId, $cursoId);
+    $stmt->bind_param('iiii', $usuarioPerfilId, $cursoId, $usuarioPerfilId, $cursoId);
     $stmt->execute();
     $tieneAcceso = (bool) $stmt->get_result()->fetch_assoc();
     $stmt->close();
@@ -154,40 +170,158 @@ function usuario_tiene_acceso_curso(int $usuarioPerfilId, int $cursoId): bool
 }
 
 /**
- * Gate de eventos: gratuito (basta con estar inscrito), o pago confirmado.
+ * Gate de eventos: inscripción activa (evento_inscripciones, incluida la que
+ * se crea gratis por membresía en eventos incluido_membresia/solo_miembros —
+ * ver evento_inscribir.php) o pago confirmado. Antes esto se revisaba según
+ * `gratuito` (inscripción para eventos gratis, pago para el resto), lo que
+ * dejaba sin reconocer la inscripción gratuita por membresía en un evento de
+ * pago — nunca aparecía en `pagos`. Revisar ambas fuentes sin importar
+ * `gratuito` lo resuelve y evita depender de un bypass aparte para membresía.
  */
 function usuario_esta_inscrito_evento(int $usuarioPerfilId, int $eventoId): bool
 {
     global $conn;
 
-    $stmt = $conn->prepare('SELECT gratuito FROM eventos WHERE id = ? LIMIT 1');
-    $stmt->bind_param('i', $eventoId);
+    $stmt = $conn->prepare(
+        "SELECT 1 FROM evento_inscripciones WHERE usuario_id = ? AND evento_id = ? AND estado <> 'cancelado'
+         UNION SELECT 1 FROM pagos WHERE usuario_id = ? AND evento_id = ? AND estado = 'confirmado'
+         LIMIT 1"
+    );
+    $stmt->bind_param('iiii', $usuarioPerfilId, $eventoId, $usuarioPerfilId, $eventoId);
     $stmt->execute();
-    $evento = $stmt->get_result()->fetch_assoc();
+    $tieneAcceso = (bool) $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if (!$evento) {
-        return false;
-    }
+    return $tieneAcceso;
+}
 
-    if ((int) $evento['gratuito'] === 1) {
-        $stmt = $conn->prepare(
-            "SELECT id FROM evento_inscripciones WHERE usuario_id = ? AND evento_id = ? AND estado <> 'cancelado' LIMIT 1"
-        );
-        $stmt->bind_param('ii', $usuarioPerfilId, $eventoId);
-        $stmt->execute();
-        $inscrito = (bool) $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return $inscrito;
-    }
+/**
+ * true si el usuario tiene al menos una compra confirmada de este producto.
+ * A diferencia de curso/evento, esto NO se usa para bloquear el checkout (un
+ * producto sí se puede volver a comprar, p.ej. otra playera) — sirve solo para
+ * decidir si se le muestra el enlace de descarga de un producto digital.
+ */
+function usuario_compro_producto(int $usuarioPerfilId, int $productoId): bool
+{
+    global $conn;
 
     $stmt = $conn->prepare(
-        "SELECT id FROM pagos WHERE usuario_id = ? AND evento_id = ? AND estado = 'confirmado' LIMIT 1"
+        "SELECT id FROM pagos WHERE usuario_id = ? AND producto_id = ? AND estado = 'confirmado' LIMIT 1"
     );
-    $stmt->bind_param('ii', $usuarioPerfilId, $eventoId);
+    $stmt->bind_param('ii', $usuarioPerfilId, $productoId);
     $stmt->execute();
-    $pagado = (bool) $stmt->get_result()->fetch_assoc();
+    $compro = (bool) $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    return $pagado;
+    return $compro;
+}
+
+/**
+ * Gate de membresía: true si el usuario tiene una suscripción activa (y, si
+ * Stripe ya reportó fin de periodo, que todavía no haya pasado).
+ */
+function usuario_tiene_membresia_activa(int $usuarioPerfilId): bool
+{
+    global $conn;
+
+    $stmt = $conn->prepare(
+        "SELECT id FROM membresia_suscripciones
+         WHERE usuario_id = ? AND estado = 'activa'
+           AND (periodo_actual_fin IS NULL OR periodo_actual_fin >= NOW())
+         LIMIT 1"
+    );
+    $stmt->bind_param('i', $usuarioPerfilId);
+    $stmt->execute();
+    $activa = (bool) $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return $activa;
+}
+
+/**
+ * Activa o reactiva una suscripción de membresía ya existente (fila nueva,
+ * una 'pendiente' de transferencia, o una ya activa que se está editando),
+ * calculando periodo_actual_fin a partir de la fecha de inicio + el intervalo
+ * de la membresía — salvo que $caduca sea false, en cuyo caso queda NULL
+ * (usuario_tiene_membresia_activa() ya trata NULL como "nunca vence").
+ * Único punto de escritura para altas/ediciones manuales o por transferencia,
+ * usado por el editor modal compartido (membresia_suscripcion_guardar.php,
+ * usado desde panel/admin/usuarios.php y panel/admin/membresias.php).
+ */
+function activar_suscripcion_membresia(
+    mysqli $conn,
+    int $suscripcionId,
+    string $fechaInicio,
+    int $activadaPorId,
+    string $metodo,
+    bool $caduca = true,
+    bool $renovacionAutomatica = false
+): void {
+    $stmt = $conn->prepare(
+        'SELECT s.id, m.intervalo FROM membresia_suscripciones s JOIN membresias m ON m.id = s.membresia_id WHERE s.id = ?'
+    );
+    $stmt->bind_param('i', $suscripcionId);
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$fila) {
+        return;
+    }
+
+    $inicio = new DateTime($fechaInicio !== '' ? $fechaInicio : 'today');
+    $inicioStr = $inicio->format('Y-m-d');
+
+    $finStr = null;
+    if ($caduca) {
+        $fin = clone $inicio;
+        $fin->modify($fila['intervalo'] === 'anual' ? '+1 year' : '+1 month');
+        $finStr = $fin->format('Y-m-d H:i:s');
+    }
+
+    $renovacionInt = $renovacionAutomatica ? 1 : 0;
+    $stmt = $conn->prepare(
+        "UPDATE membresia_suscripciones
+         SET estado = 'activa', metodo = ?, fecha_inicio = ?, periodo_actual_fin = ?, activada_por = ?, renovacion_automatica = ?
+         WHERE id = ?"
+    );
+    $stmt->bind_param('sssiii', $metodo, $inicioStr, $finStr, $activadaPorId, $renovacionInt, $suscripcionId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Links del navbar/footer administrables desde el panel. $area filtra por
+ * 'nav'/'footer' pero siempre incluye los marcados 'ambos'. Cada contexto de
+ * render (raíz, plataforma/, foro/) antepone el prefijo relativo que le
+ * corresponda a la `url` guardada (que siempre es relativa a la raíz del sitio).
+ */
+function obtener_navbar_links(string $area): array
+{
+    global $conn;
+
+    $stmt = $conn->prepare(
+        "SELECT texto, url, abre_nueva_pestana FROM navbar_links
+         WHERE activo = 1 AND (area = ? OR area = 'ambos')
+         ORDER BY orden ASC, texto ASC"
+    );
+    $stmt->bind_param('s', $area);
+    $stmt->execute();
+    $links = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $links;
+}
+
+/**
+ * Resuelve la `url` guardada (relativa a la raíz del sitio, o absoluta/externa)
+ * al href real desde el contexto que esté renderizando: $prefijoRelativo es ''
+ * en la raíz del sitio, '../' desde plataforma/ o foro/ (ambas un nivel bajo la
+ * raíz). Las URLs externas (http/https) o absolutas (/...) se devuelven tal cual.
+ */
+function navbar_href(string $url, string $prefijoRelativo): string
+{
+    if (preg_match('~^(https?:)?//~i', $url) || strpos($url, '/') === 0) {
+        return $url;
+    }
+    return $prefijoRelativo . $url;
 }

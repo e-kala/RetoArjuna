@@ -31,4 +31,4 @@ if ((int) $usuario['activo'] !== 1) {
 
 login_user((int) $usuario['id']);
 
-echo json_encode(['success' => true, 'redirect' => BASE_URL . '/panel/index.php']);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);

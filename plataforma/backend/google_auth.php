@@ -61,7 +61,7 @@ $stmt->close();
 
 if ($usuario) {
     login_user((int) $usuario['id']);
-    echo json_encode(['success' => true, 'redirect' => BASE_URL . '/panel/index.php']);
+    echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);
     exit;
 }
 
@@ -78,7 +78,7 @@ if ($usuario) {
     $stmt->execute();
     $stmt->close();
     login_user((int) $usuario['id']);
-    echo json_encode(['success' => true, 'redirect' => BASE_URL . '/panel/index.php']);
+    echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);
     exit;
 }
 
@@ -109,4 +109,4 @@ $nuevoId = $stmt->insert_id;
 $stmt->close();
 
 login_user($nuevoId);
-echo json_encode(['success' => true, 'redirect' => BASE_URL . '/panel/index.php?action=perfil']);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil')]);

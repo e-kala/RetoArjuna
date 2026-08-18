@@ -21,26 +21,25 @@ $stmt->close();
 require __DIR__ . '/inc/header.php';
 ?>
 
-<div class="pf-forum-head">
-  <h1><i class="bi bi-bell-fill"></i> Notificaciones</h1>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+  <h1 class="h3 fw-bold mb-0"><i class="bi bi-bell-fill"></i> Notificaciones</h1>
   <?php if ($notificaciones): ?>
-    <button class="pf-btn pf-btn-outline" id="marcarTodasBtn"><i class="bi bi-check2-all"></i> Marcar todas como leídas</button>
+    <button class="btn btn-outline-secondary btn-sm" id="marcarTodasBtn"><i class="bi bi-check2-all"></i> Marcar todas como leídas</button>
   <?php endif; ?>
 </div>
 
-<div class="pf-forum-notif-list">
+<div class="list-group shadow-sm">
   <?php foreach ($notificaciones as $n): ?>
-    <div class="pf-forum-notif-row <?= $n['leida'] ? '' : 'no-leida' ?>">
-      <a href="tema.php?id=<?= (int) $n['tema_id'] ?><?= $n['respuesta_id'] ? '#respuesta-' . (int) $n['respuesta_id'] : '' ?>">
-        <i class="bi <?= $n['tipo'] === 'mencion' ? 'bi-at' : 'bi-reply-fill' ?>"></i>
-        <strong><?= htmlspecialchars($n['actor_username']) ?></strong>
-        <?= $n['tipo'] === 'mencion' ? 'te mencionó en' : 'respondió a' ?>
-        «<?= htmlspecialchars($n['tema_titulo']) ?>» · <?= foro_tiempo_relativo($n['created_at']) ?>
-      </a>
-    </div>
+    <a class="list-group-item list-group-item-action" style="<?= $n['leida'] ? '' : 'border-left:3px solid var(--pf-accent);background:#fffaf2;' ?>"
+       href="tema.php?id=<?= (int) $n['tema_id'] ?><?= $n['respuesta_id'] ? '#respuesta-' . (int) $n['respuesta_id'] : '' ?>">
+      <i class="bi <?= $n['tipo'] === 'mencion' ? 'bi-at' : 'bi-reply-fill' ?>"></i>
+      <strong><?= htmlspecialchars($n['actor_username']) ?></strong>
+      <?= $n['tipo'] === 'mencion' ? 'te mencionó en' : 'respondió a' ?>
+      «<?= htmlspecialchars($n['tema_titulo']) ?>» · <span class="text-muted"><?= foro_tiempo_relativo($n['created_at']) ?></span>
+    </a>
   <?php endforeach; ?>
   <?php if (!$notificaciones): ?>
-    <p class="pf-forum-empty"><i class="bi bi-bell-slash"></i> No tienes notificaciones todavía.</p>
+    <div class="list-group-item text-center text-muted py-5"><i class="bi bi-bell-slash fs-2 d-block mb-2"></i> No tienes notificaciones todavía.</div>
   <?php endif; ?>
 </div>
 

@@ -14,7 +14,7 @@ if (!is_logged_in()) {
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 $eventoId = (int) ($_POST['evento_id'] ?? 0);
 
-$stmt = $conn->prepare('SELECT gratuito, activo, cupo_maximo FROM eventos WHERE id = ?');
+$stmt = $conn->prepare('SELECT gratuito, activo, cupo_maximo, solo_miembros, incluido_membresia, fecha_inicio FROM eventos WHERE id = ?');
 $stmt->bind_param('i', $eventoId);
 $stmt->execute();
 $evento = $stmt->get_result()->fetch_assoc();
@@ -25,12 +25,27 @@ if (!$evento || !(int) $evento['activo']) {
     exit;
 }
 
-if ((int) $evento['gratuito'] !== 1) {
+$soloMiembros = (int) $evento['solo_miembros'] === 1;
+$incluidoMembresia = (int) $evento['incluido_membresia'] === 1;
+$esMiembro = usuario_tiene_membresia_activa($usuarioPerfilId);
+
+if ($soloMiembros && !$esMiembro) {
+    echo json_encode(['success' => false, 'message' => 'Este evento es exclusivo para miembros de Camino Arjuna.']);
+    exit;
+}
+// solo_miembros ya implica "incluido" para quien es miembro (y a los que no
+// lo son ya se les bloqueó arriba); incluido_membresia extiende lo mismo a
+// un evento que NO es exclusivo (los demás lo siguen pudiendo comprar).
+$accesoGratisPorMembresia = ($soloMiembros || $incluidoMembresia) && $esMiembro;
+if ((int) $evento['gratuito'] !== 1 && !$accesoGratisPorMembresia) {
     echo json_encode(['success' => false, 'message' => 'Este evento requiere pago.', 'checkout' => true]);
     exit;
 }
 
-if ($evento['cupo_maximo'] !== null) {
+// El cupo limita lugares para el evento en vivo — una vez pasado, ya no
+// aplica (registrarse ahí es solo para acceder a la grabación).
+$esPasado = strtotime($evento['fecha_inicio']) < time();
+if (!$esPasado && $evento['cupo_maximo'] !== null) {
     $stmt = $conn->prepare("SELECT COUNT(*) AS n FROM evento_inscripciones WHERE evento_id = ? AND estado <> 'cancelado'");
     $stmt->bind_param('i', $eventoId);
     $stmt->execute();

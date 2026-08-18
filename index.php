@@ -8,7 +8,7 @@ $usuario = current_user();
 $plataformaUrl = BASE_URL; // .../plataforma
 
 $proximosEventos = $conn->query(
-    "SELECT titulo, slug, tipo, ubicacion, fecha_inicio, precio, gratuito
+    "SELECT titulo, slug, tipo, ubicacion, fecha_inicio, precio, gratuito, imagen_portada
      FROM eventos WHERE activo = 1 AND fecha_inicio >= NOW() ORDER BY fecha_inicio ASC LIMIT 3"
 )->fetch_all(MYSQLI_ASSOC);
 
@@ -24,122 +24,141 @@ $productosDestacados = $conn->query(
   <title>Reto Arjuna — Plataforma</title>
   <meta name="description" content="Cursos, eventos, foro y tienda del Reto Arjuna, todo en un mismo lugar.">
   <link rel="icon" href="digital-creative/img/favicon.ico">
-  <link rel="stylesheet" href="assets/css/platform.css?v=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/platform.css?v=1.2">
 </head>
 <body class="pf-body">
 
-  <nav class="pf-nav">
-    <div class="pf-container">
-      <a href="index.php" class="pf-logo pf-logo-img">
-        <img src="digital-creative/img/logo.png" alt="Reto Arjuna">
-        <span>Reto Arjuna</span>
-      </a>
+  <?php $navPrefijo = ''; include 'plataforma/content/navbar.php'; ?>
 
-      <ul class="pf-nav-links">
-        <li><a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Cursos</a></li>
-        <li><a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=actividades">Actividades</a></li>
-        <li><a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=noticias">Noticias</a></li>
-        <li><a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=eventos">Eventos</a></li>
-        <li><a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=tienda">Tienda</a></li>
-        <li><a href="foro/">Foro</a></li>
-        <li><a href="reto-arjuna.html">Reto Arjuna</a></li>
-      </ul>
-
-      <div class="pf-nav-session">
-        <?php if ($usuario): ?>
-          <div class="pf-user-menu">
-            <button class="pf-user-chip">
-              <span class="pf-user-avatar"><?= htmlspecialchars(strtoupper(substr((string) $usuario['username'], 0, 1))) ?></span>
-              <?= htmlspecialchars((string) $usuario['username']) ?>
-            </button>
-            <div class="pf-user-dropdown">
-              <a href="<?= htmlspecialchars($plataformaUrl) ?>/panel/index.php">Mi panel</a>
-              <a href="<?= htmlspecialchars($plataformaUrl) ?>/backend/logout.php">Salir</a>
-            </div>
+  <section class="py-5">
+    <div class="container py-4">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-6">
+          <span class="badge rounded-pill text-uppercase mb-3" style="background:#fff3e0;color:#c96a00;font-size:12px;letter-spacing:.06em;padding:8px 16px;">Un espacio guiado, no solo contenido</span>
+          <h1 class="display-5 fw-bold mb-3">
+            <?php if ($usuario): ?>
+              Hola, <?= htmlspecialchars((string) $usuario['username']) ?> — qué bueno tenerte de vuelta 👋
+            <?php else: ?>
+              Bienvenidos al ecosistema Arjuna
+            <?php endif; ?>
+          </h1>
+          <p class="fs-5 text-muted mb-4">No es solo contenido — es un espacio guiado, con personas reales acompañando cada paso: cursos, comunidad, encuentros y práctica continua, todo en un mismo lugar.</p>
+          <div class="d-flex gap-3 flex-wrap">
+            <?php if ($usuario): ?>
+              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/<?= $usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php' ?>">Ir a mi panel</a>
+              <a class="btn btn-outline-secondary btn-lg" href="foro/">Ir al foro</a>
+            <?php else: ?>
+              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Regístrate gratis</a>
+              <a class="btn btn-outline-secondary btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Explorar cursos</a>
+            <?php endif; ?>
           </div>
-        <?php else: ?>
-          <a class="pf-btn pf-btn-outline" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=ingreso">Iniciar sesión</a>
-          <a class="pf-btn pf-btn-primary" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Registrarse</a>
-        <?php endif; ?>
-      </div>
-    </div>
-  </nav>
-
-  <section class="pf-hero">
-    <div class="pf-container">
-      <span class="pf-eyebrow">Bienvenido al ecosistema</span>
-      <h1>
-        <?php if ($usuario): ?>
-          Hola, <?= htmlspecialchars((string) $usuario['username']) ?> 👋
-        <?php else: ?>
-          Un espacio para aprender, conectar y crecer
-        <?php endif; ?>
-      </h1>
-      <p>Cursos, eventos, comunidad y tienda del Reto Arjuna, todo en un mismo lugar.</p>
-      <div class="pf-hero-actions">
-        <?php if ($usuario): ?>
-          <a class="pf-btn pf-btn-primary pf-btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/index.php">Ir a mi panel</a>
-          <a class="pf-btn pf-btn-outline pf-btn-lg" href="foro/">Ir al foro</a>
-        <?php else: ?>
-          <a class="pf-btn pf-btn-primary pf-btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Únete gratis</a>
-          <a class="pf-btn pf-btn-outline pf-btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Explorar cursos</a>
-        <?php endif; ?>
+        </div>
+        <div class="col-lg-6">
+          <img src="digital-creative/img/banner.jpg" alt="Una brújula sobre un mapa — orientación en el camino" class="img-fluid rounded-4 shadow">
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="pf-section">
-    <div class="pf-container">
-      <div class="pf-section-title">
-        <h2>Todo en un mismo lugar</h2>
-        <p>Cuatro espacios, una sola cuenta.</p>
+  <section class="py-5" style="background:var(--pf-surface);border-top:1px solid var(--pf-line);border-bottom:1px solid var(--pf-line);">
+    <div class="container py-4">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold">Explora el ecosistema</h2>
+        <p class="text-muted">Un mapa rápido de todo lo que tienes disponible, en un solo vistazo.</p>
       </div>
-      <div class="pf-grid-3">
-        <div class="pf-card">
-          <div class="pf-card-icon">🎓</div>
-          <h3>Cursos</h3>
-          <p>Aprende a tu ritmo con lecciones, quizzes y certificados al completar cada curso.</p>
-          <a class="pf-btn pf-btn-outline" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Ver cursos</a>
+      <div class="row row-cols-2 row-cols-md-4 g-3">
+        <?php
+        $mapaEcosistema = [
+          ['icono' => '🎓', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Cursos', 'texto' => 'Aprende a tu ritmo con lecciones, quizzes y certificado al completar.', 'href' => $plataformaUrl . '/index.php?action=cursos'],
+          ['icono' => '📅', 'bg' => '#e6f4ea', 'color' => '#1e7d3c', 'titulo' => 'Eventos', 'texto' => 'Encuentros en línea y presenciales — inscríbete y recibe tu reconocimiento.', 'href' => $plataformaUrl . '/index.php?action=eventos'],
+          ['icono' => '💬', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Foro', 'texto' => 'Conversa, pregunta y comparte con la comunidad del Reto Arjuna.', 'href' => 'foro/'],
+          ['icono' => '🛍️', 'bg' => '#fdeaea', 'color' => '#c0392b', 'titulo' => 'Tienda', 'texto' => 'Merchandise e infoproductos físicos y digitales para tu práctica.', 'href' => $plataformaUrl . '/index.php?action=tienda'],
+          ['icono' => '🙏', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Actividades', 'texto' => 'Prácticas guiadas para sostener el método en tu día a día.', 'href' => $plataformaUrl . '/index.php?action=actividades'],
+          ['icono' => '📰', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Noticias', 'texto' => 'Avisos y novedades de la comunidad, siempre al día.', 'href' => $plataformaUrl . '/index.php?action=noticias'],
+          ['icono' => '🧭', 'bg' => '#eeeeee', 'color' => '#444444', 'titulo' => 'Mi panel', 'texto' => 'Tu progreso, tus compras, tu membresía — todo en un solo lugar.', 'href' => $plataformaUrl . '/panel/index.php' . ($usuario ? '' : '?action=ingreso')],
+        ];
+        ?>
+        <?php foreach ($mapaEcosistema as $item): ?>
+          <div class="col">
+            <a href="<?= htmlspecialchars($item['href']) ?>" class="card h-100 text-decoration-none shadow-sm border-0" style="transition:transform .15s ease;">
+              <div class="card-body">
+                <div class="rounded-3 d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;font-size:22px;background:<?= $item['bg'] ?>;color:<?= $item['color'] ?>;"><?= $item['icono'] ?></div>
+                <h3 class="h6 fw-bold text-body"><?= htmlspecialchars($item['titulo']) ?></h3>
+                <p class="small text-muted mb-0"><?= htmlspecialchars($item['texto']) ?></p>
+              </div>
+            </a>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container py-4">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold">No caminas solo</h2>
+        <p class="text-muted">Personas reales sosteniendo el proceso contigo, no solo un curso grabado.</p>
+      </div>
+      <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <img src="digital-creative/img/team-1.jpg" alt="Srivas" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <h3 class="h5 fw-bold mb-0">Srivas</h3>
+              <p class="small fw-bold mb-2" style="color:#c96a00;">Facilitador principal</p>
+              <p class="small text-muted mb-0">Traduce enseñanzas clásicas en herramientas prácticas para sostener decisiones reales cuando hay presión en la vida diaria.</p>
+            </div>
+          </div>
         </div>
-        <div class="pf-card">
-          <div class="pf-card-icon">📅</div>
-          <h3>Eventos</h3>
-          <p>Encuentros en línea y presenciales — inscríbete y recibe tu reconocimiento al asistir.</p>
-          <a class="pf-btn pf-btn-outline" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=eventos">Ver eventos</a>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <img src="digital-creative/img/team-2.jpg" alt="Nimai" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <h3 class="h5 fw-bold mb-0">Nimai</h3>
+              <p class="small fw-bold mb-2" style="color:#c96a00;">Encuentros en vivo y soporte</p>
+              <p class="small text-muted mb-0">Sostiene el proceso con claridad y ejecución: resuelve dudas, modera el foro y acompaña la práctica aplicada al día.</p>
+            </div>
+          </div>
         </div>
-        <div class="pf-card">
-          <div class="pf-card-icon">💬</div>
-          <h3>Foro</h3>
-          <p>Conversa, pregunta y comparte con la comunidad del Reto Arjuna.</p>
-          <a class="pf-btn pf-btn-outline" href="foro/">Entrar al foro</a>
-        </div>
-        <div class="pf-card">
-          <div class="pf-card-icon">🛍️</div>
-          <h3>Tienda</h3>
-          <p>Merchandise e infoproductos para acompañar tu práctica.</p>
-          <a class="pf-btn pf-btn-outline" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=tienda">Ver tienda</a>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <img src="digital-creative/img/team-3.jpg" alt="Krishna" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <h3 class="h5 fw-bold mb-0">Krishna</h3>
+              <p class="small fw-bold mb-2" style="color:#c96a00;">Facilitador de encuentros en vivo</p>
+              <p class="small text-muted mb-0">Co-guía los encuentros y ayuda a aterrizar la práctica diaria para convertir claridad en acciones posibles y sostenibles.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
   <?php if ($proximosEventos): ?>
-  <section class="pf-section">
-    <div class="pf-container">
-      <div class="pf-section-title">
-        <h2>Próximos eventos</h2>
-        <p>Inscríbete antes de que se agote el cupo.</p>
+  <section class="py-5">
+    <div class="container py-4">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold">Próximos eventos</h2>
+        <p class="text-muted">Inscríbete antes de que se agote el cupo.</p>
       </div>
-      <div class="pf-grid-3">
+      <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
         <?php foreach ($proximosEventos as $ev): ?>
-          <div class="pf-card">
-            <h3><?= htmlspecialchars($ev['titulo']) ?></h3>
-            <p style="color:var(--pf-muted);font-size:13px;">
-              <?= $ev['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $ev['ubicacion']) ?>
-              · <?= htmlspecialchars(date('d/m/Y', strtotime($ev['fecha_inicio']))) ?>
-            </p>
-            <p><?= (int) $ev['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $ev['precio'], 2) . ' MXN' ?></p>
-            <a class="pf-btn pf-btn-primary" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>">Inscribirme</a>
+          <div class="col" style="max-width:360px;">
+            <div class="card h-100 border-0 shadow-sm">
+              <img src="<?= htmlspecialchars($ev['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
+              <div class="card-body d-flex flex-column">
+                <h3 class="h5 fw-bold"><?= htmlspecialchars($ev['titulo']) ?></h3>
+                <p class="small text-muted mb-1">
+                  <?= $ev['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $ev['ubicacion']) ?>
+                  · <?= htmlspecialchars(date('d/m/Y', strtotime($ev['fecha_inicio']))) ?>
+                </p>
+                <p class="mb-3"><?= (int) $ev['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $ev['precio'], 2) . ' MXN' ?></p>
+                <a class="btn mt-auto" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>">Inscribirme</a>
+              </div>
+            </div>
           </div>
         <?php endforeach; ?>
       </div>
@@ -148,18 +167,23 @@ $productosDestacados = $conn->query(
   <?php endif; ?>
 
   <?php if ($productosDestacados): ?>
-  <section class="pf-section">
-    <div class="pf-container">
-      <div class="pf-section-title">
-        <h2>De la tienda</h2>
-        <p>Merchandise e infoproductos disponibles ahora.</p>
+  <section class="py-5" style="background:var(--pf-surface);border-top:1px solid var(--pf-line);border-bottom:1px solid var(--pf-line);">
+    <div class="container py-4">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold">De la tienda</h2>
+        <p class="text-muted">Merchandise e infoproductos disponibles ahora.</p>
       </div>
-      <div class="pf-grid-3">
+      <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
         <?php foreach ($productosDestacados as $p): ?>
-          <div class="pf-card">
-            <h3><?= htmlspecialchars($p['nombre']) ?></h3>
-            <p>$<?= number_format((float) $p['precio'], 2) ?> MXN</p>
-            <a class="pf-btn pf-btn-outline" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=producto&slug=<?= urlencode($p['slug']) ?>">Ver producto</a>
+          <div class="col" style="max-width:360px;">
+            <div class="card h-100 border-0 shadow-sm">
+              <img src="<?= htmlspecialchars($p['imagen'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
+              <div class="card-body d-flex flex-column">
+                <h3 class="h5 fw-bold"><?= htmlspecialchars($p['nombre']) ?></h3>
+                <p class="mb-3">$<?= number_format((float) $p['precio'], 2) ?> MXN</p>
+                <a class="btn btn-outline-secondary mt-auto" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=producto&slug=<?= urlencode($p['slug']) ?>">Ver producto</a>
+              </div>
+            </div>
           </div>
         <?php endforeach; ?>
       </div>
@@ -167,12 +191,12 @@ $productosDestacados = $conn->query(
   </section>
   <?php endif; ?>
 
-  <section class="pf-section">
-    <div class="pf-container">
-      <div class="pf-callout">
-        <h2>¿Buscas el Reto Arjuna Marzo 2026?</h2>
-        <p>Entrenamiento en vivo de 10 días para sostener lo importante bajo presión.</p>
-        <a class="pf-btn pf-btn-primary pf-btn-lg" href="reto-arjuna.html">Ver el programa</a>
+  <section class="py-5">
+    <div class="container py-4">
+      <div class="p-5 rounded-4 text-center text-white" style="background:#1a1a1a;">
+        <h2 class="fw-bold">¿Buscas el próximo Reto Arjuna?</h2>
+        <p class="mb-4" style="opacity:.75;">Entrenamiento en vivo de 10 días para sostener lo más importante enmedio del caos.</p>
+        <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="reto-arjuna.html">Ver el programa</a>
       </div>
     </div>
   </section>
@@ -180,13 +204,9 @@ $productosDestacados = $conn->query(
   <footer class="pf-footer">
     <div class="pf-container">
       <nav class="pf-footer-links">
-        <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Cursos</a>
-        <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=actividades">Actividades</a>
-        <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=noticias">Noticias</a>
-        <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=eventos">Eventos</a>
-        <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=tienda">Tienda</a>
-        <a href="foro/">Foro</a>
-        <a href="reto-arjuna.html">Reto Arjuna</a>
+        <?php foreach (obtener_navbar_links('footer') as $footerLink): ?>
+          <a href="<?= htmlspecialchars(navbar_href($footerLink['url'], '')) ?>" <?= (int) $footerLink['abre_nueva_pestana'] === 1 ? 'target="_blank" rel="noopener"' : '' ?>><?= htmlspecialchars($footerLink['texto']) ?></a>
+        <?php endforeach; ?>
         <?php if (!$usuario): ?>
           <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=ingreso">Iniciar sesión</a>
           <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Registrarse</a>

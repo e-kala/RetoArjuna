@@ -3,27 +3,44 @@ require_once __DIR__ . '/../../backend/auth.php';
 require_role('admin');
 requerir_csrf_form();
 
+// Una lección pertenece a un curso O a un evento, nunca ambos (ver
+// schema_lecciones_compartidas.sql).
 $cursoId = (int) ($_GET['curso_id'] ?? $_POST['curso_id'] ?? 0);
+$eventoId = (int) ($_GET['evento_id'] ?? $_POST['evento_id'] ?? 0);
+$esEvento = $eventoId > 0;
+$padreId = $esEvento ? $eventoId : $cursoId;
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 
-$stmt = $conn->prepare('SELECT * FROM cursos WHERE id = ?');
-$stmt->bind_param('i', $cursoId);
-$stmt->execute();
-$curso = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if (!$curso) {
-    header('Location: cursos.php');
+if ($esEvento) {
+    $stmt = $conn->prepare('SELECT id, titulo FROM eventos WHERE id = ?');
+    $stmt->bind_param('i', $padreId);
+    $stmt->execute();
+    $padre = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $volverUrl = 'lecciones.php?evento_id=' . $padreId;
+} else {
+    $stmt = $conn->prepare('SELECT id, titulo FROM cursos WHERE id = ?');
+    $stmt->bind_param('i', $padreId);
+    $stmt->execute();
+    $padre = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $volverUrl = 'lecciones.php?curso_id=' . $padreId;
+}
+if (!$padre) {
+    header('Location: ' . ($esEvento ? 'eventos.php' : 'cursos.php'));
     exit;
 }
 
 $leccion = ['titulo' => '', 'descripcion' => '', 'tipo_contenido' => 'video', 'contenido_url' => '',
-            'contenido_texto' => '', 'orden' => 0, 'duracion_min' => '', 'vista_previa' => 0];
+            'contenido_texto' => '', 'orden' => 0, 'duracion_min' => '', 'vista_previa' => 0, 'foro_url' => ''];
 $videos = [''];
 $materiales = [['titulo' => '', 'url' => '']];
 
 if ($id) {
-    $stmt = $conn->prepare('SELECT * FROM lecciones WHERE id = ? AND curso_id = ?');
-    $stmt->bind_param('ii', $id, $cursoId);
+    $stmt = $esEvento
+        ? $conn->prepare('SELECT * FROM lecciones WHERE id = ? AND evento_id = ?')
+        : $conn->prepare('SELECT * FROM lecciones WHERE id = ? AND curso_id = ?');
+    $stmt->bind_param('ii', $id, $padreId);
     $stmt->execute();
     $leccion = $stmt->get_result()->fetch_assoc() ?: $leccion;
     $stmt->close();
@@ -46,7 +63,8 @@ if ($id) {
         $materiales = $materialesGuardados;
     }
 } else {
-    $max = $conn->query('SELECT COALESCE(MAX(orden),0) m FROM lecciones WHERE curso_id = ' . $cursoId)->fetch_assoc()['m'];
+    $columna = $esEvento ? 'evento_id' : 'curso_id';
+    $max = $conn->query("SELECT COALESCE(MAX(orden),0) m FROM lecciones WHERE $columna = " . $padreId)->fetch_assoc()['m'];
     $leccion['orden'] = (int) $max + 1;
 }
 
@@ -60,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
     $orden = (int) ($_POST['orden'] ?? 0);
     $duracion = $_POST['duracion_min'] !== '' ? (int) $_POST['duracion_min'] : null;
     $vistaPrevia = isset($_POST['vista_previa']) ? 1 : 0;
+    $foroUrl = trim($_POST['foro_url'] ?? '');
 
     $videosEnviados = array_values(array_filter(array_map('trim', $_POST['videos'] ?? []), fn($v) => $v !== ''));
     $materialesTitulos = $_POST['materiales_titulo'] ?? [];
@@ -77,15 +96,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
         $error = 'El título es obligatorio.';
     } else {
         if ($id) {
-            $stmt = $conn->prepare(
-                'UPDATE lecciones SET titulo=?, descripcion=?, tipo_contenido=?, contenido_url=?, contenido_texto=?, orden=?, duracion_min=?, vista_previa=? WHERE id=? AND curso_id=?'
-            );
-            $stmt->bind_param('sssssiiiii', $titulo, $descripcion, $tipo, $contenidoUrl, $contenidoTexto, $orden, $duracion, $vistaPrevia, $id, $cursoId);
+            $stmt = $esEvento
+                ? $conn->prepare('UPDATE lecciones SET titulo=?, descripcion=?, tipo_contenido=?, contenido_url=?, contenido_texto=?, orden=?, duracion_min=?, vista_previa=?, foro_url=? WHERE id=? AND evento_id=?')
+                : $conn->prepare('UPDATE lecciones SET titulo=?, descripcion=?, tipo_contenido=?, contenido_url=?, contenido_texto=?, orden=?, duracion_min=?, vista_previa=?, foro_url=? WHERE id=? AND curso_id=?');
+            $stmt->bind_param('sssssiiisii', $titulo, $descripcion, $tipo, $contenidoUrl, $contenidoTexto, $orden, $duracion, $vistaPrevia, $foroUrl, $id, $padreId);
         } else {
-            $stmt = $conn->prepare(
-                'INSERT INTO lecciones (curso_id, titulo, descripcion, tipo_contenido, contenido_url, contenido_texto, orden, duracion_min, vista_previa) VALUES (?,?,?,?,?,?,?,?,?)'
-            );
-            $stmt->bind_param('isssssiii', $cursoId, $titulo, $descripcion, $tipo, $contenidoUrl, $contenidoTexto, $orden, $duracion, $vistaPrevia);
+            $stmt = $esEvento
+                ? $conn->prepare('INSERT INTO lecciones (evento_id, titulo, descripcion, tipo_contenido, contenido_url, contenido_texto, orden, duracion_min, vista_previa, foro_url) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                : $conn->prepare('INSERT INTO lecciones (curso_id, titulo, descripcion, tipo_contenido, contenido_url, contenido_texto, orden, duracion_min, vista_previa, foro_url) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            $stmt->bind_param('isssssiiis', $padreId, $titulo, $descripcion, $tipo, $contenidoUrl, $contenidoTexto, $orden, $duracion, $vistaPrevia, $foroUrl);
         }
         if ($stmt->execute()) {
             $leccionId = $id ?: $stmt->insert_id;
@@ -114,10 +133,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
                 $ins->close();
             }
 
-            header('Location: lecciones.php?curso_id=' . $cursoId);
+            header('Location: ' . $volverUrl);
             exit;
         }
-        $error = '¿El orden ya está usado en este curso?';
+        $error = '¿El orden ya está usado en ' . ($esEvento ? 'este evento' : 'este curso') . '?';
         $stmt->close();
     }
 }
@@ -125,11 +144,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
 $pageTitle = $id ? 'Editar lección' : 'Nueva lección';
 include __DIR__ . '/_header.php';
 ?>
-<h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?> — <?= htmlspecialchars($curso['titulo']) ?></h1>
+<h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?> — <?= htmlspecialchars($padre['titulo']) ?></h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 <form method="post" class="row g-3">
   <?= csrf_field() ?>
-  <input type="hidden" name="curso_id" value="<?= $cursoId ?>">
+  <input type="hidden" name="<?= $esEvento ? 'evento_id' : 'curso_id' ?>" value="<?= $padreId ?>">
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <div class="col-md-8"><label class="form-label">Título</label><input class="form-control" name="titulo" value="<?= htmlspecialchars($leccion['titulo']) ?>" required></div>
   <div class="col-md-4"><label class="form-label">Orden</label><input type="number" class="form-control" name="orden" value="<?= (int) $leccion['orden'] ?>"></div>
@@ -147,6 +166,11 @@ include __DIR__ . '/_header.php';
     <input type="checkbox" class="form-check-input" name="vista_previa" id="vista_previa" <?= (int) $leccion['vista_previa'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="vista_previa">Vista previa gratuita (demo)</label>
   </div>
+  <?php
+  $foroFieldId = 'leccion';
+  $foroFieldValor = (string) $leccion['foro_url'];
+  include __DIR__ . '/_foro_link_field.php';
+  ?>
 
   <div class="col-12">
     <label class="form-label">Videos de YouTube (si el tipo es "video")</label>

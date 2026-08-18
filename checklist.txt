@@ -1,0 +1,63 @@
+cursos      |-
+
+Tienda      |- Al comprar en tienda te desbloquea y habilita la descarga si es digital
+            |- Si es físico se ve tiene que ver lo de el envío y etc
+            |- Si ya compraste el producto que ya no aparezca el precio, que aparezca "adquirido"
+            |- Que se puedan eliminar las filas o artículos en "mis compras" al igual que en la seccion admin de "pagos"
+
+Membresía   |- Descripción del contenido: Encuentro semanal de entrenamiento en vivo para aplicar el sistema en situaciones específicas, con acceso a las grabaciones de cada sesión y acceso temprano a nuevos materiales."
+
+Foro        |-       
+
+Eventos     |- Que se puedan ver más detalles del evento
+            |- que los eventos se puedan configurar en el panel de administración, si ya está, que el boton también aparezca en la barra lateral del panel
+
+Panel admin |- debe aparecer en la barra lateral el boton de productos
+            |- que en "editar producto" haya un form para añadir enlace para descargar el material.
+
+            añade imágenes temporales a todas las tarjetas y la funcion de que por defecto las que no se les ponga imagenes se ponga esta RetoArjuna/banner.png
+            
+
+
+_______________
+INDEX
+BIENVENIDOS AL ECOSISTEMA ARJUNA
+EN VEZ DE UNETE ES REGISTRATE
+
+
+CURSOS
+y
+eventos
+juntos en edicion
+pasados y futuros
+
+vimeo
+
+playeras
+creatuplayera.com
+
+
+usuarios
+buscador
+
+usuarios de menmbresía por transferencia
+los pagos en stripe confirmación automatica
+
+evento ->
+producto -> 
+
+appsanscrit
+
+membresía arjuna agregarlos como un plus
+
+
+eventos exclusivos para miembros
+
+dashboard responsivo
+
+
+
+____________________________
+appsanscrit
+que aparezcan solo en español
+edge adaptación

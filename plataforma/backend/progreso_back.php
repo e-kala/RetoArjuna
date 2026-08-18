@@ -25,6 +25,13 @@ if (!$leccion) {
     exit;
 }
 
+// El progreso por lección solo existe para cursos — las lecciones de un
+// evento (ver schema_lecciones_compartidas.sql) no tienen "completado".
+if ($leccion['curso_id'] === null) {
+    echo json_encode(['success' => false, 'message' => 'Esta lección no forma parte de un curso.']);
+    exit;
+}
+
 $cursoId = (int) $leccion['curso_id'];
 if (!usuario_tiene_acceso_curso($usuarioPerfilId, $cursoId)) {
     http_response_code(403);

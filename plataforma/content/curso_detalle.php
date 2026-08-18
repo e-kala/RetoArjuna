@@ -20,6 +20,8 @@ $stmt->close();
 
 $usuario = current_user();
 $tieneAcceso = $usuario ? usuario_tiene_acceso_curso($usuario['id'], $cursoId) : false;
+$esMiembro = $usuario ? usuario_tiene_membresia_activa($usuario['id']) : false;
+$incluidoPorMembresia = $esMiembro && (int) $curso['incluido_membresia'] === 1;
 
 $completadas = [];
 if ($usuario) {
@@ -54,10 +56,15 @@ $primeraLeccion = $lecciones[0] ?? null;
     <span class="badge bg-secondary"><?= htmlspecialchars($curso['nivel']) ?></span>
     <?php if ((int) $curso['gratuito'] === 1): ?>
       <span class="badge" style="background:#f7931e;">Gratuito</span>
+    <?php elseif ($incluidoPorMembresia): ?>
+      <span class="badge" style="background:#6f42c1;">👑 Incluido en tu membresía</span>
     <?php elseif ($tieneAcceso): ?>
       <span class="badge bg-success">Ya tienes acceso</span>
     <?php else: ?>
       <span class="badge" style="background:#f7931e;">$<?= number_format((float) $curso['precio'], 2) ?> MXN</span>
+      <?php if ((int) $curso['incluido_membresia'] === 1): ?>
+        <span class="badge" style="background:#6f42c1;">👑 Incluido con membresía</span>
+      <?php endif; ?>
     <?php endif; ?>
   </p>
 
@@ -66,7 +73,7 @@ $primeraLeccion = $lecciones[0] ?? null;
       <div class="progress-bar" style="width: <?= $porcentaje ?>%; background:#f7931e;"></div>
     </div>
     <p class="text-muted small"><?= $porcentaje ?>% completado</p>
-    <a href="../foro/curso.php?curso_id=<?= $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
+    <a href="<?= $curso['foro_url'] ? htmlspecialchars(navbar_href($curso['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
   <?php endif; ?>
 
   <div class="list-group mb-4">
@@ -80,7 +87,7 @@ $primeraLeccion = $lecciones[0] ?? null;
           </a>
           <?php if (!$tieneAcceso): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
           <?php if ($tieneAcceso): ?>
-            <a href="../foro/curso.php?curso_id=<?= $cursoId ?>&leccion_id=<?= (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
+            <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $cursoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
               <i class="bi bi-chat-square-text"></i>
             </a>
           <?php endif; ?>
@@ -93,14 +100,39 @@ $primeraLeccion = $lecciones[0] ?? null;
     <?php endforeach; ?>
   </div>
 
-  <?php if (!$tieneAcceso && (int) $curso['gratuito'] === 0): ?>
-    <div class="card p-3">
+  <?php if (!$tieneAcceso): ?>
+    <div class="card p-3" style="max-width:480px;">
       <?php if (!$usuario): ?>
-        <p class="mb-2">Regístrate para comprar este curso.</p>
+        <p class="mb-2"><?= (int) $curso['gratuito'] === 1 ? 'Regístrate para inscribirte a este curso.' : 'Regístrate para comprar este curso.' ?></p>
         <a href="?action=registro" class="btn" style="background:#f7931e;color:#fff;">Regístrate</a>
+      <?php elseif ((int) $curso['gratuito'] === 1): ?>
+        <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Inscribirme gratis</button>
+        <div id="inscribirCursoMsg" class="form-text mt-2"></div>
       <?php else: ?>
         <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar curso completo</a>
       <?php endif; ?>
     </div>
   <?php endif; ?>
 </div>
+
+<?php if ($usuario && !$tieneAcceso && (int) $curso['gratuito'] === 1): ?>
+<script>
+  document.getElementById('btnInscribirseCurso').addEventListener('click', async function () {
+    this.disabled = true;
+    const res = await fetch('backend/curso_inscribir.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ curso_id: <?= $cursoId ?>, csrf_token: <?= json_encode(csrf_token()) ?> }),
+    });
+    const data = await res.json();
+    const msg = document.getElementById('inscribirCursoMsg');
+    if (data.success) {
+      window.location.href = '?action=curso&slug=<?= urlencode($curso['slug']) ?>&bienvenida=1';
+    } else {
+      msg.textContent = data.message || 'No se pudo completar la inscripción.';
+      msg.className = 'form-text text-danger mt-2';
+      this.disabled = false;
+    }
+  });
+</script>
+<?php endif; ?>

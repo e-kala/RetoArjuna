@@ -50,4 +50,4 @@ $stmt->close();
 
 login_user($nuevoId);
 
-echo json_encode(['success' => true, 'redirect' => BASE_URL . '/panel/index.php?action=perfil']);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil')]);

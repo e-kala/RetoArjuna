@@ -31,10 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $imagen = (string) $noticia['imagen'];
 
     try {
-        $imagenSubida = procesar_subida_imagen('imagen_file', 'noticias');
-        if ($imagenSubida !== null) {
-            $imagen = $imagenSubida;
-        }
+        $imagen = procesar_imagen_form('imagen_file', 'noticias', $imagen);
     } catch (RuntimeException $e) {
         $error = $e->getMessage();
     }
@@ -70,16 +67,14 @@ include __DIR__ . '/_header.php';
   <div class="col-md-4"><label class="form-label">Slug (opcional)</label><input class="form-control" name="slug" value="<?= htmlspecialchars($noticia['slug']) ?>"></div>
   <div class="col-12"><label class="form-label">Resumen (para la tarjeta del listado)</label><input class="form-control" name="resumen" value="<?= htmlspecialchars((string) $noticia['resumen']) ?>" maxlength="300"></div>
   <div class="col-12"><label class="form-label">Contenido (HTML básico)</label><textarea class="form-control" name="contenido" rows="8" required><?= htmlspecialchars($noticia['contenido']) ?></textarea></div>
-  <div class="col-md-6">
-    <label class="form-label">Imagen</label>
-    <input type="file" class="form-control" name="imagen_file" accept="image/png,image/jpeg,image/webp,image/gif">
-    <?php if ($noticia['imagen']): ?>
-      <div class="mt-2 d-flex align-items-center gap-2">
-        <img src="../../<?= htmlspecialchars($noticia['imagen']) ?>" alt="" style="height:60px;border-radius:6px;">
-        <span class="text-muted small">Imagen actual — sube otra para reemplazarla.</span>
-      </div>
-    <?php endif; ?>
-  </div>
+  <?php
+  $imgPickerId = 'noticia';
+  $imgPickerCampo = 'imagen_file';
+  $imgPickerSubdir = 'noticias';
+  $imgPickerActual = (string) $noticia['imagen'];
+  $imgPickerLabel = 'Imagen';
+  include __DIR__ . '/_imagen_picker.php';
+  ?>
   <div class="col-md-4"><label class="form-label">Fecha de publicación</label><input type="datetime-local" class="form-control" name="publicada_at" value="<?= htmlspecialchars($noticia['publicada_at']) ?>"></div>
   <div class="col-md-2 form-check mt-4">
     <input type="checkbox" class="form-check-input" name="activo" id="activo" <?= (int) $noticia['activo'] === 1 ? 'checked' : '' ?>>

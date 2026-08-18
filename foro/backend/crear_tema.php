@@ -51,8 +51,13 @@ if ($cursoId && $leccionId) {
     $stmt->close();
 }
 
+$contenidoHtml = foro_sanitizar_html_editor($contenido);
+if (foro_contenido_html_vacio($contenidoHtml)) {
+    echo json_encode(['success' => false, 'message' => 'Escribe un mensaje.']);
+    exit;
+}
+
 $slug = foro_slug_unico(foro_slugify($titulo));
-$contenidoHtml = convertir_contenido_foro($contenido);
 
 $stmt = $conn->prepare(
     'INSERT INTO foro_temas (categoria_id, curso_id, leccion_id, usuario_id, titulo, slug, contenido, ultima_respuesta_at)

@@ -22,7 +22,7 @@
                    value="<?= htmlspecialchars((string) ($usuario['telefono'] ?? '')) ?>">
         </div>
         <div class="col-12">
-            <button type="submit" class="btn btn-success">Guardar cambios</button>
+            <button type="submit" class="btn fw-bold" style="background:#F6C500;color:#171717;">Guardar cambios</button>
         </div>
     </form>
 

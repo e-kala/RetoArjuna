@@ -29,6 +29,7 @@ include __DIR__ . '/_header.php';
   <h1 class="h4">Actividades</h1>
   <a href="actividad_form.php" class="btn btn-success btn-sm">+ Nueva actividad</a>
 </div>
+<div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Icono</th><th>Título</th><th>Orden</th><th>Estado</th><th>Acciones</th></tr></thead>
   <tbody>
@@ -47,4 +48,5 @@ include __DIR__ . '/_header.php';
     <?php endforeach; ?>
   </tbody>
 </table>
+</div>
 <?php include __DIR__ . '/_footer.php'; ?>

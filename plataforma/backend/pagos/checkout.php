@@ -10,13 +10,31 @@ if (!$item || !$item['activo'] || $item['gratuito']) {
     header('Location: ' . BASE_URL . '/index.php');
     exit;
 }
+
+function destino_tras_pago(array $item): string
+{
+    if ($item['tipo'] === 'curso') {
+        return BASE_URL . '/index.php?action=curso&slug=' . urlencode($item['slug']) . '&bienvenida=1';
+    }
+    if ($item['tipo'] === 'evento') {
+        return BASE_URL . '/index.php?action=evento&slug=' . urlencode($item['slug']);
+    }
+    return BASE_URL . '/panel/index.php?action=mis_compras&pago=ok';
+}
+
 if ($item['ya_tiene_acceso']) {
-    $destino = $item['tipo'] === 'curso'
-        ? BASE_URL . '/index.php?action=curso&slug=' . urlencode($item['slug']) . '&bienvenida=1'
-        : ($item['tipo'] === 'evento'
-            ? BASE_URL . '/index.php?action=evento&slug=' . urlencode($item['slug'])
-            : BASE_URL . '/index.php?action=producto&slug=' . urlencode($item['slug']));
-    header('Location: ' . $destino);
+    header('Location: ' . destino_tras_pago($item));
+    exit;
+}
+
+// Stripe.js confirmPayment() regresa aquí (redirect por defecto es 'always') con
+// estos parámetros en la URL. redirect_status=succeeded es la propia confirmación
+// de Stripe de que el cobro se completó — no depende de que el webhook ya haya
+// corrido, así que sirve para redirigir de inmediato aunque el webhook (que es
+// quien de verdad marca `pagos.estado = 'confirmado'` y libera el acceso) tarde
+// unos segundos más en llegar.
+if (isset($_GET['payment_intent']) && ($_GET['redirect_status'] ?? '') === 'succeeded') {
+    header('Location: ' . destino_tras_pago($item));
     exit;
 }
 
@@ -52,15 +70,6 @@ $paramName = $item['tipo'] . '_id';
             <textarea id="direccionEnvio" class="form-control" rows="3" placeholder="Calle, número, colonia, ciudad, CP"></textarea>
           </div>
         <?php endif; ?>
-
-        <div id="cuponBox" class="mb-4">
-          <label class="form-label">¿Tienes un cupón?</label>
-          <div class="input-group">
-            <input type="text" id="codigoCupon" class="form-control" placeholder="CODIGO">
-            <button class="btn btn-outline-secondary" type="button" id="btnAplicarCupon">Aplicar</button>
-          </div>
-          <div id="cuponMsg" class="form-text"></div>
-        </div>
 
         <ul class="nav nav-tabs mb-3">
           <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-stripe">Tarjeta</button></li>
@@ -101,36 +110,15 @@ $paramName = $item['tipo'] . '_id';
     const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
     const PARAM_NAME = <?= json_encode($paramName) ?>;
     const ITEM_ID = <?= (int) $item['id'] ?>;
-    let cuponAplicado = '';
 
     function datosBase() {
-      const datos = { [PARAM_NAME]: ITEM_ID, codigo_cupon: cuponAplicado, csrf_token: CSRF_TOKEN };
+      const datos = { [PARAM_NAME]: ITEM_ID, csrf_token: CSRF_TOKEN };
       const cantidadEl = document.getElementById('cantidad');
       if (cantidadEl) datos.cantidad = cantidadEl.value;
       const direccionEl = document.getElementById('direccionEnvio');
       if (direccionEl) datos.direccion_envio = direccionEl.value;
       return datos;
     }
-
-    document.getElementById('btnAplicarCupon').addEventListener('click', async () => {
-      const codigo = document.getElementById('codigoCupon').value.trim();
-      const res = await fetch('./cupon_validar.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ [PARAM_NAME]: ITEM_ID, codigo, csrf_token: CSRF_TOKEN }),
-      });
-      const data = await res.json();
-      const msg = document.getElementById('cuponMsg');
-      if (data.success) {
-        cuponAplicado = codigo;
-        msg.textContent = `Cupón aplicado: nuevo total $${data.monto_final.toFixed(2)} MXN`;
-        msg.className = 'form-text text-success';
-      } else {
-        cuponAplicado = '';
-        msg.textContent = data.message || 'Cupón inválido.';
-        msg.className = 'form-text text-danger';
-      }
-    });
 
     document.getElementById('btnYaTransferi').addEventListener('click', async () => {
       const res = await fetch('./transferencia.php', {

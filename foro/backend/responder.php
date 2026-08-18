@@ -32,7 +32,12 @@ if ((int) $tema['cerrado'] === 1 && $usuario['rol'] !== 'admin') {
     exit;
 }
 
-$contenidoHtml = convertir_contenido_foro($contenido);
+$contenidoHtml = foro_sanitizar_html_editor($contenido);
+if (foro_contenido_html_vacio($contenidoHtml)) {
+    echo json_encode(['success' => false, 'message' => 'Escribe una respuesta.']);
+    exit;
+}
+
 $stmt = $conn->prepare('INSERT INTO foro_respuestas (tema_id, usuario_id, contenido) VALUES (?, ?, ?)');
 $stmt->bind_param('iis', $temaId, $usuario['id'], $contenidoHtml);
 $stmt->execute();

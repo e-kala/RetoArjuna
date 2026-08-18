@@ -1,9 +1,9 @@
 /* ===================================================================
    Reto Arjuna — Sistema de diseño de la plataforma (2026)
-   Base compartida por: index.php (home), plataforma/ (cursos, ingreso,
-   registro, panel...) y tienda.html. Ligero, cálido, minimalista —
-   independiente de digital-creative/ (plantilla de ventas) y del tema
-   SB Admin 2 del panel de administración.
+   Base compartida por TODO el sitio: index.php (home), plataforma/ (cursos,
+   ingreso, registro...), foro/ y el panel — incluido el panel de
+   administración, que ya NO usa SB Admin 2 (retirado por completo, todo
+   corre sobre este mismo sistema). Ligero, cálido, minimalista.
 =================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -24,12 +24,53 @@
 
 * { box-sizing: border-box; }
 
+/* ===================================================================
+   Animación y transiciones — elegante pero barato: solo opacity/transform
+   (nunca propiedades que disparan layout/paint pesado) y acotado a un puñado
+   de selectores, no un "* { transition: all }" que vuelve lento cualquier
+   cambio de layout en la página.
+=================================================================== */
+@keyframes pfFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
 body.pf-body {
   margin: 0;
   font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--pf-bg);
   color: var(--pf-ink);
   line-height: 1.6;
+  animation: pfFadeIn 0.35s ease;
+}
+
+body.pf-body,
+.pf-nav,
+.pf-footer,
+.card,
+.pf-card,
+.pf-course-card,
+.pf-user-dropdown,
+.pf-map-item {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+.card, .pf-card, .pf-map-item {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease,
+              transform 0.18s ease, box-shadow 0.18s ease;
+}
+.card:hover, .pf-map-item:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--pf-shadow);
+}
+
+.pf-btn, .btn { transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
+.pf-btn:active, .btn:active { transform: scale(0.97); }
+
+/* Quien pida menos movimiento en su sistema, lo respetamos por completo. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 .pf-container {
@@ -134,7 +175,9 @@ a { text-decoration: none; }
 .pf-user-menu:hover .pf-user-dropdown,
 .pf-user-menu:focus-within .pf-user-dropdown { display: block; }
 .pf-user-dropdown a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 9px 12px;
   border-radius: 8px;
   color: var(--pf-ink);
@@ -142,6 +185,39 @@ a { text-decoration: none; }
   font-size: 14px;
 }
 .pf-user-dropdown a:hover { background: var(--pf-bg); }
+.pf-dropdown-divider {
+  height: 1px;
+  background: var(--pf-line);
+  margin: 6px 4px;
+}
+/* ===================================================================
+   Toast (confirmación de cierre de sesión, y reutilizable a futuro)
+=================================================================== */
+.pf-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-left: 4px solid var(--pf-accent);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow);
+  padding: 14px 18px;
+  min-width: 260px;
+  color: var(--pf-ink);
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.pf-toast.mostrar { opacity: 1; transform: translateY(0); }
+.pf-toast i { font-size: 20px; color: #2e9e5b; }
+.pf-toast-sub { color: var(--pf-muted); font-size: 13px; }
 
 /* ===================================================================
    Botones
@@ -280,23 +356,14 @@ a { text-decoration: none; }
 }
 .pf-card .pf-btn { align-self: flex-start; }
 
-.pf-badge-soon {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: var(--pf-bg);
-  color: var(--pf-muted);
-  border: 1px solid var(--pf-line);
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-
 /* ===================================================================
    Banda de llamada (Reto Arjuna)
 =================================================================== */
 .pf-callout {
-  background: var(--pf-ink);
+  /* Banda intencionalmente oscura en los dos temas, no el color de texto del
+     tema (que se invierte en modo oscuro) — si no, aquí quedaría clara con
+     texto blanco encima, ilegible. */
+  background: #1a1a1a;
   color: #fff;
   border-radius: var(--pf-radius-lg);
   padding: 48px 40px;
@@ -353,50 +420,6 @@ a { text-decoration: none; }
 }
 
 /* ===================================================================
-   Tarjetas de curso (catálogo)
-=================================================================== */
-.pf-course-card {
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-lg);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-.pf-course-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--pf-shadow);
-}
-.pf-course-card img {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-}
-.pf-course-card-body {
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-}
-.pf-course-card h3 { font-size: 17px; font-weight: 700; margin: 0 0 8px; }
-.pf-course-card p { color: var(--pf-muted); font-size: 14px; flex-grow: 1; margin: 0 0 16px; }
-.pf-course-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.pf-price-tag {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--pf-accent-ink);
-  background: #fff3e0;
-  padding: 4px 12px;
-  border-radius: 999px;
-}
-
-/* ===================================================================
    Responsive
 =================================================================== */
 @media (max-width: 860px) {
@@ -413,3 +436,86 @@ a { text-decoration: none; }
   .pf-hero h1 { font-size: 32px; }
   .pf-callout { padding: 36px 24px; margin: 0 16px; }
 }
+
+/* ===================================================================
+   Panel de administración (sin SB Admin 2) — navegación en píldoras de
+   panel/admin/_nav.php y tarjetas de herramientas/estadísticas del nuevo
+   dashboard de admin (panel/index.php).
+=================================================================== */
+.ra-admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  padding: 12px;
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow);
+}
+.ra-admin-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--pf-muted);
+  background: var(--pf-bg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 16px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ra-admin-nav a:hover { background: var(--pf-line); color: var(--pf-ink); }
+.ra-admin-nav a.activo { background: #F6C500; color: #171717; }
+
+.ra-stat-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-lg);
+  padding: 20px 22px;
+}
+.ra-stat-card .ra-stat-value { font-size: 28px; font-weight: 800; color: var(--pf-ink); }
+.ra-stat-card .ra-stat-label { color: var(--pf-muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.ra-stat-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pf-line);
+  overflow: hidden;
+  margin-top: 10px;
+}
+.ra-stat-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #F6C500, #B8860B);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.ra-tool-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-lg);
+  padding: 18px 20px;
+  text-decoration: none;
+  color: var(--pf-ink);
+  height: 100%;
+}
+.ra-tool-card:hover { border-color: #F6C500; }
+.ra-tool-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: #fff3e0;
+  color: #c96a00;
+  flex-shrink: 0;
+}
+.ra-tool-card h3 { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
+.ra-tool-card p { font-size: 12.5px; color: var(--pf-muted); margin: 0; }

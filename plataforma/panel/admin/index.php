@@ -4,7 +4,7 @@ require_role('admin');
 
 $totalUsuarios = (int) $conn->query('SELECT COUNT(*) t FROM usuarios_perfil')->fetch_assoc()['t'];
 $totalCursos = (int) $conn->query('SELECT COUNT(*) t FROM cursos WHERE activo = 1')->fetch_assoc()['t'];
-$ingresos = (float) $conn->query("SELECT COALESCE(SUM(monto - descuento),0) t FROM pagos WHERE estado = 'confirmado'")->fetch_assoc()['t'];
+$ingresos = (float) $conn->query("SELECT COALESCE(SUM(monto),0) t FROM pagos WHERE estado = 'confirmado'")->fetch_assoc()['t'];
 $pendientes = (int) $conn->query("SELECT COUNT(*) t FROM pagos WHERE estado = 'pendiente'")->fetch_assoc()['t'];
 
 $topCursos = $conn->query(

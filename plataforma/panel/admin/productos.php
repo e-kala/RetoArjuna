@@ -29,6 +29,7 @@ include __DIR__ . '/_header.php';
   <h1 class="h4">Productos</h1>
   <a href="producto_form.php" class="btn btn-success btn-sm">+ Nuevo producto</a>
 </div>
+<div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Nombre</th><th>Tipo</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
   <tbody>
@@ -58,4 +59,5 @@ include __DIR__ . '/_header.php';
     <?php endforeach; ?>
   </tbody>
 </table>
+</div>
 <?php include __DIR__ . '/_footer.php'; ?>

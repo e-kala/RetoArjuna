@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../auth.php';
-require_once __DIR__ . '/../cupones.php';
 require_once __DIR__ . '/item_resolver.php';
 header('Content-Type: application/json');
 requerir_csrf_form();
@@ -12,7 +11,6 @@ if (!is_logged_in()) {
 }
 
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
-$codigoCupon = trim($_POST['codigo_cupon'] ?? '');
 $cantidad = max(1, (int) ($_POST['cantidad'] ?? 1));
 $direccionEnvio = trim($_POST['direccion_envio'] ?? '');
 
@@ -51,28 +49,14 @@ if ($existente) {
 
 $montoUnitario = $item['precio'];
 $montoFinal = $montoUnitario * $cantidad;
-$descuento = 0;
-$cuponId = null;
-if ($codigoCupon !== '') {
-    $resultado = validar_cupon($conn, $codigoCupon, $montoFinal);
-    if ($resultado) {
-        $montoFinal = $resultado['monto_final'];
-        $descuento = $resultado['descuento'];
-        $cuponId = $resultado['cupon_id'];
-    }
-}
 
 $stmt = $conn->prepare(
-    "INSERT INTO pagos (usuario_id, {$columna}, cupon_id, monto, descuento, metodo_pago, estado, cantidad, direccion_envio)
-     VALUES (?, ?, ?, ?, ?, 'transferencia', 'pendiente', ?, ?)"
+    "INSERT INTO pagos (usuario_id, {$columna}, monto, metodo_pago, estado, cantidad, direccion_envio)
+     VALUES (?, ?, ?, 'transferencia', 'pendiente', ?, ?)"
 );
-$stmt->bind_param('iiiddis', $usuarioPerfilId, $itemId, $cuponId, $montoFinal, $descuento, $cantidad, $direccionEnvio);
+$stmt->bind_param('iidis', $usuarioPerfilId, $itemId, $montoFinal, $cantidad, $direccionEnvio);
 $stmt->execute();
 $pagoId = $stmt->insert_id;
 $stmt->close();
-
-if ($cuponId !== null) {
-    incrementar_uso_cupon($conn, $cuponId);
-}
 
 echo json_encode(['success' => true, 'pago_id' => $pagoId]);

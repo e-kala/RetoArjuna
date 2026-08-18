@@ -1,9 +1,17 @@
 <?php
+// Una lección pertenece a un curso O a un evento (nunca ambos) — ver
+// schema_lecciones_compartidas.sql. Esto permite que "Convertir a evento"
+// reasigne las lecciones existentes sin perder el contenido.
 $leccionId = (int) ($_GET['id'] ?? 0);
 
 $stmt = $conn->prepare(
-    'SELECT l.*, c.titulo AS curso_titulo, c.slug AS curso_slug, c.gratuito
-     FROM lecciones l JOIN cursos c ON c.id = l.curso_id
+    'SELECT l.*,
+            c.titulo AS curso_titulo, c.slug AS curso_slug,
+            e.titulo AS evento_titulo, e.slug AS evento_slug, e.solo_miembros,
+            e.gratuito AS evento_gratuito, e.incluido_membresia AS evento_incluido_membresia
+     FROM lecciones l
+     LEFT JOIN cursos c ON c.id = l.curso_id
+     LEFT JOIN eventos e ON e.id = l.evento_id
      WHERE l.id = ?'
 );
 $stmt->bind_param('i', $leccionId);
@@ -16,18 +24,53 @@ if (!$leccion) {
     return;
 }
 
-$cursoId = (int) $leccion['curso_id'];
+$esDeCurso = $leccion['curso_id'] !== null;
+$padreId = (int) ($esDeCurso ? $leccion['curso_id'] : $leccion['evento_id']);
+$padreSlug = $esDeCurso ? $leccion['curso_slug'] : $leccion['evento_slug'];
+$padreTitulo = $esDeCurso ? $leccion['curso_titulo'] : $leccion['evento_titulo'];
+$volverAccion = $esDeCurso ? 'curso' : 'evento';
+
 $usuario = current_user();
-$tieneAcceso = $usuario ? usuario_tiene_acceso_curso($usuario['id'], $cursoId) : false;
+if ($esDeCurso) {
+    $tieneAcceso = $usuario ? usuario_tiene_acceso_curso($usuario['id'], $padreId) : false;
+} else {
+    // El acceso real a un evento es "está inscrito o pagó" (ver
+    // usuario_esta_inscrito_evento, que ya reconoce la inscripción gratis
+    // por membresía) — ya no basta con "es miembro" sin más, porque eso daba
+    // acceso a CUALQUIER evento en vez de solo a los que el miembro se
+    // inscribió (ver evento_detalle.php, que ahora exige el mismo paso
+    // explícito de inscripción antes de desbloquear el contenido).
+    $tieneAcceso = $usuario && usuario_esta_inscrito_evento($usuario['id'], $padreId);
+}
 $esDemo = (int) $leccion['vista_previa'] === 1;
 
 if (!$tieneAcceso && !$esDemo) {
-    header('Location: ' . BASE_URL . '/index.php?action=curso&slug=' . urlencode($leccion['curso_slug']));
+    if (!$esDeCurso) {
+        $esMiembro = $usuario && usuario_tiene_membresia_activa($usuario['id']);
+        $soloMiembros = (int) ($leccion['solo_miembros'] ?? 0) === 1;
+        $incluidoMembresia = (int) ($leccion['evento_incluido_membresia'] ?? 0) === 1;
+        $soloMiembrosBloqueado = $soloMiembros && !$esMiembro;
+        $puedeAccederGratis = (int) ($leccion['evento_gratuito'] ?? 0) === 1
+            || (($soloMiembros || $incluidoMembresia) && $esMiembro);
+
+        // Si ya está logueado, el evento no tiene ningún camino gratuito
+        // para él (ni exclusivo-bloqueado, que tampoco se resuelve
+        // comprando), lo mandamos directo a pagar en vez de rebotarlo a la
+        // página del evento — así "Siguiente" desde la demo lleva directo a
+        // la pantalla de compra si eso es lo único que falta.
+        if ($usuario && !$soloMiembrosBloqueado && !$puedeAccederGratis) {
+            header('Location: ' . BASE_URL . '/backend/pagos/checkout.php?evento_id=' . $padreId);
+            exit;
+        }
+    }
+    header('Location: ' . BASE_URL . '/index.php?action=' . $volverAccion . '&slug=' . urlencode($padreSlug));
     exit;
 }
 
-$stmt = $conn->prepare('SELECT id, titulo FROM lecciones WHERE curso_id = ? ORDER BY orden');
-$stmt->bind_param('i', $cursoId);
+$stmt = $esDeCurso
+    ? $conn->prepare('SELECT id, titulo FROM lecciones WHERE curso_id = ? ORDER BY orden')
+    : $conn->prepare('SELECT id, titulo FROM lecciones WHERE evento_id = ? ORDER BY orden');
+$stmt->bind_param('i', $padreId);
 $stmt->execute();
 $hermanas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -43,7 +86,7 @@ $anterior = $indiceActual !== null && $indiceActual > 0 ? $hermanas[$indiceActua
 $siguiente = $indiceActual !== null && $indiceActual < count($hermanas) - 1 ? $hermanas[$indiceActual + 1] : null;
 
 $completada = false;
-if ($usuario) {
+if ($usuario && $esDeCurso) {
     $stmt = $conn->prepare('SELECT completado FROM progreso WHERE usuario_id = ? AND leccion_id = ?');
     $stmt->bind_param('ii', $usuario['id'], $leccionId);
     $stmt->execute();
@@ -96,7 +139,7 @@ if ($leccion['tipo_contenido'] === 'quiz' && $tieneAcceso) {
 }
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px; max-width: 800px;">
-  <a href="?action=curso&slug=<?= urlencode($leccion['curso_slug']) ?>" class="d-inline-block mb-3">&larr; <?= htmlspecialchars($leccion['curso_titulo']) ?></a>
+  <a href="?action=<?= $volverAccion ?>&slug=<?= urlencode($padreSlug) ?>" class="d-inline-block mb-3">&larr; <?= htmlspecialchars($padreTitulo) ?></a>
   <h1 class="h3"><?= htmlspecialchars($leccion['titulo']) ?></h1>
 
   <div class="my-4">
@@ -143,15 +186,15 @@ if ($leccion['tipo_contenido'] === 'quiz' && $tieneAcceso) {
     </div>
   <?php endif; ?>
 
-  <?php if ($tieneAcceso || $esDemo): ?>
+  <?php if (($leccion['foro_url'] || $esDeCurso) && ($tieneAcceso || $esDemo)): ?>
     <div class="mb-4">
-      <a href="../foro/curso.php?curso_id=<?= $cursoId ?>&leccion_id=<?= $leccionId ?>" class="btn btn-outline-dark btn-sm">
+      <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $padreId . '&leccion_id=' . $leccionId ?>" class="btn btn-outline-dark btn-sm">
         <i class="bi bi-chat-square-text"></i> Discutir esta lección en el foro
       </a>
     </div>
   <?php endif; ?>
 
-  <?php if ($usuario && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
+  <?php if ($usuario && $esDeCurso && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
     <button id="btnCompletar" class="btn btn-outline-success" <?= $completada ? 'disabled' : '' ?>>
       <?= $completada ? 'Lección completada' : 'Marcar como completada' ?>
     </button>
@@ -166,7 +209,7 @@ if ($leccion['tipo_contenido'] === 'quiz' && $tieneAcceso) {
 <script>
   const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
 
-  <?php if ($usuario && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
+  <?php if ($usuario && $esDeCurso && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
   document.getElementById('btnCompletar')?.addEventListener('click', async function () {
     const res = await fetch('backend/progreso_back.php', {
       method: 'POST',

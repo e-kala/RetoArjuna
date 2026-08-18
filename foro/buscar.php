@@ -38,27 +38,23 @@ if ($q !== '') {
 require __DIR__ . '/inc/header.php';
 ?>
 
-<div class="pf-forum-head">
-  <div>
-    <h1>Resultados para «<?= htmlspecialchars($q) ?>»</h1>
-    <p><?= count($temas) + count($respuestas) ?> resultado(s)</p>
-  </div>
+<div class="mb-4">
+  <h1 class="h3 fw-bold mb-1">Resultados para «<?= htmlspecialchars($q) ?>»</h1>
+  <p class="text-muted mb-0"><?= count($temas) + count($respuestas) ?> resultado(s)</p>
 </div>
 
 <?php if ($q === ''): ?>
-  <p class="pf-forum-empty">Escribe algo en el buscador para empezar.</p>
+  <div class="text-center text-muted py-5"><i class="bi bi-search fs-2 d-block mb-2"></i>Escribe algo en el buscador para empezar.</div>
 <?php else: ?>
   <?php if ($temas): ?>
-    <h2 style="font-size:17px;font-weight:800;margin-bottom:12px;">Temas</h2>
-    <div class="pf-forum-list" style="margin-bottom:32px;">
+    <h2 class="h6 fw-bold mb-3">Temas</h2>
+    <div class="list-group shadow-sm mb-4">
       <?php foreach ($temas as $t): ?>
-        <a class="pf-forum-tema-row" href="tema.php?id=<?= (int) $t['id'] ?>">
-          <div>
-            <div class="pf-forum-tema-titulo"><?= htmlspecialchars($t['titulo']) ?></div>
-            <div class="pf-forum-tema-meta">
-              en <?= htmlspecialchars($t['categoria_nombre']) ?> · por <?= htmlspecialchars($t['username_cache']) ?>
-              · <?= foro_tiempo_relativo($t['created_at']) ?>
-            </div>
+        <a class="list-group-item list-group-item-action" href="tema.php?id=<?= (int) $t['id'] ?>">
+          <div class="fw-bold"><?= htmlspecialchars($t['titulo']) ?></div>
+          <div class="text-muted small mt-1">
+            en <?= htmlspecialchars($t['categoria_nombre']) ?> · por <?= htmlspecialchars($t['username_cache']) ?>
+            · <?= foro_tiempo_relativo($t['created_at']) ?>
           </div>
         </a>
       <?php endforeach; ?>
@@ -66,15 +62,13 @@ require __DIR__ . '/inc/header.php';
   <?php endif; ?>
 
   <?php if ($respuestas): ?>
-    <h2 style="font-size:17px;font-weight:800;margin-bottom:12px;">Respuestas</h2>
-    <div class="pf-forum-list">
+    <h2 class="h6 fw-bold mb-3">Respuestas</h2>
+    <div class="list-group shadow-sm">
       <?php foreach ($respuestas as $r): ?>
-        <a class="pf-forum-tema-row" href="tema.php?id=<?= (int) $r['tema_id'] ?>#respuesta-<?= (int) $r['id'] ?>">
-          <div>
-            <div class="pf-forum-tema-titulo">en «<?= htmlspecialchars($r['tema_titulo']) ?>»</div>
-            <div class="pf-forum-tema-meta">
-              por <?= htmlspecialchars($r['username_cache']) ?> · <?= foro_tiempo_relativo($r['created_at']) ?>
-            </div>
+        <a class="list-group-item list-group-item-action" href="tema.php?id=<?= (int) $r['tema_id'] ?>#respuesta-<?= (int) $r['id'] ?>">
+          <div class="fw-bold">en «<?= htmlspecialchars($r['tema_titulo']) ?>»</div>
+          <div class="text-muted small mt-1">
+            por <?= htmlspecialchars($r['username_cache']) ?> · <?= foro_tiempo_relativo($r['created_at']) ?>
           </div>
         </a>
       <?php endforeach; ?>
@@ -82,7 +76,7 @@ require __DIR__ . '/inc/header.php';
   <?php endif; ?>
 
   <?php if (!$temas && !$respuestas): ?>
-    <p class="pf-forum-empty">No se encontró nada con esa búsqueda.</p>
+    <div class="text-center text-muted py-5"><i class="bi bi-search fs-2 d-block mb-2"></i>No se encontró nada con esa búsqueda.</div>
   <?php endif; ?>
 <?php endif; ?>
 

@@ -17,7 +17,7 @@ if (!is_array($respuestas)) {
     $respuestas = [];
 }
 
-$stmt = $conn->prepare("SELECT curso_id, tipo_contenido FROM lecciones WHERE id = ?");
+$stmt = $conn->prepare("SELECT curso_id, evento_id, tipo_contenido FROM lecciones WHERE id = ?");
 $stmt->bind_param('i', $leccionId);
 $stmt->execute();
 $leccion = $stmt->get_result()->fetch_assoc();
@@ -28,10 +28,16 @@ if (!$leccion || $leccion['tipo_contenido'] !== 'quiz') {
     exit;
 }
 
-$cursoId = (int) $leccion['curso_id'];
-if (!usuario_tiene_acceso_curso($usuarioPerfilId, $cursoId)) {
+// Una lección es de curso O de evento (ver schema_lecciones_compartidas.sql).
+$cursoId = $leccion['curso_id'] !== null ? (int) $leccion['curso_id'] : null;
+$eventoId = $leccion['evento_id'] !== null ? (int) $leccion['evento_id'] : null;
+$tieneAcceso = $cursoId !== null
+    ? usuario_tiene_acceso_curso($usuarioPerfilId, $cursoId)
+    : ($eventoId !== null && usuario_esta_inscrito_evento($usuarioPerfilId, $eventoId));
+
+if (!$tieneAcceso) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'No tienes acceso a este curso.']);
+    echo json_encode(['success' => false, 'message' => 'No tienes acceso a este contenido.']);
     exit;
 }
 
@@ -87,7 +93,10 @@ $stmt->bind_param('iiiii', $usuarioPerfilId, $quizId, $puntaje, $total, $aprobad
 $stmt->execute();
 $stmt->close();
 
-if ($aprobado) {
+// El progreso por lección (y el certificado al terminar) solo existe para
+// cursos — los eventos ya tienen su propio reconocimiento por asistencia
+// (evento_inscripciones + certificados), no depende de esto.
+if ($aprobado && $cursoId !== null) {
     $stmt = $conn->prepare(
         "INSERT INTO progreso (usuario_id, curso_id, leccion_id, completado)
          VALUES (?, ?, ?, 1)

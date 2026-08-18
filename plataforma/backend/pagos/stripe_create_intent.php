@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../auth.php';
-require_once __DIR__ . '/../cupones.php';
 require_once __DIR__ . '/item_resolver.php';
 header('Content-Type: application/json');
 requerir_csrf_json();
@@ -17,7 +16,6 @@ if (!config_esta_lista(STRIPE_SECRET_KEY)) {
 }
 
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
-$codigoCupon = trim($_POST['codigo_cupon'] ?? '');
 $cantidad = max(1, (int) ($_POST['cantidad'] ?? 1));
 $direccionEnvio = trim($_POST['direccion_envio'] ?? '');
 
@@ -40,16 +38,6 @@ if ($item['es_fisico'] && $direccionEnvio === '') {
 
 $montoUnitario = $item['precio'];
 $montoFinal = $montoUnitario * $cantidad;
-$descuento = 0;
-$cuponId = null;
-if ($codigoCupon !== '') {
-    $resultado = validar_cupon($conn, $codigoCupon, $montoFinal);
-    if ($resultado) {
-        $montoFinal = $resultado['monto_final'];
-        $descuento = $resultado['descuento'];
-        $cuponId = $resultado['cupon_id'];
-    }
-}
 
 $ch = curl_init('https://api.stripe.com/v1/payment_intents');
 curl_setopt_array($ch, [
@@ -80,16 +68,12 @@ if ($status !== 200 || empty($data['id'])) {
 
 $columna = columna_pago_para_item($item)['col'];
 $stmt = $conn->prepare(
-    "INSERT INTO pagos (usuario_id, {$columna}, cupon_id, monto, descuento, metodo_pago, transaccion_id, estado, cantidad, direccion_envio)
-     VALUES (?, ?, ?, ?, ?, 'stripe', ?, 'pendiente', ?, ?)"
+    "INSERT INTO pagos (usuario_id, {$columna}, monto, metodo_pago, transaccion_id, estado, cantidad, direccion_envio)
+     VALUES (?, ?, ?, 'stripe', ?, 'pendiente', ?, ?)"
 );
 $itemId = $item['id'];
-$stmt->bind_param('iiiddsis', $usuarioPerfilId, $itemId, $cuponId, $montoFinal, $descuento, $data['id'], $cantidad, $direccionEnvio);
+$stmt->bind_param('iidsis', $usuarioPerfilId, $itemId, $montoFinal, $data['id'], $cantidad, $direccionEnvio);
 $stmt->execute();
 $stmt->close();
-
-if ($cuponId !== null) {
-    incrementar_uso_cupon($conn, $cuponId);
-}
 
 echo json_encode(['success' => true, 'client_secret' => $data['client_secret']]);

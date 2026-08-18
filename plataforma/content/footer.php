@@ -1,13 +1,9 @@
 <footer class="pf-footer">
   <div class="pf-container">
     <nav class="pf-footer-links">
-      <a href="?action=cursos">Cursos</a>
-      <a href="?action=actividades">Actividades</a>
-      <a href="?action=noticias">Noticias</a>
-      <a href="?action=eventos">Eventos</a>
-      <a href="?action=tienda">Tienda</a>
-      <a href="../foro/">Foro</a>
-      <a href="../reto-arjuna.html">Reto Arjuna</a>
+      <?php foreach (obtener_navbar_links('footer') as $footerLink): ?>
+        <a href="<?= htmlspecialchars(navbar_href($footerLink['url'], '../')) ?>" <?= (int) $footerLink['abre_nueva_pestana'] === 1 ? 'target="_blank" rel="noopener"' : '' ?>><?= htmlspecialchars($footerLink['texto']) ?></a>
+      <?php endforeach; ?>
     </nav>
     <div class="pf-footer-social">
       <img src="img/logoIskon.png" alt="ISKCON">

@@ -1,6 +1,20 @@
-/* Estilos propios del foro, encima de platform.css */
+/* Estilos propios del foro, encima de Bootstrap + platform.css. La estructura
+   (grid, tarjetas, badges, formularios, paginación, modal) usa componentes
+   reales de Bootstrap directamente en el HTML — aquí solo queda lo que
+   Bootstrap no cubre: el layout compartido del <main>, la búsqueda con
+   resultados en vivo, el editor Quill, y la tipografía del contenido de los
+   posts (HTML ya saneado, ver foro_sanitizar_html_editor()). */
 
 .pf-forum-main { padding: 40px 0 60px; min-height: 60vh; }
+
+/* Acento de color/borde consistente con el resto del sitio (--pf-accent) para
+   estados "activo" de componentes Bootstrap, que por defecto vienen en azul. */
+.btn-outline-secondary.active,
+.list-group-item.active {
+  background: var(--pf-accent) !important;
+  border-color: var(--pf-accent) !important;
+  color: #fff !important;
+}
 
 .pf-forum-search-nav { position: relative; }
 .pf-forum-search-nav i {
@@ -23,52 +37,14 @@
 }
 .pf-forum-search-nav input:focus { outline: 2px solid var(--pf-accent); }
 
-.pf-forum-search-hero {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-lg);
-  padding: 8px 8px 8px 20px;
-  margin-bottom: 28px;
-  box-shadow: var(--pf-shadow);
+.pf-search-dropdown {
+  width: 320px;
+  max-width: 90vw;
+  max-height: 320px;
+  overflow-y: auto;
 }
-.pf-forum-search-hero i { color: var(--pf-muted); font-size: 18px; }
-.pf-forum-search-hero input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 15px;
-  padding: 10px 0;
-}
-.pf-forum-search-hero input:focus { outline: none; }
-
-.pf-forum-filtros {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-.pf-forum-filtros-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--pf-muted);
-  margin-right: 4px;
-}
-.pf-forum-filtro {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--pf-muted);
-  background: var(--pf-bg);
-  border: 1px solid var(--pf-line);
-  border-radius: 999px;
-  padding: 5px 14px;
-}
-.pf-forum-filtro:hover { color: var(--pf-ink); }
-.pf-forum-filtro.activo { background: var(--pf-accent); border-color: var(--pf-accent); color: #fff; }
+.pf-search-dropdown-titulo { display: block; font-size: 14px; font-weight: 700; }
+.pf-search-dropdown-cat { display: block; font-size: 12px; color: var(--pf-muted); }
 
 .pf-forum-bell {
   position: relative;
@@ -89,118 +65,23 @@
   line-height: 1.4;
 }
 
-.pf-forum-head {
-  display: flex;
+.pf-user-avatar {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-}
-.pf-forum-head h1 { font-size: 28px; font-weight: 800; margin: 0; }
-.pf-forum-head p { color: var(--pf-muted); margin: 4px 0 0; }
-
-.pf-forum-breadcrumb {
-  color: var(--pf-muted);
-  font-size: 13px;
-  margin-bottom: 14px;
-}
-.pf-forum-breadcrumb a { color: var(--pf-muted); font-weight: 600; }
-.pf-forum-breadcrumb a:hover { color: var(--pf-ink); }
-
-.pf-forum-layout {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 32px;
-  align-items: start;
-}
-.pf-forum-sidebar {
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-md);
-  padding: 20px;
-  position: sticky;
-  top: 88px;
-}
-.pf-forum-sidebar h2 { font-size: 16px; font-weight: 800; margin: 0 0 14px; }
-.pf-forum-cat-lista { display: flex; flex-direction: column; gap: 4px; }
-.pf-forum-cat-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 8px;
-  color: var(--pf-ink);
-  font-size: 14px;
-  font-weight: 600;
-}
-.pf-forum-cat-item:hover { background: var(--pf-bg); }
-.pf-forum-cat-item.activo { background: var(--pf-accent); color: #fff; }
-.pf-forum-cat-item.activo .pf-forum-cat-count { background: rgba(255,255,255,0.25); color: #fff; }
-.pf-forum-cat-item .pf-forum-cat-count {
-  background: var(--pf-bg);
-  color: var(--pf-muted);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 9px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-}
-
-.pf-forum-cat-count {
-  flex-shrink: 0;
-  background: var(--pf-bg);
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--pf-muted);
-}
-
-.pf-forum-list { display: flex; flex-direction: column; gap: 12px; }
-.pf-forum-tema-row {
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-md);
-  padding: 18px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.pf-forum-tema-row:hover { box-shadow: var(--pf-shadow); }
-.pf-forum-tema-titulo { font-weight: 700; font-size: 15.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pf-forum-tema-meta { color: var(--pf-muted); font-size: 13px; margin-top: 4px; }
-.pf-forum-tema-stats { display: flex; gap: 18px; color: var(--pf-muted); font-size: 13px; text-align: center; flex-shrink: 0; }
-.pf-forum-tema-stats strong { display: block; color: var(--pf-ink); font-size: 15px; }
-
-.pf-forum-badge {
-  font-size: 11px;
+  background: var(--pf-accent);
+  color: #fff;
   font-weight: 800;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-  padding: 2px 9px;
-  border-radius: 999px;
+  font-size: 14px;
+  flex-shrink: 0;
 }
-.pf-forum-badge-fijado { background: #fff3e0; color: var(--pf-accent-ink); }
-.pf-forum-badge-cerrado { background: #eee; color: #666; }
 
-.pf-forum-post {
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-md);
-  padding: 24px;
-  margin-bottom: 16px;
-}
-.pf-forum-post-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  font-size: 13.5px;
-  color: var(--pf-muted);
-}
-.pf-forum-post-head strong { color: var(--pf-ink); }
+/* Tipografía del HTML saneado que viene de Quill (o del contenido migrado de
+   Flarum) — independiente de Bootstrap, porque es contenido arbitrario de
+   usuario, no un componente de UI. */
 .pf-forum-post-body { font-size: 15px; word-wrap: break-word; }
 .pf-forum-post-body p { margin: 0 0 14px; }
 .pf-forum-post-body p:last-child { margin-bottom: 0; }
@@ -222,69 +103,20 @@
 .pf-forum-post-body code { background: var(--pf-bg); padding: 2px 6px; border-radius: 4px; font-size: 13.5px; }
 .pf-forum-spoiler { background: #333; color: #333; border-radius: 4px; padding: 0 4px; }
 .pf-forum-spoiler:hover { background: transparent; color: inherit; }
-.pf-forum-post-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--pf-line);
-}
-.pf-forum-like-btn {
-  border: 1px solid var(--pf-line);
-  background: var(--pf-bg);
-  border-radius: 999px;
-  padding: 5px 14px;
-  font-size: 13.5px;
-  font-weight: 700;
-  cursor: pointer;
-  color: var(--pf-ink);
-}
-.pf-forum-like-btn.activo { background: var(--pf-accent); border-color: var(--pf-accent); color: #fff; }
-.pf-forum-mod-actions { display: flex; gap: 8px; margin-left: auto; }
-.pf-forum-mod-actions button, .pf-forum-mod-actions a {
-  font-size: 12.5px;
-  font-weight: 700;
-  border: 1px solid var(--pf-line);
-  background: #fff;
-  border-radius: 999px;
-  padding: 4px 12px;
-  cursor: pointer;
-  color: var(--pf-muted);
-}
 
-.pf-forum-form textarea, .pf-forum-form input[type=text] {
-  width: 100%;
+.pf-forum-editor {
+  background: var(--pf-bg);
   border: 1px solid var(--pf-line);
   border-radius: var(--pf-radius-md);
-  padding: 12px 16px;
-  font-family: inherit;
-  font-size: 14.5px;
-  background: var(--pf-bg);
+  overflow: hidden;
 }
-.pf-forum-form textarea:focus, .pf-forum-form input:focus { outline: 2px solid var(--pf-accent); }
-.pf-forum-form label { font-weight: 700; font-size: 14px; display: block; margin-bottom: 6px; }
-.pf-forum-form .campo { margin-bottom: 18px; }
-
-.pf-forum-empty { text-align: center; color: var(--pf-muted); padding: 40px 0; }
-
-.pf-forum-notif-list { display: flex; flex-direction: column; gap: 10px; }
-.pf-forum-notif-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius-md);
-  padding: 14px 18px;
-}
-.pf-forum-notif-row.no-leida { border-color: var(--pf-accent); background: #fffaf2; }
-.pf-forum-notif-row a { color: var(--pf-ink); font-size: 14.5px; }
+.pf-forum-editor .ql-toolbar { border: none; border-bottom: 1px solid var(--pf-line); }
+.pf-forum-editor .ql-container { border: none; font-family: inherit; font-size: 14.5px; min-height: 120px; }
 
 @media (max-width: 860px) {
   .pf-forum-search-nav { display: none; }
-  .pf-forum-layout { grid-template-columns: 1fr; }
-  .pf-forum-sidebar { position: static; }
-  .pf-forum-tema-row { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .pf-forum-post-body { font-size: 14px; }
 }

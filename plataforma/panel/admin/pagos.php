@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'valid
             $info = $stmt->get_result()->fetch_assoc();
             $stmt->close();
             if ($info && $info['email']) {
-                $enlace = BASE_URL . '/index.php?action=' . $info['tipo'] . '&slug=' . urlencode($info['slug']);
+                $enlace = SITE_URL . '/index.php?action=' . $info['tipo'] . '&slug=' . urlencode($info['slug']);
                 if ($info['tipo'] === 'curso') {
                     $enlace .= '&bienvenida=1';
                 }
@@ -59,6 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'valid
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'eliminar_pago') {
+    $pagoId = (int) ($_POST['pago_id'] ?? 0);
+    $stmt = $conn->prepare('DELETE FROM pagos WHERE id = ?');
+    $stmt->bind_param('i', $pagoId);
+    $stmt->execute();
+    $stmt->close();
+    header('Location: pagos.php');
+    exit;
+}
+
 $pagos = $conn->query(
     "SELECT p.*, u.username_cache, u.email_cache,
             COALESCE(c.titulo, e.titulo, pr.nombre) AS articulo,
@@ -76,6 +86,7 @@ $pageTitle = 'Pagos';
 include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3">Pagos</h1>
+<div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Usuario</th><th>Tipo</th><th>Artículo</th><th>Cant.</th><th>Monto</th><th>Método</th><th>Estado</th><th>Comprobante/Envío</th><th>Acciones</th></tr></thead>
   <tbody>
@@ -85,14 +96,14 @@ include __DIR__ . '/_header.php';
         <td><?= htmlspecialchars($p['tipo']) ?></td>
         <td><?= htmlspecialchars((string) $p['articulo']) ?></td>
         <td><?= (int) $p['cantidad'] ?></td>
-        <td>$<?= number_format((float) $p['monto'] - (float) $p['descuento'], 2) ?></td>
+        <td>$<?= number_format((float) $p['monto'], 2) ?></td>
         <td><?= htmlspecialchars($p['metodo_pago']) ?></td>
         <td><span class="badge <?= $estadoBadge[$p['estado']] ?? 'bg-secondary' ?>"><?= htmlspecialchars($p['estado']) ?></span></td>
         <td>
           <?php if ($p['comprobante_url']): ?><a href="<?= htmlspecialchars($p['comprobante_url']) ?>" target="_blank">Comprobante</a><?php endif; ?>
           <?php if ($p['direccion_envio']): ?><div class="small text-muted"><?= nl2br(htmlspecialchars($p['direccion_envio'])) ?></div><?php endif; ?>
         </td>
-        <td>
+        <td class="d-flex gap-2">
           <?php if ($p['estado'] === 'pendiente'): ?>
             <form method="post" class="d-flex gap-2">
               <?= csrf_field() ?>
@@ -102,9 +113,16 @@ include __DIR__ . '/_header.php';
               <button class="btn btn-sm btn-danger" name="estado" value="rechazado">Rechazar</button>
             </form>
           <?php endif; ?>
+          <form method="post" onsubmit="return confirm('¿Eliminar este pago? Esta acción no se puede deshacer.');">
+            <?= csrf_field() ?>
+            <input type="hidden" name="pago_id" value="<?= (int) $p['id'] ?>">
+            <input type="hidden" name="accion" value="eliminar_pago">
+            <button class="btn btn-sm btn-outline-danger">Eliminar</button>
+          </form>
         </td>
       </tr>
     <?php endforeach; ?>
   </tbody>
 </table>
+</div>
 <?php include __DIR__ . '/_footer.php'; ?>

@@ -46,7 +46,7 @@ $stmt->close();
 ?>
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
     <h1 class="h3 mb-0 text-gray-800">Mi actividad en el foro</h1>
-    <a href="<?= htmlspecialchars(BASE_URL) ?>/../foro/index.php" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;" target="_blank">Ir al foro</a>
+    <a href="<?= htmlspecialchars(BASE_URL) ?>/foro/index.php" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;" target="_blank">Ir al foro</a>
 </div>
 
 <h2 class="h5 mb-3">Mis temas</h2>
@@ -57,7 +57,7 @@ $stmt->close();
         <?php foreach ($misTemas as $t): ?>
             <tr>
                 <td>
-                    <a href="<?= htmlspecialchars(BASE_URL) ?>/../foro/tema.php?id=<?= (int) $t['id'] ?>" target="_blank"><?= htmlspecialchars($t['titulo']) ?></a>
+                    <a href="<?= htmlspecialchars(BASE_URL) ?>/foro/tema.php?id=<?= (int) $t['id'] ?>" target="_blank"><?= htmlspecialchars($t['titulo']) ?></a>
                     <?php if ($t['editado_en']): ?><span class="badge bg-light text-muted border">editado</span><?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($t['categoria_nombre']) ?></td>
@@ -86,7 +86,7 @@ $stmt->close();
         <?php foreach ($misRespuestas as $r): ?>
             <?php $textoPlano = trim(strip_tags($r['contenido'])); ?>
             <tr>
-                <td><a href="<?= htmlspecialchars(BASE_URL) ?>/../foro/tema.php?id=<?= (int) $r['tema_id'] ?>" target="_blank"><?= htmlspecialchars($r['tema_titulo']) ?></a></td>
+                <td><a href="<?= htmlspecialchars(BASE_URL) ?>/foro/tema.php?id=<?= (int) $r['tema_id'] ?>" target="_blank"><?= htmlspecialchars($r['tema_titulo']) ?></a></td>
                 <td>
                     <?= htmlspecialchars(mb_substr($textoPlano, 0, 120)) ?><?= mb_strlen($textoPlano) > 120 ? '…' : '' ?>
                     <?php if ($r['editado_en']): ?><span class="badge bg-light text-muted border">editado</span><?php endif; ?>
@@ -109,7 +109,7 @@ $stmt->close();
         <?php foreach ($misEdiciones as $e): ?>
             <tr>
                 <td><?= $e['tipo'] === 'tema' ? 'Tema' : 'Respuesta' ?></td>
-                <td><a href="<?= htmlspecialchars(BASE_URL) ?>/../foro/tema.php?id=<?= (int) $e['tema_id'] ?>" target="_blank"><?= htmlspecialchars($e['item_titulo']) ?></a></td>
+                <td><a href="<?= htmlspecialchars(BASE_URL) ?>/foro/tema.php?id=<?= (int) $e['tema_id'] ?>" target="_blank"><?= htmlspecialchars($e['item_titulo']) ?></a></td>
                 <td><?= htmlspecialchars($e['editado_en']) ?></td>
             </tr>
         <?php endforeach; ?>

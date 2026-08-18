@@ -73,7 +73,7 @@ $primeraLeccion = $lecciones[0] ?? null;
       <div class="progress-bar" style="width: <?= $porcentaje ?>%; background:#f7931e;"></div>
     </div>
     <p class="text-muted small"><?= $porcentaje ?>% completado</p>
-    <a href="<?= $curso['foro_url'] ? htmlspecialchars(navbar_href($curso['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
+    <a href="<?= $curso['foro_url'] ? htmlspecialchars(navbar_href($curso['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
   <?php endif; ?>
 
   <div class="list-group mb-4">
@@ -87,7 +87,7 @@ $primeraLeccion = $lecciones[0] ?? null;
           </a>
           <?php if (!$tieneAcceso): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
           <?php if ($tieneAcceso): ?>
-            <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $cursoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
+            <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
               <i class="bi bi-chat-square-text"></i>
             </a>
           <?php endif; ?>

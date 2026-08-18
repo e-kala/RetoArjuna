@@ -1,6 +1,6 @@
 <?php
 // Funciones compartidas por todas las páginas del foro propio.
-require_once __DIR__ . '/../../plataforma/backend/auth.php';
+require_once __DIR__ . '/../../backend/auth.php';
 
 /**
  * Convierte contenido de un post a HTML seguro para guardar/mostrar.

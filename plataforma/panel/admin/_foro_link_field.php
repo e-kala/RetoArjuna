@@ -82,7 +82,7 @@ $foroFieldValor = $foroFieldValor ?? '';
         item.appendChild(titulo);
         item.appendChild(categoria);
         item.addEventListener('click', function () {
-          input.value = 'foro/tema.php?id=' + t.id;
+          input.value = 'plataforma/foro/tema.php?id=' + t.id;
           cerrar();
         });
         dropdown.appendChild(item);
@@ -97,7 +97,7 @@ $foroFieldValor = $foroFieldValor ?? '';
         return;
       }
       timer = setTimeout(function () {
-        fetch('../../../foro/backend/buscar_ajax.php?q=' + encodeURIComponent(q))
+        fetch('../../foro/backend/buscar_ajax.php?q=' + encodeURIComponent(q))
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (input.value.trim() !== q) return;

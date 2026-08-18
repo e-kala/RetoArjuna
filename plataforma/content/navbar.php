@@ -16,7 +16,7 @@ $usuarioNav = current_user();
 <nav class="pf-nav">
   <div class="pf-container">
     <a href="<?= htmlspecialchars($navPrefijo) ?>index.php" class="pf-logo pf-logo-img">
-      <img src="<?= htmlspecialchars($navPrefijo) ?>digital-creative/img/logo.png" alt="">
+      <img src="<?= htmlspecialchars($navPrefijo) ?>plataforma/digital-creative/img/logo.png" alt="">
       <!--<span>Reto Arjuna</span>-->
     </a>
 

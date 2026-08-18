@@ -42,9 +42,9 @@ $noLeidas = $usuarioForo ? foro_notificaciones_no_leidas($usuarioForo['id']) : 0
   endif;
   $navExtraEnSesion = ob_get_clean();
 
-  $navPrefijo = '../';
+  $navPrefijo = '../../';
   $navActivoContiene = 'foro/';
-  require __DIR__ . '/../../plataforma/content/navbar.php';
+  require __DIR__ . '/../../content/navbar.php';
   ?>
 
   <main class="pf-forum-main">

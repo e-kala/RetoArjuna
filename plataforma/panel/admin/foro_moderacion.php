@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../../backend/auth.php';
-require_once __DIR__ . '/../../../foro/backend/foro_helpers.php';
+require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -134,7 +134,7 @@ include __DIR__ . '/_header.php';
       <?php foreach ($temas as $t): ?>
         <tr>
           <td>
-            <a href="../../../foro/tema.php?id=<?= (int) $t['id'] ?>" target="_blank"><?= htmlspecialchars($t['titulo']) ?></a>
+            <a href="../../foro/tema.php?id=<?= (int) $t['id'] ?>" target="_blank"><?= htmlspecialchars($t['titulo']) ?></a>
             <?php if ($t['editado_en']): ?><span class="badge bg-light text-muted border">editado</span><?php endif; ?>
           </td>
           <td><?= htmlspecialchars($t['categoria_nombre']) ?></td>
@@ -185,7 +185,7 @@ include __DIR__ . '/_header.php';
     <tbody>
       <?php foreach ($respuestas as $r): ?>
         <tr>
-          <td><a href="../../../foro/tema.php?id=<?= (int) $r['tema_id'] ?>" target="_blank"><?= htmlspecialchars($r['tema_titulo']) ?></a></td>
+          <td><a href="../../foro/tema.php?id=<?= (int) $r['tema_id'] ?>" target="_blank"><?= htmlspecialchars($r['tema_titulo']) ?></a></td>
           <td>
             <?= htmlspecialchars(mb_substr(trim(strip_tags($r['contenido'])), 0, 120)) ?><?= mb_strlen(trim(strip_tags($r['contenido']))) > 120 ? '…' : '' ?>
             <?php if ($r['editado_en']): ?><span class="badge bg-light text-muted border">editado</span><?php endif; ?>

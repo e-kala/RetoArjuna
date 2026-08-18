@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS `cursos` (
 
 LOCK TABLES `cursos` WRITE;
 /*!40000 ALTER TABLE `cursos` DISABLE KEYS */;
-INSERT  IGNORE INTO `cursos` VALUES (1,'Introducción al Reto Arjuna','introduccion-reto-arjuna','Curso introductorio gratuito para conocer la filosofía y estructura del Reto Arjuna.','principiante',2.5,0.00,NULL,NULL,'foro/index.php',1,1,0,'2026-07-30 00:12:40','2026-08-16 16:50:33');
+INSERT  IGNORE INTO `cursos` VALUES (1,'Introducción al Reto Arjuna','introduccion-reto-arjuna','Curso introductorio gratuito para conocer la filosofía y estructura del Reto Arjuna.','principiante',2.5,0.00,NULL,NULL,'plataforma/foro/index.php',1,1,0,'2026-07-30 00:12:40','2026-08-16 16:50:33');
 /*!40000 ALTER TABLE `cursos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -684,7 +684,7 @@ CREATE TABLE IF NOT EXISTS `navbar_links` (
 
 LOCK TABLES `navbar_links` WRITE;
 /*!40000 ALTER TABLE `navbar_links` DISABLE KEYS */;
-INSERT  IGNORE INTO `navbar_links` VALUES (1,'Cursos','plataforma/index.php?action=cursos','ambos',0,1,1,'2026-08-06 08:19:18'),(2,'Membresía','plataforma/index.php?action=membresia','ambos',0,1,1,'2026-08-06 08:19:18'),(3,'Actividades','plataforma/index.php?action=actividades','ambos',0,0,3,'2026-08-06 08:19:18'),(4,'Noticias','plataforma/index.php?action=noticias','ambos',0,0,4,'2026-08-06 08:19:18'),(5,'Eventos','plataforma/index.php?action=eventos','ambos',0,1,5,'2026-08-06 08:19:18'),(6,'Tienda','plataforma/index.php?action=tienda','ambos',0,1,6,'2026-08-06 08:19:18'),(7,'Foro','foro/','ambos',0,1,7,'2026-08-06 08:19:18'),(8,'Reto Arjuna','reto-arjuna.html','ambos',0,1,8,'2026-08-06 08:19:18');
+INSERT  IGNORE INTO `navbar_links` VALUES (1,'Cursos','plataforma/index.php?action=cursos','ambos',0,1,1,'2026-08-06 08:19:18'),(2,'Membresía','plataforma/index.php?action=membresia','ambos',0,1,1,'2026-08-06 08:19:18'),(3,'Actividades','plataforma/index.php?action=actividades','ambos',0,0,3,'2026-08-06 08:19:18'),(4,'Noticias','plataforma/index.php?action=noticias','ambos',0,0,4,'2026-08-06 08:19:18'),(5,'Eventos','plataforma/index.php?action=eventos','ambos',0,1,5,'2026-08-06 08:19:18'),(6,'Tienda','plataforma/index.php?action=tienda','ambos',0,1,6,'2026-08-06 08:19:18'),(7,'Foro','plataforma/foro/','ambos',0,1,7,'2026-08-06 08:19:18'),(8,'Reto Arjuna','reto-arjuna.html','ambos',0,1,8,'2026-08-06 08:19:18');
 /*!40000 ALTER TABLE `navbar_links` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1050,3 +1050,14 @@ UPDATE `membresias` SET `nombre` = 'Membresía Camino Arjuna' WHERE `nombre` = '
 -- posicionales, así que no depende de en qué punto del archivo se ejecute).
 INSERT IGNORE INTO curso_inscripciones (usuario_id, curso_id)
 SELECT DISTINCT usuario_id, curso_id FROM progreso;
+
+-- foro/ se movió dentro de plataforma/ (2026-08-18) — cualquier valor
+-- guardado como ruta relativa a la raíz del sitio que empezara con 'foro/'
+-- necesita el prefijo 'plataforma/' delante. Nunca toca valores absolutos
+-- (http.../ o /...), que ya se guardan completos. Idempotente: una vez
+-- corregido, el valor ya no empieza con 'foro/' y el WHERE deja de
+-- coincidir, así que correrlo de nuevo es un no-op.
+UPDATE navbar_links SET url = CONCAT('plataforma/', url) WHERE url LIKE 'foro/%';
+UPDATE cursos SET foro_url = CONCAT('plataforma/', foro_url) WHERE foro_url LIKE 'foro/%';
+UPDATE eventos SET foro_url = CONCAT('plataforma/', foro_url) WHERE foro_url LIKE 'foro/%';
+UPDATE lecciones SET foro_url = CONCAT('plataforma/', foro_url) WHERE foro_url LIKE 'foro/%';

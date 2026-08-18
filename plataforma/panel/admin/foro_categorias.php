@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../../backend/auth.php';
-require_once __DIR__ . '/../../../foro/backend/foro_helpers.php';
+require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
 require_role('admin');
 requerir_csrf_form();
 

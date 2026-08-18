@@ -23,11 +23,11 @@ $productosDestacados = $conn->query(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reto Arjuna — Plataforma</title>
   <meta name="description" content="Cursos, eventos, foro y tienda del Reto Arjuna, todo en un mismo lugar.">
-  <link rel="icon" href="digital-creative/img/favicon.ico">
+  <link rel="icon" href="plataforma/digital-creative/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="assets/css/platform.css?v=1.2">
+  <link rel="stylesheet" href="plataforma/assets/css/platform.css?v=1.2">
 </head>
 <body class="pf-body">
 
@@ -49,7 +49,7 @@ $productosDestacados = $conn->query(
           <div class="d-flex gap-3 flex-wrap">
             <?php if ($usuario): ?>
               <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/<?= $usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php' ?>">Ir a mi panel</a>
-              <a class="btn btn-outline-secondary btn-lg" href="foro/">Ir al foro</a>
+              <a class="btn btn-outline-secondary btn-lg" href="plataforma/foro/">Ir al foro</a>
             <?php else: ?>
               <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Regístrate gratis</a>
               <a class="btn btn-outline-secondary btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Explorar cursos</a>
@@ -57,7 +57,7 @@ $productosDestacados = $conn->query(
           </div>
         </div>
         <div class="col-lg-6">
-          <img src="digital-creative/img/banner.jpg" alt="Una brújula sobre un mapa — orientación en el camino" class="img-fluid rounded-4 shadow">
+          <img src="plataforma/digital-creative/img/banner.jpg" alt="Una brújula sobre un mapa — orientación en el camino" class="img-fluid rounded-4 shadow">
         </div>
       </div>
     </div>
@@ -74,7 +74,7 @@ $productosDestacados = $conn->query(
         $mapaEcosistema = [
           ['icono' => '🎓', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Cursos', 'texto' => 'Aprende a tu ritmo con lecciones, quizzes y certificado al completar.', 'href' => $plataformaUrl . '/index.php?action=cursos'],
           ['icono' => '📅', 'bg' => '#e6f4ea', 'color' => '#1e7d3c', 'titulo' => 'Eventos', 'texto' => 'Encuentros en línea y presenciales — inscríbete y recibe tu reconocimiento.', 'href' => $plataformaUrl . '/index.php?action=eventos'],
-          ['icono' => '💬', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Foro', 'texto' => 'Conversa, pregunta y comparte con la comunidad del Reto Arjuna.', 'href' => 'foro/'],
+          ['icono' => '💬', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Foro', 'texto' => 'Conversa, pregunta y comparte con la comunidad del Reto Arjuna.', 'href' => 'plataforma/foro/'],
           ['icono' => '🛍️', 'bg' => '#fdeaea', 'color' => '#c0392b', 'titulo' => 'Tienda', 'texto' => 'Merchandise e infoproductos físicos y digitales para tu práctica.', 'href' => $plataformaUrl . '/index.php?action=tienda'],
           ['icono' => '🙏', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Actividades', 'texto' => 'Prácticas guiadas para sostener el método en tu día a día.', 'href' => $plataformaUrl . '/index.php?action=actividades'],
           ['icono' => '📰', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Noticias', 'texto' => 'Avisos y novedades de la comunidad, siempre al día.', 'href' => $plataformaUrl . '/index.php?action=noticias'],
@@ -106,7 +106,7 @@ $productosDestacados = $conn->query(
         <div class="col">
           <div class="card h-100 border-0 shadow-sm text-center p-3">
             <div class="card-body">
-              <img src="digital-creative/img/team-1.jpg" alt="Srivas" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <img src="plataforma/digital-creative/img/team-1.jpg" alt="Srivas" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
               <h3 class="h5 fw-bold mb-0">Srivas</h3>
               <p class="small fw-bold mb-2" style="color:#c96a00;">Facilitador principal</p>
               <p class="small text-muted mb-0">Traduce enseñanzas clásicas en herramientas prácticas para sostener decisiones reales cuando hay presión en la vida diaria.</p>
@@ -116,7 +116,7 @@ $productosDestacados = $conn->query(
         <div class="col">
           <div class="card h-100 border-0 shadow-sm text-center p-3">
             <div class="card-body">
-              <img src="digital-creative/img/team-2.jpg" alt="Nimai" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <img src="plataforma/digital-creative/img/team-2.jpg" alt="Nimai" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
               <h3 class="h5 fw-bold mb-0">Nimai</h3>
               <p class="small fw-bold mb-2" style="color:#c96a00;">Encuentros en vivo y soporte</p>
               <p class="small text-muted mb-0">Sostiene el proceso con claridad y ejecución: resuelve dudas, modera el foro y acompaña la práctica aplicada al día.</p>
@@ -126,7 +126,7 @@ $productosDestacados = $conn->query(
         <div class="col">
           <div class="card h-100 border-0 shadow-sm text-center p-3">
             <div class="card-body">
-              <img src="digital-creative/img/team-3.jpg" alt="Krishna" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
+              <img src="plataforma/digital-creative/img/team-3.jpg" alt="Krishna" class="rounded-circle object-fit-cover mb-3" style="width:96px;height:96px;border:3px solid var(--pf-bg);">
               <h3 class="h5 fw-bold mb-0">Krishna</h3>
               <p class="small fw-bold mb-2" style="color:#c96a00;">Facilitador de encuentros en vivo</p>
               <p class="small text-muted mb-0">Co-guía los encuentros y ayuda a aterrizar la práctica diaria para convertir claridad en acciones posibles y sostenibles.</p>

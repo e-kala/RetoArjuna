@@ -188,7 +188,7 @@ if ($leccion['tipo_contenido'] === 'quiz' && $tieneAcceso) {
 
   <?php if (($leccion['foro_url'] || $esDeCurso) && ($tieneAcceso || $esDemo)): ?>
     <div class="mb-4">
-      <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : '../foro/curso.php?curso_id=' . $padreId . '&leccion_id=' . $leccionId ?>" class="btn btn-outline-dark btn-sm">
+      <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $padreId . '&leccion_id=' . $leccionId ?>" class="btn btn-outline-dark btn-sm">
         <i class="bi bi-chat-square-text"></i> Discutir esta lección en el foro
       </a>
     </div>

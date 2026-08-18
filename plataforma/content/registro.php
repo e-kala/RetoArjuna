@@ -5,7 +5,7 @@
   <div class="row justify-content-center">
     <div class="col-sm-8 col-md-6 col-lg-5">
       <div class="text-center mb-4">
-        <img src="../digital-creative/img/logo.png" alt="Reto Arjuna" style="height:44px;">
+        <img src="digital-creative/img/logo.png" alt="Reto Arjuna" style="height:44px;">
       </div>
       <div class="card border-0 shadow" style="border-radius:18px;overflow:hidden;">
         <div style="height:6px;background:linear-gradient(90deg,#F6C500,#B8860B);"></div>

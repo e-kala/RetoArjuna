@@ -55,11 +55,11 @@ if ($esAdmin && $action === 'inicio') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Panel admin — Reto Arjuna</title>
-  <link rel="icon" href="../../digital-creative/img/favicon.ico">
+  <link rel="icon" href="../digital-creative/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=1.2">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=1.2">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen alguna clase
        vieja de SB Admin 2 que ya no se carga — se preserva con un valor

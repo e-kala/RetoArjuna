@@ -7,7 +7,7 @@
 // php plataforma/db/backfill_contenido_flarum.php
 
 require_once __DIR__ . '/../backend/conexion.php';
-require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
+require_once __DIR__ . '/../foro/backend/foro_helpers.php';
 
 foreach (['foro_temas', 'foro_respuestas'] as $tabla) {
     $res = $conn->query("SELECT id, contenido FROM {$tabla} WHERE contenido REGEXP '^<[rt]>'");

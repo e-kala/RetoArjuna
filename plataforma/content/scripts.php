@@ -4,27 +4,37 @@
     crossorigin="anonymous">
 </script>
 
+<?php if (current_user()): ?>
+<script src="content/session_watch.js" data-check-url="backend/session_check.php"></script>
+<?php endif; ?>
 
 <!--Función ocultar navbar scroll IN-->
 <script>
     let lastScroll = 0;
     const navbar = document.getElementById('navbar');
-    const navbarHeight = navbar.offsetHeight;
+    // navbar siempre debería existir (navbar.php le pone id="navbar" a su
+    // <nav>) — el guard es solo para no tumbar el resto de los scripts de
+    // esta página si algún día vuelve a desincronizarse, como pasó antes:
+    // el <nav> se quedó sin id tras un rediseño y esto tronaba en TODA
+    // página del sitio antes de siquiera llegar a addEventListener.
+    if (navbar) {
+        const navbarHeight = navbar.offsetHeight;
 
-    window.addEventListener('scroll', () => {
-        const currentScroll = window.pageYOffset;
+        window.addEventListener('scroll', () => {
+            const currentScroll = window.pageYOffset;
 
-        // Si el scroll es hacia abajo y mayor que la altura del navbar
-        if (currentScroll > lastScroll && currentScroll > navbarHeight) {
-            navbar.classList.add('navbar-hidden');
-        }
-        // Si el scroll es hacia arriba
-        else {
-            navbar.classList.remove('navbar-hidden');
-        }
+            // Si el scroll es hacia abajo y mayor que la altura del navbar
+            if (currentScroll > lastScroll && currentScroll > navbarHeight) {
+                navbar.classList.add('navbar-hidden');
+            }
+            // Si el scroll es hacia arriba
+            else {
+                navbar.classList.remove('navbar-hidden');
+            }
 
-        lastScroll = currentScroll;
-    });
+            lastScroll = currentScroll;
+        });
+    }
 </script>
 <!--Función ocultar navbar scroll END-->
 

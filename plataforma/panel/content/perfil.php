@@ -1,6 +1,15 @@
-<?php $usuario = current_user(); ?>
+<?php
+$usuario = current_user();
+// perfil_publico no viaja en sesión (current_user() solo trae lo que se usa
+// en cada request, no un dump completo de la fila) — se consulta aparte.
+$stmt = $conn->prepare('SELECT perfil_publico FROM usuarios_perfil WHERE id = ?');
+$stmt->bind_param('i', $usuario['id']);
+$stmt->execute();
+$usuario['perfil_publico'] = (int) ($stmt->get_result()->fetch_assoc()['perfil_publico'] ?? 1);
+$stmt->close();
+?>
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Perfil</h1>
+    <h1 class="h3 mb-0 text-gray-800">Mi perfil</h1>
 </div>
 
 <div class="container">
@@ -20,6 +29,11 @@
             <label class="form-label">WhatsApp / teléfono</label>
             <input type="tel" class="form-control" id="telefono" name="telefono"
                    value="<?= htmlspecialchars((string) ($usuario['telefono'] ?? '')) ?>">
+        </div>
+        <div class="col-12 form-check form-switch">
+            <input type="checkbox" class="form-check-input" role="switch" id="perfil_publico" name="perfil_publico" <?= (int) ($usuario['perfil_publico'] ?? 1) === 1 ? 'checked' : '' ?>>
+            <label class="form-check-label" for="perfil_publico">Mi perfil es visible para otros usuarios</label>
+            <div class="form-text">Otros usuarios pueden ver tu perfil (usuario, desde cuándo estás en la comunidad, tu actividad en el foro) al hacer click en tu nombre. Desmárcalo si prefieres que tu nombre no sea un link y nadie pueda entrar a tu perfil.</div>
         </div>
         <div class="col-12">
             <button type="submit" class="btn fw-bold" style="background:#F6C500;color:#171717;">Guardar cambios</button>
@@ -54,10 +68,11 @@
     const username = document.getElementById('username').value;
     const email = document.getElementById('email').value;
     const telefono = document.getElementById('telefono').value;
+    const perfil_publico = document.getElementById('perfil_publico').checked ? '1' : '';
     const res = await fetch('../backend/perfil_actualizar.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ username, email, telefono, csrf_token: <?= json_encode(csrf_token()) ?> }),
+      body: new URLSearchParams({ username, email, telefono, perfil_publico, csrf_token: <?= json_encode(csrf_token()) ?> }),
     });
     const data = await res.json();
     const msg = document.getElementById('perfilMsg');

@@ -2,20 +2,6 @@
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 
 $stmt = $conn->prepare(
-    "SELECT ms.estado, ms.periodo_actual_fin, ms.created_at, m.nombre, m.precio, m.intervalo
-     FROM membresia_suscripciones ms
-     JOIN membresias m ON m.id = ms.membresia_id
-     WHERE ms.usuario_id = ?
-     ORDER BY ms.created_at DESC"
-);
-$stmt->bind_param('i', $usuarioPerfilId);
-$stmt->execute();
-$suscripciones = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-$estadoSuscripcionBadge = ['activa' => 'bg-success', 'cancelada' => 'bg-secondary', 'vencida' => 'bg-danger'];
-
-$stmt = $conn->prepare(
     "SELECT p.*, 'curso' AS item_tipo, c.titulo AS item_titulo, NULL AS item_producto_tipo, NULL AS item_archivo_digital
      FROM pagos p JOIN cursos c ON c.id = p.curso_id
      WHERE p.usuario_id = ?
@@ -38,34 +24,20 @@ $estadoBadge = ['pendiente' => 'bg-warning', 'confirmado' => 'bg-success', 'rech
 $tipoLabel = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'];
 ?>
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Mis compras y membresía</h1>
+    <h1 class="h3 mb-0 text-gray-800">Mis compras</h1>
 </div>
 <?php if (($_GET['pago'] ?? '') === 'ok'): ?>
     <div class="alert alert-success">¡Gracias por tu compra! En cuanto se confirme el pago verás el estado actualizado aquí.</div>
-<?php endif; ?>
-<?php if ($suscripciones): ?>
-    <h2 class="h5 mb-3">Mi membresía</h2>
-    <table class="table table-bordered bg-white mb-4">
-        <thead>
-            <tr><th>Membresía</th><th>Precio</th><th>Estado</th><th>Vigente hasta</th><th>Desde</th><th></th></tr>
-        </thead>
-        <tbody>
-            <?php foreach ($suscripciones as $s): ?>
-                <tr>
-                    <td><?= htmlspecialchars($s['nombre']) ?></td>
-                    <td>$<?= number_format((float) $s['precio'], 2) ?> MXN / <?= $s['intervalo'] === 'anual' ? 'año' : 'mes' ?></td>
-                    <td><span class="badge <?= $estadoSuscripcionBadge[$s['estado']] ?? 'bg-secondary' ?>"><?= htmlspecialchars($s['estado']) ?></span></td>
-                    <td><?= $s['periodo_actual_fin'] ? htmlspecialchars($s['periodo_actual_fin']) : '—' ?></td>
-                    <td><?= htmlspecialchars($s['created_at']) ?></td>
-                    <td>
-                        <?php if ($s['estado'] === 'activa'): ?>
-                            <a href="<?= BASE_URL ?>/backend/pagos/membresia_portal.php" class="btn btn-sm btn-outline-primary">Gestionar</a>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+    <script>
+      // jQuery/notify.js se cargan hasta el final de dashboard.php/panel/index.php
+      // (ver content/_ajax_scripts.php), después de este include — a diferencia de
+      // evento_detalle.php/curso_detalle.php (que los cargan en el <head>), aquí no
+      // se puede llamar $(...) de inmediato. DOMContentLoaded sí funciona: no se
+      // dispara hasta que todo el documento — scripts al final incluidos — ya corrió.
+      document.addEventListener('DOMContentLoaded', function () {
+        $.notify('¡Gracias por tu compra!', { className: 'success', position: 'top right', autoHideDelay: 4000 });
+      });
+    </script>
 <?php endif; ?>
 <h2 class="h5 mb-3">Historial de compras</h2>
 <table class="table table-bordered bg-white">
@@ -79,7 +51,10 @@ $tipoLabel = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'
                 <td><?= $tipoLabel[$c['item_tipo']] ?? htmlspecialchars($c['item_tipo']) ?></td>
                 <td>$<?= number_format((float) $c['monto'], 2) ?> MXN<?= (int) $c['cantidad'] > 1 ? ' (x' . (int) $c['cantidad'] . ')' : '' ?></td>
                 <td><?= htmlspecialchars($c['metodo_pago']) ?></td>
-                <td><span class="badge <?= $estadoBadge[$c['estado']] ?? 'bg-secondary' ?>"><?= htmlspecialchars($c['estado']) ?></span></td>
+                <td>
+                    <span class="badge <?= $estadoBadge[$c['estado']] ?? 'bg-secondary' ?>"><?= htmlspecialchars($c['estado']) ?></span>
+                    <?php if (($c['modo'] ?? 'live') === 'prueba'): ?><span class="badge bg-dark" title="Compra hecha en modo prueba de Stripe — no fue dinero real">🧪 prueba</span><?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($c['created_at']) ?></td>
                 <td>
                     <?php if ($c['item_tipo'] === 'producto' && $c['item_producto_tipo'] === 'digital'): ?>
@@ -100,7 +75,7 @@ $tipoLabel = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'
                     <?php endif; ?>
                 </td>
                 <td>
-                    <form method="post" onsubmit="return confirm('¿Eliminar este registro de compra? Esta acción no se puede deshacer.');">
+                    <form method="post" data-ajax="eliminar" data-confirm="¿Eliminar este registro de compra? Esta acción no se puede deshacer.">
                         <?= csrf_field() ?>
                         <input type="hidden" name="pago_id" value="<?= (int) $c['id'] ?>">
                         <input type="hidden" name="accion" value="eliminar_compra">

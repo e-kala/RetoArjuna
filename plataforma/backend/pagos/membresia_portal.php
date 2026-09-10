@@ -10,12 +10,16 @@ require_login(BASE_URL . '/index.php?action=membresia');
 
 $usuario = current_user();
 
+// El Customer de Stripe es específico de modo (test/live) — se busca el que
+// corresponda al modo activo ahora mismo, para no intentar abrir un portal
+// LIVE con un customer de prueba o viceversa (ver membresia_iniciar.php).
+$modoActual = stripe_modo_prueba_activo() ? 'prueba' : 'live';
 $stmt = $conn->prepare(
     "SELECT stripe_customer_id FROM membresia_suscripciones
-     WHERE usuario_id = ? AND stripe_customer_id IS NOT NULL
+     WHERE usuario_id = ? AND stripe_customer_id IS NOT NULL AND modo = ?
      ORDER BY created_at DESC LIMIT 1"
 );
-$stmt->bind_param('i', $usuario['id']);
+$stmt->bind_param('is', $usuario['id'], $modoActual);
 $stmt->execute();
 $fila = $stmt->get_result()->fetch_assoc();
 $stmt->close();

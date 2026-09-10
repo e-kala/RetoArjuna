@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/ofertas.php';
 $slug = $_GET['slug'] ?? '';
 $stmt = $conn->prepare('SELECT * FROM productos WHERE slug = ? AND activo = 1 LIMIT 1');
 $stmt->bind_param('s', $slug);
@@ -15,6 +16,29 @@ $productoId = (int) $producto['id'];
 $usuario = current_user();
 $agotado = $producto['tipo'] === 'fisico' && $producto['stock'] !== null && (int) $producto['stock'] <= 0;
 $adquirido = $usuario ? usuario_compro_producto($usuario['id'], $productoId) : false;
+
+$codigoCupon = $_GET['cupon'] ?? ($_SESSION['cupon_pendiente'] ?? null);
+$ofertaItem = [
+    'id' => $productoId,
+    'precio' => (float) $producto['precio'],
+    'gratuito' => false,
+    'incluido_membresia' => false,
+    'solo_miembros' => false,
+    'descuento_miembro_pct' => null,
+    'ya_tiene_acceso' => $adquirido,
+];
+$oferta = resolver_oferta($conn, 'producto', $ofertaItem, $usuario, $codigoCupon);
+$volverActual = urlencode((string) ($_SERVER['REQUEST_URI'] ?? ''));
+// Mismo mecanismo que curso_detalle.php/evento_detalle.php: &auto=1 en el
+// volver de crear cuenta/login ahorra el clic extra en "Comprar" al
+// regresar — aquí siempre manda a checkout.php (no hay un botón "gratis"
+// inline en esta página, ni para acceso_gratis_automatico: checkout.php ya
+// resuelve ambos casos).
+$volverActualConAuto = urlencode((string) ($_SERVER['REQUEST_URI'] ?? '') . (str_contains((string) ($_SERVER['REQUEST_URI'] ?? ''), '?') ? '&' : '?') . 'auto=1');
+if ($usuario && !$adquirido && !$agotado && ($_GET['auto'] ?? '') === '1') {
+    header('Location: backend/pagos/checkout.php?producto_id=' . $productoId . ($codigoCupon ? '&cupon=' . urlencode($codigoCupon) : ''));
+    exit;
+}
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=tienda" class="d-inline-block mb-3">&larr; Volver a la tienda</a>
@@ -40,14 +64,21 @@ $adquirido = $usuario ? usuario_compro_producto($usuario['id'], $productoId) : f
           <p class="text-muted">Revisa el estado de tu envío en <a href="<?= BASE_URL ?>/panel/index.php?action=mis_compras">Mis compras</a>.</p>
         <?php endif; ?>
       <?php else: ?>
-        <p class="h4">$<?= number_format((float) $producto['precio'], 2) ?> MXN</p>
+        <?php if ($oferta['estado'] === 'gratuito'): ?>
+          <p class="h4">Gratis</p>
+        <?php elseif ($oferta['estado'] === 'oferta'): ?>
+          <p class="h5 text-decoration-line-through text-muted mb-0">$<?= number_format($oferta['precio_regular'], 2) ?> MXN</p>
+          <p class="h4"><?= $oferta['precio_final'] > 0 ? '$' . number_format($oferta['precio_final'], 2) . ' MXN' : 'Gratis' ?> <span class="badge bg-secondary"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span></p>
+        <?php else: ?>
+          <p class="h4">$<?= number_format((float) $producto['precio'], 2) ?> MXN</p>
+        <?php endif; ?>
         <?php if ($agotado): ?>
           <p class="text-muted">Agotado por el momento.</p>
         <?php elseif (!$usuario): ?>
-          <p class="mb-2">Regístrate para comprar este producto.</p>
-          <a href="?action=registro" class="btn" style="background:#f7931e;color:#fff;">Regístrate</a>
+          <p class="mb-2">Crea tu Cuenta Arjuna para <?= $oferta['acceso_gratis_automatico'] ? 'obtener' : 'comprar' ?> este producto — al terminar, vas directo <?= $oferta['acceso_gratis_automatico'] ? 'a tu acceso' : 'al pago' ?>, sin pasos extra.</p>
+          <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $oferta['acceso_gratis_automatico'] ? 'Inscribirme gratis' : 'Comprar' ?></a>
         <?php else: ?>
-          <a href="backend/pagos/checkout.php?producto_id=<?= $productoId ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar</a>
+          <a href="backend/pagos/checkout.php?producto_id=<?= $productoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $oferta['acceso_gratis_automatico'] ? 'Inscribirme gratis' : 'Comprar' ?></a>
         <?php endif; ?>
       <?php endif; ?>
     </div>

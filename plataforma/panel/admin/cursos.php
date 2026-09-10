@@ -4,17 +4,37 @@ require_role('admin');
 requerir_csrf_form();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $id = (int) ($_POST['id'] ?? 0);
     if (($_POST['accion'] ?? '') === 'eliminar_curso') {
         $stmt = $conn->prepare('DELETE FROM cursos WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'eliminado' => true, 'mensaje' => 'Curso eliminado.']);
+            exit;
+        }
     } elseif (($_POST['accion'] ?? '') === 'toggle_activo') {
         $stmt = $conn->prepare('UPDATE cursos SET activo = 1 - activo WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            $stmt = $conn->prepare('SELECT activo FROM cursos WHERE id = ?');
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $activo = (int) ($stmt->get_result()->fetch_assoc()['activo'] ?? 0);
+            $stmt->close();
+            echo json_encode([
+                'success' => true,
+                'mensaje' => $activo ? 'Curso publicado.' : 'Curso oculto.',
+                'boton_texto' => $activo ? 'Ocultar' : 'Publicar',
+                'boton_accion' => 'toggle_activo',
+                'estado_html' => $activo ? 'Publicado' : 'Oculto',
+            ]);
+            exit;
+        }
     } elseif (($_POST['accion'] ?? '') === 'convertir_a_evento') {
         $stmt = $conn->prepare('SELECT * FROM cursos WHERE id = ?');
         $stmt->bind_param('i', $id);
@@ -59,10 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$cursos = $conn->query(
-    "SELECT c.*, (SELECT COUNT(*) FROM lecciones WHERE curso_id = c.id) AS total_lecciones
-     FROM cursos c ORDER BY created_at DESC"
-)->fetch_all(MYSQLI_ASSOC);
+require __DIR__ . '/_cursos_query.php';
 
 $pageTitle = 'Cursos';
 include __DIR__ . '/_header.php';
@@ -71,40 +88,51 @@ include __DIR__ . '/_header.php';
   <h1 class="h4">Cursos</h1>
   <a href="contenido_form.php?tipo=curso" class="btn btn-success btn-sm">+ Nuevo curso</a>
 </div>
+<form method="get" id="cursosBuscarForm" class="mb-3 d-flex gap-2 flex-wrap" style="max-width:400px;">
+  <input type="search" name="q" id="cursosBuscarQ" class="form-control" placeholder="Buscar por título" value="<?= htmlspecialchars($busqueda) ?>" autocomplete="off">
+  <span id="cursosBuscarCargando" class="spinner-border spinner-border-sm text-secondary align-self-center" style="display:none;" aria-hidden="true"></span>
+</form>
 <div class="table-responsive">
 <table class="table table-bordered bg-white">
-  <thead><tr><th>Título</th><th>Precio</th><th>Lecciones</th><th>Estado</th><th>Acciones</th></tr></thead>
-  <tbody>
-    <?php foreach ($cursos as $c): ?>
-      <tr>
-        <td><a href="../../index.php?action=curso&slug=<?= urlencode($c['slug']) ?>" target="_blank"><?= htmlspecialchars($c['titulo']) ?></a></td>
-        <td><?= (int) $c['gratuito'] === 1 ? 'Gratis' : '$' . number_format((float) $c['precio'], 2) ?></td>
-        <td><a href="lecciones.php?curso_id=<?= (int) $c['id'] ?>"><?= (int) $c['total_lecciones'] ?> gestionar</a></td>
-        <td><?= (int) $c['activo'] === 1 ? 'Publicado' : 'Oculto' ?></td>
-        <td class="d-flex gap-2 flex-wrap">
-          <a href="contenido_form.php?tipo=curso&id=<?= (int) $c['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
-          <form method="post" class="d-inline">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-            <input type="hidden" name="accion" value="toggle_activo">
-            <button class="btn btn-sm btn-outline-secondary"><?= (int) $c['activo'] === 1 ? 'Ocultar' : 'Publicar' ?></button>
-          </form>
-          <form method="post" class="d-inline" onsubmit="return confirm('¿Convertir esto a evento? El curso se ocultará (no se borra) y se creará un evento nuevo con estos datos, que podrás terminar de ajustar.');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-            <input type="hidden" name="accion" value="convertir_a_evento">
-            <button class="btn btn-sm btn-outline-dark">📅 Convertir a evento</button>
-          </form>
-          <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este curso y todo su contenido?');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-            <input type="hidden" name="accion" value="eliminar_curso">
-            <button class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
-        </td>
-      </tr>
-    <?php endforeach; ?>
+  <thead><tr><th>Título</th><th>Precio</th><th>Lecciones</th><th>Creado</th><th>Estado</th><th>Acciones</th></tr></thead>
+  <tbody id="cursosTbody">
+    <?php include __DIR__ . '/_cursos_filas.php'; ?>
   </tbody>
 </table>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('cursosBuscarForm');
+  var input = document.getElementById('cursosBuscarQ');
+  var tbody = document.getElementById('cursosTbody');
+  var cargando = document.getElementById('cursosBuscarCargando');
+  var timer = null;
+  var ultimaPeticion = 0;
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); });
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(buscar, 250);
+  });
+
+  function buscar() {
+    var idPeticion = ++ultimaPeticion;
+    cargando.style.display = 'inline-block';
+    var params = new URLSearchParams(new FormData(form));
+    fetch('cursos_buscar.php?' + params.toString())
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (idPeticion !== ultimaPeticion) return; // respuesta obsoleta, llegó otra después
+        tbody.innerHTML = html;
+      })
+      .catch(function () {
+        if (idPeticion === ultimaPeticion) tbody.innerHTML = '<tr><td colspan="6" class="text-danger text-center">No se pudo buscar, intenta de nuevo.</td></tr>';
+      })
+      .finally(function () {
+        if (idPeticion === ultimaPeticion) cargando.style.display = 'none';
+      });
+  }
+})();
+</script>
 <?php include __DIR__ . '/_footer.php'; ?>

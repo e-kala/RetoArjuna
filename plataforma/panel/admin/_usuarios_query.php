@@ -31,6 +31,8 @@ $sql = "SELECT u.*,
           ms.metodo AS membresia_metodo, ms.fecha_inicio AS membresia_fecha_inicio,
           ms.periodo_actual_fin AS membresia_periodo_actual_fin,
           ms.renovacion_automatica AS membresia_renovacion_automatica,
+          ms.stripe_customer_id AS membresia_stripe_customer_id,
+          ms.stripe_subscription_id AS membresia_stripe_subscription_id,
           mb.nombre AS membresia_nombre
         FROM usuarios_perfil u
         LEFT JOIN (

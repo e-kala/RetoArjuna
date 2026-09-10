@@ -1,0 +1,39 @@
+<?php
+// Filas de la tabla de cursos — compartido por cursos.php (render inicial,
+// dentro de <tbody>) y cursos_buscar.php (respuesta Ajax del buscador en
+// vivo, que reemplaza el <tbody> completo). Espera $cursos ya definido.
+foreach ($cursos as $c): ?>
+  <tr>
+    <td><a href="../../index.php?action=curso&slug=<?= urlencode($c['slug']) ?>" target="_blank"><?= htmlspecialchars($c['titulo']) ?></a></td>
+    <td><?= (int) $c['gratuito'] === 1 ? 'Gratis' : '$' . number_format((float) $c['precio'], 2) ?></td>
+    <td><a href="lecciones.php?curso_id=<?= (int) $c['id'] ?>"><?= (int) $c['total_lecciones'] ?> gestionar</a></td>
+    <td><?= htmlspecialchars(date('d/m/Y', strtotime($c['created_at']))) ?></td>
+    <td data-ajax-estado><?= (int) $c['activo'] === 1 ? 'Publicado' : 'Oculto' ?></td>
+    <td class="d-flex gap-2 flex-wrap">
+      <a href="contenido_form.php?tipo=curso&id=<?= (int) $c['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
+      <form method="post" class="d-inline-flex align-items-center" data-ajax="toggle">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
+        <input type="hidden" name="accion" value="toggle_activo">
+        <div class="form-check form-switch mb-0">
+          <input type="checkbox" class="form-check-input" role="switch" <?= (int) $c['activo'] === 1 ? 'checked' : '' ?> aria-label="<?= (int) $c['activo'] === 1 ? 'Ocultar' : 'Publicar' ?>">
+        </div>
+      </form>
+      <form method="post" class="d-inline" onsubmit="return confirm('¿Convertir esto a evento? El curso se ocultará (no se borra) y se creará un evento nuevo con estos datos, que podrás terminar de ajustar.');">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
+        <input type="hidden" name="accion" value="convertir_a_evento">
+        <button class="btn btn-sm btn-outline-dark">📅 Convertir a evento</button>
+      </form>
+      <form method="post" class="d-inline" data-ajax="eliminar" data-confirm="¿Eliminar este curso y todo su contenido?">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
+        <input type="hidden" name="accion" value="eliminar_curso">
+        <button class="btn btn-sm btn-outline-danger">Eliminar</button>
+      </form>
+    </td>
+  </tr>
+<?php endforeach;
+if (!$cursos): ?>
+  <tr><td colspan="6" class="text-muted text-center">No hay cursos que coincidan.</td></tr>
+<?php endif; ?>

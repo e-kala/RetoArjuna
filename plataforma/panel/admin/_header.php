@@ -17,7 +17,13 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=1.2">
+  <link rel="stylesheet" href="../../assets/css/platform.css?v=2.8">
+  <!-- jQuery + notify.js (mismo par que ya usa el foro) — jQuery SIEMPRE
+       antes que notify.min.js, arma su propio "jQuery" global al analizarse. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+    integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="../../content/notify.min.js"></script>
 </head>
 <body class="pf-body">
   <?php $navPrefijo = '../../../'; $navActivoContiene = ''; include __DIR__ . '/../../content/navbar.php'; ?>

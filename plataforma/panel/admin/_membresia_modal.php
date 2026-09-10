@@ -11,7 +11,7 @@ $listaUsuariosModal = $listaUsuariosModal ?? [];
 ?>
 <div class="modal fade" id="membresiaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="post" action="membresia_suscripcion_guardar.php" class="modal-content" id="membresiaModalForm">
+    <form method="post" action="membresia_suscripcion_guardar.php" class="modal-content" id="membresiaModalForm" data-ajax-form>
       <?= csrf_field() ?>
       <input type="hidden" name="suscripcion_id" id="mmSuscripcionId" value="0">
       <input type="hidden" name="usuario_id" id="mmUsuarioId" value="">
@@ -45,6 +45,7 @@ $listaUsuariosModal = $listaUsuariosModal ?? [];
             <select class="form-select" name="metodo" id="mmMetodo">
               <option value="manual">Manual (cortesía, efectivo, etc.)</option>
               <option value="transferencia">Transferencia</option>
+              <option value="stripe">Stripe (vincular suscripción existente)</option>
             </select>
           </div>
           <div class="col-md-6">
@@ -52,16 +53,26 @@ $listaUsuariosModal = $listaUsuariosModal ?? [];
             <input type="date" class="form-control" name="fecha_inicio" id="mmFechaInicio" required>
           </div>
         </div>
-        <div class="form-check mt-3">
-          <input type="checkbox" class="form-check-input" name="caduca" id="mmCaduca" checked>
+        <div class="row g-3 mt-0" id="mmStripeWrap" style="display:none;">
+          <div class="col-md-6">
+            <label class="form-label">Stripe Customer ID</label>
+            <input type="text" class="form-control" name="stripe_customer_id" id="mmStripeCustomerId" placeholder="cus_...">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Stripe Subscription ID</label>
+            <input type="text" class="form-control" name="stripe_subscription_id" id="mmStripeSubscriptionId" placeholder="sub_...">
+          </div>
+        </div>
+        <div class="form-check form-switch mt-3">
+          <input type="checkbox" class="form-check-input" role="switch" name="caduca" id="mmCaduca" checked>
           <label class="form-check-label" for="mmCaduca">Caduca (si se desmarca, la membresía no vence)</label>
         </div>
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" name="renovacion_automatica" id="mmRenovacion">
+        <div class="form-check form-switch">
+          <input type="checkbox" class="form-check-input" role="switch" name="renovacion_automatica" id="mmRenovacion">
           <label class="form-check-label" for="mmRenovacion">Se renueva automáticamente</label>
         </div>
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" name="notificar" id="mmNotificar" checked>
+        <div class="form-check form-switch">
+          <input type="checkbox" class="form-check-input" role="switch" name="notificar" id="mmNotificar" checked>
           <label class="form-check-label" for="mmNotificar">Notificar por correo</label>
         </div>
       </div>
@@ -99,9 +110,16 @@ function abrirMembresiaModal(opts) {
   document.getElementById('mmRenovacion').checked = !!opts.renovacionAutomatica;
   document.getElementById('mmNotificar').checked = opts.notificar !== false;
   document.getElementById('mmTitulo').textContent = opts.titulo || 'Membresía';
+  document.getElementById('mmStripeCustomerId').value = opts.stripeCustomerId || '';
+  document.getElementById('mmStripeSubscriptionId').value = opts.stripeSubscriptionId || '';
+  document.getElementById('mmStripeWrap').style.display = document.getElementById('mmMetodo').value === 'stripe' ? '' : 'none';
 
   new bootstrap.Modal(document.getElementById('membresiaModal')).show();
 }
+
+document.getElementById('mmMetodo').addEventListener('change', function () {
+  document.getElementById('mmStripeWrap').style.display = this.value === 'stripe' ? '' : 'none';
+});
 
 document.getElementById('mmUsuarioBusca').addEventListener('input', function () {
   if (this.readOnly) return;

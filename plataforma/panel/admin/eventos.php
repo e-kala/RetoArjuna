@@ -4,17 +4,37 @@ require_role('admin');
 requerir_csrf_form();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $id = (int) ($_POST['id'] ?? 0);
     if (($_POST['accion'] ?? '') === 'eliminar_evento') {
         $stmt = $conn->prepare('DELETE FROM eventos WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'eliminado' => true, 'mensaje' => 'Evento eliminado.']);
+            exit;
+        }
     } elseif (($_POST['accion'] ?? '') === 'toggle_activo') {
         $stmt = $conn->prepare('UPDATE eventos SET activo = 1 - activo WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            $stmt = $conn->prepare('SELECT activo FROM eventos WHERE id = ?');
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $activo = (int) ($stmt->get_result()->fetch_assoc()['activo'] ?? 0);
+            $stmt->close();
+            echo json_encode([
+                'success' => true,
+                'mensaje' => $activo ? 'Evento publicado.' : 'Evento oculto.',
+                'boton_texto' => $activo ? 'Ocultar' : 'Publicar',
+                'boton_accion' => 'toggle_activo',
+                'estado_html' => $activo ? 'Publicado' : 'Oculto',
+            ]);
+            exit;
+        }
     } elseif (($_POST['accion'] ?? '') === 'convertir_a_curso') {
         $stmt = $conn->prepare('SELECT * FROM eventos WHERE id = ?');
         $stmt->bind_param('i', $id);
@@ -55,11 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$eventos = $conn->query(
-    "SELECT ev.*, (SELECT COUNT(*) FROM evento_inscripciones WHERE evento_id = ev.id AND estado <> 'cancelado') AS total_inscritos,
-            (SELECT COUNT(*) FROM lecciones WHERE evento_id = ev.id) AS total_lecciones
-     FROM eventos ev ORDER BY fecha_inicio DESC"
-)->fetch_all(MYSQLI_ASSOC);
+require __DIR__ . '/_eventos_query.php';
 
 $pageTitle = 'Eventos';
 include __DIR__ . '/_header.php';
@@ -68,43 +84,51 @@ include __DIR__ . '/_header.php';
   <h1 class="h4">Eventos</h1>
   <a href="contenido_form.php?tipo=evento" class="btn btn-success btn-sm">+ Nuevo evento</a>
 </div>
+<form method="get" id="eventosBuscarForm" class="mb-3 d-flex gap-2 flex-wrap" style="max-width:400px;">
+  <input type="search" name="q" id="eventosBuscarQ" class="form-control" placeholder="Buscar por título" value="<?= htmlspecialchars($busqueda) ?>" autocomplete="off">
+  <span id="eventosBuscarCargando" class="spinner-border spinner-border-sm text-secondary align-self-center" style="display:none;" aria-hidden="true"></span>
+</form>
 <div class="table-responsive">
 <table class="table table-bordered bg-white">
-  <thead><tr><th>Título</th><th>Tipo</th><th>Fecha</th><th>Precio</th><th>Inscritos</th><th>Lecciones</th><th>Estado</th><th>Acciones</th></tr></thead>
-  <tbody>
-    <?php foreach ($eventos as $ev): ?>
-      <tr>
-        <td><a href="../../index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>" target="_blank"><?= htmlspecialchars($ev['titulo']) ?></a></td>
-        <td><?= $ev['tipo'] === 'online' ? 'En línea' : 'Presencial' ?></td>
-        <td><?= htmlspecialchars(date('d/m/Y H:i', strtotime($ev['fecha_inicio']))) ?></td>
-        <td><?= (int) $ev['gratuito'] === 1 ? 'Gratis' : '$' . number_format((float) $ev['precio'], 2) ?></td>
-        <td><a href="evento_inscritos.php?evento_id=<?= (int) $ev['id'] ?>"><?= (int) $ev['total_inscritos'] ?> ver</a></td>
-        <td><a href="lecciones.php?evento_id=<?= (int) $ev['id'] ?>"><?= (int) $ev['total_lecciones'] ?> gestionar</a></td>
-        <td><?= (int) $ev['activo'] === 1 ? 'Publicado' : 'Oculto' ?></td>
-        <td class="d-flex gap-2 flex-wrap">
-          <a href="contenido_form.php?tipo=evento&id=<?= (int) $ev['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
-          <form method="post" class="d-inline">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $ev['id'] ?>">
-            <input type="hidden" name="accion" value="toggle_activo">
-            <button class="btn btn-sm btn-outline-secondary"><?= (int) $ev['activo'] === 1 ? 'Ocultar' : 'Publicar' ?></button>
-          </form>
-          <form method="post" class="d-inline" onsubmit="return confirm('¿Convertir esto a curso? El evento se ocultará (no se borra) y se creará un curso nuevo con estos datos, que podrás terminar de ajustar.');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $ev['id'] ?>">
-            <input type="hidden" name="accion" value="convertir_a_curso">
-            <button class="btn btn-sm btn-outline-dark">🎓 Convertir a curso</button>
-          </form>
-          <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este evento?');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= (int) $ev['id'] ?>">
-            <input type="hidden" name="accion" value="eliminar_evento">
-            <button class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
-        </td>
-      </tr>
-    <?php endforeach; ?>
+  <thead><tr><th>Título</th><th>Tipo</th><th>Fecha del evento</th><th>Creado</th><th>Precio</th><th>Inscritos</th><th>Lecciones</th><th>Estado</th><th>Acciones</th></tr></thead>
+  <tbody id="eventosTbody">
+    <?php include __DIR__ . '/_eventos_filas.php'; ?>
   </tbody>
 </table>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('eventosBuscarForm');
+  var input = document.getElementById('eventosBuscarQ');
+  var tbody = document.getElementById('eventosTbody');
+  var cargando = document.getElementById('eventosBuscarCargando');
+  var timer = null;
+  var ultimaPeticion = 0;
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); });
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(buscar, 250);
+  });
+
+  function buscar() {
+    var idPeticion = ++ultimaPeticion;
+    cargando.style.display = 'inline-block';
+    var params = new URLSearchParams(new FormData(form));
+    fetch('eventos_buscar.php?' + params.toString())
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (idPeticion !== ultimaPeticion) return;
+        tbody.innerHTML = html;
+      })
+      .catch(function () {
+        if (idPeticion === ultimaPeticion) tbody.innerHTML = '<tr><td colspan="9" class="text-danger text-center">No se pudo buscar, intenta de nuevo.</td></tr>';
+      })
+      .finally(function () {
+        if (idPeticion === ultimaPeticion) cargando.style.display = 'none';
+      });
+  }
+})();
+</script>
 <?php include __DIR__ . '/_footer.php'; ?>

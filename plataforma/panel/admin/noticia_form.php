@@ -19,6 +19,7 @@ if ($id) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $titulo = trim($_POST['titulo'] ?? '');
     $slug = trim($_POST['slug'] ?? '');
     if ($slug === '') {
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($titulo === '' || $contenido === '') {
         $error = 'El título y el contenido son obligatorios.';
     } elseif ($error === '') {
+        $esNuevo = !$id;
         if ($id) {
             $stmt = $conn->prepare('UPDATE noticias SET titulo=?, slug=?, resumen=?, contenido=?, imagen=?, publicada_at=?, activo=? WHERE id=?');
             $stmt->bind_param('ssssssii', $titulo, $slug, $resumen, $contenido, $imagen, $publicadaAt, $activo, $id);
@@ -47,11 +49,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ssssssi', $titulo, $slug, $resumen, $contenido, $imagen, $publicadaAt, $activo);
         }
         if ($stmt->execute()) {
+            // No hay cron — si publicada_at queda en el futuro, la noticia
+            // todavía no es visible en el catálogo (mismo filtro que ya usa
+            // noticias_catalogo.php), así que tampoco tiene sentido avisar
+            // de algo que nadie puede ver todavía.
+            if ($esNuevo && $activo && $publicadaAt <= date('Y-m-d H:i:s')) {
+                notificacion_difundir('nueva_noticia', 'Nueva noticia: ' . $titulo, $resumen !== '' ? mb_strimwidth($resumen, 0, 140, '…') : null, 'index.php?action=noticia&slug=' . urlencode($slug));
+            }
+            if ($esAjax) {
+                echo json_encode(['success' => true, 'redirect' => 'noticias.php']);
+                exit;
+            }
             header('Location: noticias.php');
             exit;
         }
         $error = '¿El slug ya existe? Prueba con otro.';
         $stmt->close();
+    }
+    if ($esAjax && $error !== '') {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
+        exit;
     }
 }
 
@@ -60,7 +77,7 @@ include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?></h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-<form method="post" class="row g-3" enctype="multipart/form-data">
+<form method="post" class="row g-3" enctype="multipart/form-data" data-ajax-form>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <div class="col-md-8"><label class="form-label">Título</label><input class="form-control" name="titulo" value="<?= htmlspecialchars($noticia['titulo']) ?>" required></div>
@@ -76,8 +93,8 @@ include __DIR__ . '/_header.php';
   include __DIR__ . '/_imagen_picker.php';
   ?>
   <div class="col-md-4"><label class="form-label">Fecha de publicación</label><input type="datetime-local" class="form-control" name="publicada_at" value="<?= htmlspecialchars($noticia['publicada_at']) ?>"></div>
-  <div class="col-md-2 form-check mt-4">
-    <input type="checkbox" class="form-check-input" name="activo" id="activo" <?= (int) $noticia['activo'] === 1 ? 'checked' : '' ?>>
+  <div class="col-md-2 form-check form-switch mt-4">
+    <input type="checkbox" class="form-check-input" role="switch" name="activo" id="activo" <?= (int) $noticia['activo'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="activo">Publicada</label>
   </div>
   <div class="col-12"><button class="btn btn-success">Guardar</button></div>

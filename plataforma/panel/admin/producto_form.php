@@ -6,7 +6,8 @@ requerir_csrf_form();
 
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 $producto = ['tipo' => 'fisico', 'nombre' => '', 'slug' => '', 'descripcion' => '',
-             'precio' => 0, 'imagen' => '', 'archivo_digital' => '', 'stock' => '', 'activo' => 1];
+             'precio' => 0, 'imagen' => '', 'archivo_digital' => '', 'stock' => '', 'activo' => 1,
+             'mostrar_codigo_promocion' => 0];
 
 if ($id) {
     $stmt = $conn->prepare('SELECT * FROM productos WHERE id = ?');
@@ -18,6 +19,7 @@ if ($id) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $tipo = $_POST['tipo'] ?? 'fisico';
     $nombre = trim($_POST['nombre'] ?? '');
     $slug = trim($_POST['slug'] ?? '');
@@ -30,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $archivoDigital = (string) $producto['archivo_digital'];
     $stock = ($tipo === 'fisico' && $_POST['stock'] !== '') ? (int) $_POST['stock'] : null;
     $activo = isset($_POST['activo']) ? 1 : 0;
+    $mostrarCodigoPromocion = isset($_POST['mostrar_codigo_promocion']) ? 1 : 0;
 
     $archivoDigitalUrl = trim($_POST['archivo_digital_url'] ?? '');
 
@@ -51,23 +54,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombre === '') {
         $error = 'El nombre es obligatorio.';
     } elseif ($error === '') {
+        $esNuevo = !$id;
         if ($id) {
             $stmt = $conn->prepare(
-                'UPDATE productos SET tipo=?, nombre=?, slug=?, descripcion=?, precio=?, imagen=?, archivo_digital=?, stock=?, activo=? WHERE id=?'
+                'UPDATE productos SET tipo=?, nombre=?, slug=?, descripcion=?, precio=?, imagen=?, archivo_digital=?, stock=?, activo=?, mostrar_codigo_promocion=? WHERE id=?'
             );
-            $stmt->bind_param('ssssdssiii', $tipo, $nombre, $slug, $descripcion, $precio, $imagen, $archivoDigital, $stock, $activo, $id);
+            $stmt->bind_param('ssssdssiiii', $tipo, $nombre, $slug, $descripcion, $precio, $imagen, $archivoDigital, $stock, $activo, $mostrarCodigoPromocion, $id);
         } else {
             $stmt = $conn->prepare(
-                'INSERT INTO productos (tipo, nombre, slug, descripcion, precio, imagen, archivo_digital, stock, activo) VALUES (?,?,?,?,?,?,?,?,?)'
+                'INSERT INTO productos (tipo, nombre, slug, descripcion, precio, imagen, archivo_digital, stock, activo, mostrar_codigo_promocion) VALUES (?,?,?,?,?,?,?,?,?,?)'
             );
-            $stmt->bind_param('ssssdssii', $tipo, $nombre, $slug, $descripcion, $precio, $imagen, $archivoDigital, $stock, $activo);
+            $stmt->bind_param('ssssdssiii', $tipo, $nombre, $slug, $descripcion, $precio, $imagen, $archivoDigital, $stock, $activo, $mostrarCodigoPromocion);
         }
         if ($stmt->execute()) {
+            if ($esNuevo && $activo) {
+                notificacion_difundir('nuevo_producto', 'Nuevo producto: ' . $nombre, $descripcion !== '' ? mb_strimwidth($descripcion, 0, 140, '…') : null, 'index.php?action=producto&slug=' . urlencode($slug));
+            }
+            if ($esAjax) {
+                echo json_encode(['success' => true, 'redirect' => 'productos.php']);
+                exit;
+            }
             header('Location: productos.php');
             exit;
         }
         $error = '¿El slug ya existe? Prueba con otro.';
         $stmt->close();
+    }
+    if ($esAjax && $error !== '') {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
+        exit;
     }
 }
 
@@ -76,7 +91,7 @@ include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?></h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-<form method="post" class="row g-3" enctype="multipart/form-data">
+<form method="post" class="row g-3" enctype="multipart/form-data" data-ajax-form>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <div class="col-md-4">
@@ -115,9 +130,13 @@ include __DIR__ . '/_header.php';
     <?php endif; ?>
     <div class="form-text">Se le mostrará como enlace de descarga en "Mis compras" a quien lo compre.</div>
   </div>
-  <div class="col-md-6 form-check mt-4">
-    <input type="checkbox" class="form-check-input" name="activo" id="activo" <?= (int) $producto['activo'] === 1 ? 'checked' : '' ?>>
+  <div class="col-md-6 form-check form-switch mt-4">
+    <input type="checkbox" class="form-check-input" role="switch" name="activo" id="activo" <?= (int) $producto['activo'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="activo">Publicado</label>
+  </div>
+  <div class="col-md-6 form-check form-switch mt-4">
+    <input type="checkbox" class="form-check-input" role="switch" name="mostrar_codigo_promocion" id="mostrar_codigo_promocion" <?= (int) $producto['mostrar_codigo_promocion'] === 1 ? 'checked' : '' ?>>
+    <label class="form-check-label" for="mostrar_codigo_promocion">Mostrar campo de "código de cupón" en el checkout</label>
   </div>
   <div class="col-12"><button class="btn btn-success">Guardar</button></div>
 </form>

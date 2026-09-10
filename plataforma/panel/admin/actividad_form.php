@@ -16,6 +16,7 @@ if ($id) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $titulo = trim($_POST['titulo'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
     $icono = trim($_POST['icono'] ?? '') ?: '📌';
@@ -35,7 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'redirect' => 'actividades.php']);
+            exit;
+        }
         header('Location: actividades.php');
+        exit;
+    }
+    if ($esAjax && $error !== '') {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
         exit;
     }
 }
@@ -45,7 +54,7 @@ include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?></h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-<form method="post" class="row g-3">
+<form method="post" class="row g-3" data-ajax-form>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <div class="col-md-2"><label class="form-label">Icono (emoji)</label><input class="form-control" name="icono" value="<?= htmlspecialchars($actividad['icono']) ?>" maxlength="10"></div>
@@ -53,8 +62,8 @@ include __DIR__ . '/_header.php';
   <div class="col-md-2"><label class="form-label">Orden</label><input type="number" class="form-control" name="orden" value="<?= (int) $actividad['orden'] ?>"></div>
   <div class="col-12"><label class="form-label">Descripción</label><textarea class="form-control" name="descripcion" rows="3"><?= htmlspecialchars((string) $actividad['descripcion']) ?></textarea></div>
   <div class="col-md-8"><label class="form-label">Enlace (opcional)</label><input class="form-control" name="enlace_url" value="<?= htmlspecialchars((string) $actividad['enlace_url']) ?>" placeholder="https://..."></div>
-  <div class="col-md-4 form-check mt-4">
-    <input type="checkbox" class="form-check-input" name="activo" id="activo" <?= (int) $actividad['activo'] === 1 ? 'checked' : '' ?>>
+  <div class="col-md-4 form-check form-switch mt-4">
+    <input type="checkbox" class="form-check-input" role="switch" name="activo" id="activo" <?= (int) $actividad['activo'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="activo">Visible</label>
   </div>
   <div class="col-12"><button class="btn btn-success">Guardar</button></div>

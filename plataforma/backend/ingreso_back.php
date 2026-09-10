@@ -1,6 +1,7 @@
 <?php
 // Login nativo: verifica usuario/correo + contraseña contra usuarios_perfil.
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/ofertas.php';
 header('Content-Type: application/json');
 requerir_csrf_form();
 
@@ -30,5 +31,6 @@ if ((int) $usuario['activo'] !== 1) {
 }
 
 login_user((int) $usuario['id']);
+guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
 
-echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login('', (string) ($_POST['volver'] ?? ''))]);

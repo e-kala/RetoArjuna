@@ -1,7 +1,9 @@
 <?php
-// Inscripción a un evento: si es gratuito, inscribe directo; si es de pago,
-// manda al checkout (igual que un curso de pago).
+// Inscripción a un evento: si es gratuito/incluido/quedó en $0 por
+// promoción-cupón, inscribe directo; si es de pago, manda al checkout.
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/ofertas.php';
+require_once __DIR__ . '/pagos/stripe_helper.php';
 header('Content-Type: application/json');
 requerir_csrf_json();
 
@@ -13,8 +15,9 @@ if (!is_logged_in()) {
 
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 $eventoId = (int) ($_POST['evento_id'] ?? 0);
+$codigoCupon = trim((string) ($_POST['codigo_cupon'] ?? '')) ?: null;
 
-$stmt = $conn->prepare('SELECT gratuito, activo, cupo_maximo, solo_miembros, incluido_membresia, fecha_inicio FROM eventos WHERE id = ?');
+$stmt = $conn->prepare('SELECT precio, gratuito, activo, cupo_maximo, solo_miembros, incluido_membresia, descuento_miembro_pct, fecha_inicio FROM eventos WHERE id = ?');
 $stmt->bind_param('i', $eventoId);
 $stmt->execute();
 $evento = $stmt->get_result()->fetch_assoc();
@@ -26,18 +29,30 @@ if (!$evento || !(int) $evento['activo']) {
 }
 
 $soloMiembros = (int) $evento['solo_miembros'] === 1;
-$incluidoMembresia = (int) $evento['incluido_membresia'] === 1;
 $esMiembro = usuario_tiene_membresia_activa($usuarioPerfilId);
 
 if ($soloMiembros && !$esMiembro) {
     echo json_encode(['success' => false, 'message' => 'Este evento es exclusivo para miembros de Camino Arjuna.']);
     exit;
 }
-// solo_miembros ya implica "incluido" para quien es miembro (y a los que no
-// lo son ya se les bloqueó arriba); incluido_membresia extiende lo mismo a
-// un evento que NO es exclusivo (los demás lo siguen pudiendo comprar).
-$accesoGratisPorMembresia = ($soloMiembros || $incluidoMembresia) && $esMiembro;
-if ((int) $evento['gratuito'] !== 1 && !$accesoGratisPorMembresia) {
+
+$usuario = current_user();
+$ofertaItem = [
+    'id' => $eventoId,
+    'precio' => (float) $evento['precio'],
+    'gratuito' => (bool) $evento['gratuito'],
+    'incluido_membresia' => (bool) $evento['incluido_membresia'],
+    'solo_miembros' => $soloMiembros,
+    'descuento_miembro_pct' => $evento['descuento_miembro_pct'] !== null ? (float) $evento['descuento_miembro_pct'] : null,
+    'ya_tiene_acceso' => usuario_esta_inscrito_evento($usuarioPerfilId, $eventoId),
+];
+$oferta = resolver_oferta($conn, 'evento', $ofertaItem, $usuario, $codigoCupon);
+
+if ($oferta['estado'] === 'acceso') {
+    echo json_encode(['success' => true]);
+    exit;
+}
+if ($oferta['estado'] !== 'gratuito' && $oferta['estado'] !== 'incluido_membresia' && !$oferta['acceso_gratis_automatico']) {
     echo json_encode(['success' => false, 'message' => 'Este evento requiere pago.', 'checkout' => true]);
     exit;
 }
@@ -64,5 +79,20 @@ $stmt = $conn->prepare(
 $stmt->bind_param('ii', $usuarioPerfilId, $eventoId);
 $stmt->execute();
 $stmt->close();
+
+// Registro para que la promoción/cupón que dejó esto en $0 cuente contra su
+// límite de usos (ver curso_inscribir.php, mismo criterio).
+if ($oferta['acceso_gratis_automatico'] && $oferta['oferta_tipo'] !== null) {
+    $cuponId = $oferta['oferta_tipo'] === 'cupon' ? $oferta['oferta_id'] : null;
+    $promocionId = $oferta['oferta_tipo'] === 'promocion' ? $oferta['oferta_id'] : null;
+    $modo = stripe_modo_prueba_activo() ? 'prueba' : 'live';
+    $stmt = $conn->prepare(
+        "INSERT INTO pagos (usuario_id, evento_id, cupon_id, promocion_id, monto, metodo_pago, modo, estado)
+         VALUES (?, ?, ?, ?, 0, 'transferencia', ?, 'confirmado')"
+    );
+    $stmt->bind_param('iiiis', $usuarioPerfilId, $eventoId, $cuponId, $promocionId, $modo);
+    $stmt->execute();
+    $stmt->close();
+}
 
 echo json_encode(['success' => true]);

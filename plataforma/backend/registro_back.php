@@ -1,6 +1,8 @@
 <?php
 // Registro nativo: valida datos, hashea la contraseña y crea el perfil directo.
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/ofertas.php';
+require_once __DIR__ . '/mailer.php';
 header('Content-Type: application/json');
 requerir_csrf_form();
 
@@ -49,5 +51,7 @@ $nuevoId = $stmt->insert_id;
 $stmt->close();
 
 login_user($nuevoId);
+guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
+enviar_email_bienvenida($nuevoId, $email);
 
-echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil')]);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil', (string) ($_POST['volver'] ?? ''))]);

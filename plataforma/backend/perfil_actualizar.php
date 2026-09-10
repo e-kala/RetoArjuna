@@ -15,6 +15,7 @@ $usuarioId = (int) $_SESSION['usuario_perfil_id'];
 $username = trim($_POST['username'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $telefono = trim($_POST['telefono'] ?? '');
+$perfilPublico = isset($_POST['perfil_publico']) ? 1 : 0;
 
 if ($username === '' || $email === '') {
     echo json_encode(['success' => false, 'message' => 'El usuario y el correo son obligatorios.']);
@@ -38,8 +39,8 @@ if ($existente) {
     exit;
 }
 
-$stmt = $conn->prepare('UPDATE usuarios_perfil SET username_cache = ?, email_cache = ?, telefono = ? WHERE id = ?');
-$stmt->bind_param('sssi', $username, $email, $telefono, $usuarioId);
+$stmt = $conn->prepare('UPDATE usuarios_perfil SET username_cache = ?, email_cache = ?, telefono = ?, perfil_publico = ? WHERE id = ?');
+$stmt->bind_param('sssii', $username, $email, $telefono, $perfilPublico, $usuarioId);
 $stmt->execute();
 $stmt->close();
 

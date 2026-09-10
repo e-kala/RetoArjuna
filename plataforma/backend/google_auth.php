@@ -4,6 +4,8 @@
 // email. Sin SDK: el id_token se valida contra el endpoint público de Google.
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/ofertas.php';
+require_once __DIR__ . '/mailer.php';
 
 header('Content-Type: application/json');
 requerir_csrf_json();
@@ -61,7 +63,8 @@ $stmt->close();
 
 if ($usuario) {
     login_user((int) $usuario['id']);
-    echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);
+    guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
+    echo json_encode(['success' => true, 'redirect' => redirect_post_login('', (string) ($_POST['volver'] ?? ''))]);
     exit;
 }
 
@@ -78,7 +81,8 @@ if ($usuario) {
     $stmt->execute();
     $stmt->close();
     login_user((int) $usuario['id']);
-    echo json_encode(['success' => true, 'redirect' => redirect_post_login()]);
+    guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
+    echo json_encode(['success' => true, 'redirect' => redirect_post_login('', (string) ($_POST['volver'] ?? ''))]);
     exit;
 }
 
@@ -109,4 +113,6 @@ $nuevoId = $stmt->insert_id;
 $stmt->close();
 
 login_user($nuevoId);
-echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil')]);
+guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
+enviar_email_bienvenida($nuevoId, $email);
+echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil', (string) ($_POST['volver'] ?? ''))]);

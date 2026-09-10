@@ -1,3 +1,24 @@
+<?php
+if (is_logged_in()) {
+    // Si ya hay sesión y de todos modos se llegó aquí con un volver (ej. un
+    // CTA de landing que siempre enlaza a registro.php sin saber si ya está
+    // logueado), hay que respetarlo — si no, este guard lo descarta antes de
+    // que el resto de la página siquiera lo lea, y manda al panel en vez de
+    // a la página de pago de la que venía.
+    header('Location: ' . redirect_post_login_con_aviso_sesion((string) ($_GET['volver'] ?? '')));
+    exit;
+}
+// El destino a donde regresar tras registrarse (ej. un curso/evento del que
+// vino) viaja como query param desde quien enlazó aquí (navbar.php, CTAs de
+// contenido) — se reenvía tal cual al backend; la validación real (anti open
+// redirect) vive una sola vez, en volver_validado() dentro de auth.php.
+$volverActual = (string) ($_GET['volver'] ?? '');
+// Mismo origen que volver, pero el cupón (a diferencia de "a dónde
+// regresar") también puede venir ya guardado en sesión de una visita
+// anterior (P03: "puede conocer la oferta antes de registrarse") — un
+// ?cupon= explícito en la URL actual siempre pisa el de sesión.
+$cuponActual = (string) ($_GET['cupon'] ?? ($_SESSION['cupon_pendiente'] ?? ''));
+?>
 <style>
   #registrationForm .form-control:focus { border-color: #F6C500; box-shadow: 0 0 0 .25rem rgba(246,197,0,.25); }
 </style>
@@ -10,10 +31,11 @@
       <div class="card border-0 shadow" style="border-radius:18px;overflow:hidden;">
         <div style="height:6px;background:linear-gradient(90deg,#F6C500,#B8860B);"></div>
         <div class="card-body p-4 p-md-5">
-          <h1 class="h3 fw-bold text-center mb-1" style="color:var(--pf-ink);">Regístrate</h1>
-          <p class="text-muted text-center mb-4">Únete al Camino Arjuna</p>
+          <h1 class="h3 fw-bold text-center mb-4" style="color:var(--pf-ink);">Crea tu Cuenta Arjuna</h1>
 
           <form id="registrationForm">
+            <input type="hidden" id="inputVolver" value="<?= htmlspecialchars($volverActual) ?>">
+            <input type="hidden" id="inputCupon" value="<?= htmlspecialchars($cuponActual) ?>">
             <div id="registroError" class="alert alert-danger d-none"></div>
 
             <div class="form-floating mb-3">
@@ -40,7 +62,7 @@
               Tu contraseña debe tener al menos 8 caracteres y contener letras y números.
             </div>
 
-            <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:#F6C500;color:#171717;">Registrarme</button>
+            <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:#F6C500;color:#171717;">Crear mi cuenta</button>
           </form>
 
           <?php if (config_esta_lista(GOOGLE_CLIENT_ID)): ?>
@@ -60,7 +82,7 @@
           <?php endif; ?>
 
           <p class="text-center text-muted mt-4 mb-0">¿Ya tienes cuenta?
-            <a href="?action=ingreso" class="fw-bold text-decoration-none" style="color:#B8860B;">Inicia sesión</a>
+            <a href="?action=ingreso<?= $volverActual !== '' ? '&volver=' . urlencode($volverActual) : '' ?><?= $cuponActual !== '' ? '&cupon=' . urlencode($cuponActual) : '' ?>" class="fw-bold text-decoration-none" style="color:#B8860B;">Inicia sesión</a>
           </p>
         </div>
       </div>
@@ -77,7 +99,9 @@
       type: 'POST',
       data: {
         id_token: response.credential,
-        csrf_token: <?= json_encode(csrf_token()) ?>
+        csrf_token: <?= json_encode(csrf_token()) ?>,
+        volver: $('#inputVolver').val(),
+        cupon: $('#inputCupon').val()
       },
       dataType: 'json',
       success: function (data) {
@@ -125,7 +149,9 @@
           telefono: telefono,
           password: password,
           password_confirm: confirmPassword,
-          csrf_token: <?= json_encode(csrf_token()) ?>
+          csrf_token: <?= json_encode(csrf_token()) ?>,
+          volver: $('#inputVolver').val(),
+          cupon: $('#inputCupon').val()
         },
         dataType: 'json',
         success: function (response) {

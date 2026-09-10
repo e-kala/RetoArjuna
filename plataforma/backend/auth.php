@@ -17,6 +17,10 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/conexion.php';
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/notificaciones.php';
+require_once __DIR__ . '/perfiles.php';
+require_once __DIR__ . '/calificaciones.php';
+require_once __DIR__ . '/regalos.php';
 
 /**
  * Convierte cualquier formato de URL de YouTube (watch?v=, youtu.be/, shorts/,
@@ -51,7 +55,7 @@ function login_user(int $usuarioPerfilId): void
     global $conn;
 
     $stmt = $conn->prepare(
-        'SELECT id, rol, avatar_cache, username_cache, email_cache FROM usuarios_perfil WHERE id = ?'
+        'SELECT id, rol, es_prueba, avatar_cache, username_cache, email_cache FROM usuarios_perfil WHERE id = ?'
     );
     $stmt->bind_param('i', $usuarioPerfilId);
     $stmt->execute();
@@ -66,22 +70,102 @@ function login_user(int $usuarioPerfilId): void
     $_SESSION['login'] = true;
     $_SESSION['usuario_perfil_id'] = (int) $row['id'];
     $_SESSION['rol'] = $row['rol'];
+    $_SESSION['es_prueba'] = (int) $row['es_prueba'];
     $_SESSION['username'] = $row['username_cache'];
     $_SESSION['email'] = $row['email_cache'];
     $_SESSION['avatar'] = $row['avatar_cache'];
+
+    // Para el panel de inactividad (panel/admin/inactividad.php) — un solo
+    // punto de entrada (login_user() cubre login nativo y Google OAuth por
+    // igual, ver ingreso_back.php/google_auth.php), así que no hace falta
+    // duplicar este UPDATE en cada flujo de login.
+    $stmtLogin = $conn->prepare('UPDATE usuarios_perfil SET ultimo_login = NOW() WHERE id = ?');
+    $stmtLogin->bind_param('i', $usuarioPerfilId);
+    $stmtLogin->execute();
+    $stmtLogin->close();
+}
+
+/**
+ * Valida una URL de "volver" recibida del cliente (login, registro, Google)
+ * — solo se acepta una ruta relativa al propio sitio, nunca un valor que
+ * pueda mandar a otro dominio (open redirect). Devuelve '' si no es válida.
+ * Mismo criterio que ya usaba panel/admin/stripe_modo_prueba.php para su
+ * propio "volver" — centralizado aquí para no repetir la validación en cada
+ * punto que la necesite.
+ *
+ * También rechaza un volver que apunte de regreso a login/registro: el
+ * navbar arma sus botones "Iniciar sesión"/"Crear Cuenta" con
+ * volver=<URL actual> (ver navbar.php), y ese navbar también se muestra en
+ * la propia página de login — sin este filtro, entrar directo a
+ * ?action=ingreso y usar ese botón (o recargar esa URL ya con el volver
+ * puesto) hacía que, tras autenticarse, se regresara al mismo formulario de
+ * login en vez de al panel/dashboard.
+ *
+ * Mismo criterio para la landing de mercadeo (index.php en la raíz del
+ * sitio, fuera de plataforma/ — reto-arjuna.html/asesoria.html/etc. también
+ * cargan este navbar): si alguien inicia sesión desde ahí, quiere entrar a
+ * su cuenta, no quedarse viendo la misma landing — sin este filtro,
+ * `redirect_post_login()` regresaba ahí en vez de mandar al panel.
+ */
+function volver_validado(string $volver): string
+{
+    $volver = trim($volver);
+    if ($volver === '' || $volver[0] !== '/' || str_starts_with($volver, '//') || str_contains($volver, '://')) {
+        return '';
+    }
+    $path = (string) (parse_url($volver, PHP_URL_PATH) ?? '');
+    $raizSitio = rtrim(dirname(BASE_URL), '/');
+    if ($path === $raizSitio . '/index.php' || $path === $raizSitio . '/' || $path === $raizSitio) {
+        return '';
+    }
+    $query = (string) (parse_url($volver, PHP_URL_QUERY) ?? '');
+    parse_str($query, $params);
+    if (in_array($params['action'] ?? '', ['ingreso', 'registro'], true)) {
+        return '';
+    }
+    return $volver;
 }
 
 /**
  * A dónde mandar a alguien justo después de autenticarse (login nativo,
- * registro o Google) — admins van al panel administrativo de siempre,
- * cualquier otro rol va al dashboard de estudiante (panel/dashboard.php),
- * pensado para sentirse como plataforma educativa y no como consola admin.
+ * registro o Google). Un admin SIEMPRE va al panel administrativo
+ * (panel/index.php), sin excepción — ignora $volver incluso si venía de un
+ * curso/evento público, porque un admin entra a administrar, no a comprar.
+ * Para cualquier otro rol, si viene un $volver válido (la página desde la
+ * que pidió iniciar sesión/registrarse) tiene prioridad: así quien llega
+ * desde un curso/evento regresa ahí en vez de al panel. Sin volver, va al
+ * dashboard de estudiante (panel/dashboard.php), pensado para sentirse como
+ * plataforma educativa y no como consola admin.
  */
-function redirect_post_login(string $accion = ''): string
+function redirect_post_login(string $accion = '', string $volver = ''): string
 {
     $rol = $_SESSION['rol'] ?? 'estudiante';
-    $destino = BASE_URL . '/panel/' . ($rol === 'admin' ? 'index.php' : 'dashboard.php');
+    if ($rol === 'admin') {
+        return BASE_URL . '/panel/index.php';
+    }
+
+    $volverValido = volver_validado($volver);
+    if ($volverValido !== '') {
+        return $volverValido;
+    }
+    $destino = BASE_URL . '/panel/dashboard.php';
     return $accion !== '' ? $destino . '?action=' . $accion : $destino;
+}
+
+/**
+ * Igual que redirect_post_login(), para el guard de "ya tienes sesión
+ * abierta" al inicio de ingreso.php/registro.php/olvide_contrasena.php/
+ * restablecer_contrasena.php — agrega el aviso ?sesion=activa que navbar.php
+ * usa para mostrar el toast "Sesión abierta" (ver ahí). Pegarlo siempre con
+ * "?" a secas rompía el destino en cuanto $volver ya traía su propia query
+ * string (ej. curso_detalle.php?...&auto=1): quedaban dos "?" en la misma
+ * URL, "auto=1" dejaba de leerse como "1" exacto y el auto-checkout al
+ * volver de iniciar sesión desde una landing se perdía en silencio.
+ */
+function redirect_post_login_con_aviso_sesion(string $volver = ''): string
+{
+    $destino = redirect_post_login('', $volver);
+    return $destino . (str_contains($destino, '?') ? '&' : '?') . 'sesion=activa';
 }
 
 function logout_user(): void
@@ -107,10 +191,22 @@ function current_user(): ?array
     return [
         'id' => (int) $_SESSION['usuario_perfil_id'],
         'rol' => $_SESSION['rol'] ?? 'estudiante',
+        'es_prueba' => !empty($_SESSION['es_prueba']),
         'username' => $_SESSION['username'] ?? null,
         'email' => $_SESSION['email'] ?? null,
         'avatar' => $_SESSION['avatar'] ?? null,
     ];
+}
+
+/**
+ * true si la petición actual viene de fetch()/$.ajax() en vez de una
+ * navegación normal del navegador — jQuery manda este header solo, sin que
+ * el código que llama tenga que agregarlo a mano. Usado en panel/admin/*.php
+ * para responder JSON (sin recargar la página) en vez de header('Location:').
+ */
+function es_peticion_ajax(): bool
+{
+    return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
 }
 
 function require_login(?string $redirectTo = null): void
@@ -135,27 +231,25 @@ function require_role(string $rolRequerido): void
 }
 
 /**
- * Gate único de acceso a un curso: miembro activo, inscripción explícita a un
- * curso gratuito (curso_inscripciones), o pago confirmado. gratuito=1 YA NO
- * otorga acceso solo por existir — antes lo hacía, y un usuario recién
- * registrado aparecía con "acceso" a cualquier curso gratuito sin haberlo
- * pedido. Se reutiliza en el detalle de curso, el visor de lección y el checkout.
+ * Gate único de acceso a un curso: inscripción persistida (gratuito,
+ * incluido_membresia otorgado por membresía, u otorgado manual por admin —
+ * ver curso_inscripciones) o pago confirmado. Ni gratuito=1 ni una membresía
+ * activa otorgan acceso solo por existir — ambos requieren que el usuario dé
+ * clic para inscribirse (curso_inscribir.php), que deja la fila persistida.
+ * Así, si la membresía vence después, el acceso ya obtenido se conserva —
+ * antes se revisaba la membresía en vivo aquí y el acceso desaparecía en
+ * cuanto la membresía vencía, aunque el usuario ya llevara avance en el curso.
+ * Se reutiliza en el detalle de curso, el visor de lección y el checkout.
  */
 function usuario_tiene_acceso_curso(int $usuarioPerfilId, int $cursoId): bool
 {
     global $conn;
 
-    if (usuario_tiene_membresia_activa($usuarioPerfilId)) {
-        $stmt = $conn->prepare('SELECT incluido_membresia FROM cursos WHERE id = ?');
-        $stmt->bind_param('i', $cursoId);
-        $stmt->execute();
-        $curso = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($curso && (int) $curso['incluido_membresia'] === 1) {
-            return true;
-        }
-    }
-
+    // Un pago en modo prueba de Stripe SÍ otorga acceso (a propósito — quien
+    // prueba el flujo completo compra→acceso, sea cuenta de prueba o un admin
+    // con el toggle encendido, necesita ver el resultado real). Solo
+    // reportes.php sigue filtrando modo = 'live', porque eso sí es dinero
+    // real vs. no — el acceso es una pregunta distinta.
     $stmt = $conn->prepare(
         "SELECT 1 FROM curso_inscripciones WHERE usuario_id = ? AND curso_id = ?
          UNION SELECT 1 FROM pagos WHERE usuario_id = ? AND curso_id = ? AND estado = 'confirmado'
@@ -182,6 +276,8 @@ function usuario_esta_inscrito_evento(int $usuarioPerfilId, int $eventoId): bool
 {
     global $conn;
 
+    // Ver usuario_tiene_acceso_curso() — un pago en modo prueba también
+    // otorga acceso aquí.
     $stmt = $conn->prepare(
         "SELECT 1 FROM evento_inscripciones WHERE usuario_id = ? AND evento_id = ? AND estado <> 'cancelado'
          UNION SELECT 1 FROM pagos WHERE usuario_id = ? AND evento_id = ? AND estado = 'confirmado'
@@ -205,6 +301,8 @@ function usuario_compro_producto(int $usuarioPerfilId, int $productoId): bool
 {
     global $conn;
 
+    // Ver usuario_tiene_acceso_curso() — un pago en modo prueba también
+    // otorga acceso aquí.
     $stmt = $conn->prepare(
         "SELECT id FROM pagos WHERE usuario_id = ? AND producto_id = ? AND estado = 'confirmado' LIMIT 1"
     );
@@ -224,6 +322,8 @@ function usuario_tiene_membresia_activa(int $usuarioPerfilId): bool
 {
     global $conn;
 
+    // Ver usuario_tiene_acceso_curso() — una suscripción en modo prueba
+    // también otorga acceso aquí.
     $stmt = $conn->prepare(
         "SELECT id FROM membresia_suscripciones
          WHERE usuario_id = ? AND estado = 'activa'
@@ -255,7 +355,9 @@ function activar_suscripcion_membresia(
     int $activadaPorId,
     string $metodo,
     bool $caduca = true,
-    bool $renovacionAutomatica = false
+    bool $renovacionAutomatica = false,
+    ?string $stripeCustomerId = null,
+    ?string $stripeSubscriptionId = null
 ): void {
     $stmt = $conn->prepare(
         'SELECT s.id, m.intervalo FROM membresia_suscripciones s JOIN membresias m ON m.id = s.membresia_id WHERE s.id = ?'
@@ -281,10 +383,11 @@ function activar_suscripcion_membresia(
     $renovacionInt = $renovacionAutomatica ? 1 : 0;
     $stmt = $conn->prepare(
         "UPDATE membresia_suscripciones
-         SET estado = 'activa', metodo = ?, fecha_inicio = ?, periodo_actual_fin = ?, activada_por = ?, renovacion_automatica = ?
+         SET estado = 'activa', metodo = ?, fecha_inicio = ?, periodo_actual_fin = ?, activada_por = ?, renovacion_automatica = ?,
+             stripe_customer_id = COALESCE(?, stripe_customer_id), stripe_subscription_id = COALESCE(?, stripe_subscription_id)
          WHERE id = ?"
     );
-    $stmt->bind_param('sssiii', $metodo, $inicioStr, $finStr, $activadaPorId, $renovacionInt, $suscripcionId);
+    $stmt->bind_param('sssiissi', $metodo, $inicioStr, $finStr, $activadaPorId, $renovacionInt, $stripeCustomerId, $stripeSubscriptionId, $suscripcionId);
     $stmt->execute();
     $stmt->close();
 }
@@ -300,7 +403,7 @@ function obtener_navbar_links(string $area): array
     global $conn;
 
     $stmt = $conn->prepare(
-        "SELECT texto, url, abre_nueva_pestana FROM navbar_links
+        "SELECT texto, url, abre_nueva_pestana, requiere_sesion FROM navbar_links
          WHERE activo = 1 AND (area = ? OR area = 'ambos')
          ORDER BY orden ASC, texto ASC"
     );
@@ -308,6 +411,14 @@ function obtener_navbar_links(string $area): array
     $stmt->execute();
     $links = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
+    // Un Visitante (sin sesión) nunca debe ver links marcados como exclusivos
+    // (ej. Membresía) — filtrado aquí, no en cada vista que consuma esta
+    // función, para que cualquier consumidor futuro (navbar, footer, foro)
+    // herede la regla automáticamente sin repetirla.
+    if (!is_logged_in()) {
+        $links = array_values(array_filter($links, fn ($link) => (int) $link['requiere_sesion'] === 0));
+    }
 
     return $links;
 }

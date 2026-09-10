@@ -1,3 +1,16 @@
+<?php
+if (is_logged_in()) {
+    // Si ya hay sesión y de todos modos se llegó aquí con un volver (ej. un
+    // CTA de landing que siempre enlaza a ingreso.php sin saber si ya está
+    // logueado), hay que respetarlo — si no, este guard lo descarta antes de
+    // que el resto de la página siquiera lo lea, y manda al panel en vez de
+    // a la página de pago de la que venía.
+    header('Location: ' . redirect_post_login_con_aviso_sesion((string) ($_GET['volver'] ?? '')));
+    exit;
+}
+$volverActual = (string) ($_GET['volver'] ?? '');
+$cuponActual = (string) ($_GET['cupon'] ?? ($_SESSION['cupon_pendiente'] ?? ''));
+?>
 <style>
   #loginForm .form-control:focus { border-color: #F6C500; box-shadow: 0 0 0 .25rem rgba(246,197,0,.25); }
 </style>
@@ -11,9 +24,11 @@
         <div style="height:6px;background:linear-gradient(90deg,#F6C500,#B8860B);"></div>
         <div class="card-body p-4 p-md-5">
           <h1 class="h3 fw-bold text-center mb-1" style="color:var(--pf-ink);">Inicia sesión</h1>
-          <p class="text-muted text-center mb-4">Bienvenido de vuelta al Camino Arjuna</p>
+          <p class="text-muted text-center mb-4">Accede a tu Cuenta Arjuna</p>
 
           <form id="loginForm">
+            <input type="hidden" id="inputVolver" value="<?= htmlspecialchars($volverActual) ?>">
+            <input type="hidden" id="inputCupon" value="<?= htmlspecialchars($cuponActual) ?>">
             <div id="loginError" class="alert alert-danger d-none"></div>
 
             <div class="form-floating mb-3">
@@ -21,10 +36,13 @@
               <label for="inputIdentification">Usuario o correo</label>
             </div>
 
-            <div class="form-floating mb-4">
+            <div class="form-floating mb-2">
               <input type="password" id="inputPassword" class="form-control" placeholder="Contraseña" required>
               <label for="inputPassword">Contraseña</label>
             </div>
+            <p class="text-end mb-4">
+              <a href="?action=olvide_contrasena" class="small text-decoration-none" style="color:#B8860B;">¿Olvidaste tu contraseña?</a>
+            </p>
 
             <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:#F6C500;color:#171717;">Inicia sesión</button>
           </form>
@@ -45,8 +63,8 @@
           </div>
           <?php endif; ?>
 
-          <p class="text-center text-muted mt-4 mb-0">¿Aún no eres miembro?
-            <a href="?action=registro" class="fw-bold text-decoration-none" style="color:#B8860B;">Regístrate aquí</a>
+          <p class="text-center text-muted mt-4 mb-0">¿Aún no tienes cuenta?
+            <a href="?action=registro<?= $volverActual !== '' ? '&volver=' . urlencode($volverActual) : '' ?><?= $cuponActual !== '' ? '&cupon=' . urlencode($cuponActual) : '' ?>" class="fw-bold text-decoration-none" style="color:#B8860B;">Crea tu Cuenta Arjuna</a>
           </p>
         </div>
       </div>
@@ -63,7 +81,9 @@
       type: 'POST',
       data: {
         id_token: response.credential,
-        csrf_token: <?= json_encode(csrf_token()) ?>
+        csrf_token: <?= json_encode(csrf_token()) ?>,
+        volver: $('#inputVolver').val(),
+        cupon: $('#inputCupon').val()
       },
       dataType: 'json',
       success: function (data) {
@@ -95,7 +115,9 @@
         data: {
           identification: identification,
           password: password,
-          csrf_token: <?= json_encode(csrf_token()) ?>
+          csrf_token: <?= json_encode(csrf_token()) ?>,
+          volver: $('#inputVolver').val(),
+          cupon: $('#inputCupon').val()
         },
         dataType: 'json',
         success: function (response) {

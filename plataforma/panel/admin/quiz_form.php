@@ -17,6 +17,7 @@ if (!$leccion || $leccion['tipo_contenido'] !== 'quiz') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $accion = $_POST['accion'] ?? '';
 
     if ($accion === 'crear_quiz') {
@@ -55,6 +56,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    if ($esAjax) {
+        echo json_encode(['success' => true, 'redirect' => 'quiz_form.php?leccion_id=' . $leccionId]);
+        exit;
+    }
     header('Location: quiz_form.php?leccion_id=' . $leccionId);
     exit;
 }
@@ -89,7 +94,7 @@ include __DIR__ . '/_header.php';
 <h1 class="h4 mb-3">Quiz de "<?= htmlspecialchars($leccion['titulo']) ?>"</h1>
 
 <?php if (!$quiz): ?>
-  <form method="post" class="row g-3">
+  <form method="post" class="row g-3" data-ajax-form>
     <?= csrf_field() ?>
     <input type="hidden" name="leccion_id" value="<?= $leccionId ?>">
     <input type="hidden" name="accion" value="crear_quiz">
@@ -106,7 +111,7 @@ include __DIR__ . '/_header.php';
           <li><?= htmlspecialchars($o['texto']) ?> <?= (int) $o['es_correcta'] === 1 ? '✓' : '' ?></li>
         <?php endforeach; ?>
       </ul>
-      <form method="post" onsubmit="return confirm('¿Eliminar esta pregunta?');">
+      <form method="post" data-ajax-form data-confirm="¿Eliminar esta pregunta?">
         <?= csrf_field() ?>
         <input type="hidden" name="leccion_id" value="<?= $leccionId ?>">
         <input type="hidden" name="pregunta_id" value="<?= (int) $p['id'] ?>">
@@ -118,7 +123,7 @@ include __DIR__ . '/_header.php';
 
   <div class="card p-3">
     <h5>Agregar pregunta</h5>
-    <form method="post" class="row g-3">
+    <form method="post" class="row g-3" data-ajax-form>
       <?= csrf_field() ?>
       <input type="hidden" name="leccion_id" value="<?= $leccionId ?>">
       <input type="hidden" name="quiz_id" value="<?= (int) $quiz['id'] ?>">

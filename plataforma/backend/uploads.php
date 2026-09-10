@@ -165,6 +165,60 @@ function procesar_subida_archivo_digital(string $campo, string $subdir): ?string
 }
 
 /**
+ * Audio protegido de una lección de curso. A diferencia de
+ * procesar_subida_archivo_digital() (nombre aleatorio como única
+ * protección, pensado para "mis compras"), este archivo se guarda en
+ * uploads/audios_protegidos/, con acceso directo bloqueado por .htaccess —
+ * solo se sirve vía audio_stream.php, que revalida acceso al curso en cada
+ * request. Se puede llamar varias veces por request (uno por cada <input
+ * type=file> del form de lección), por eso recibe el array de $_FILES ya
+ * indexado en vez de leer $_FILES[$campo] directo.
+ */
+function procesar_subida_audio_protegido(array $archivo): ?string
+{
+    if ($archivo['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($archivo['error'] !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('No se pudo subir el audio (código de error ' . $archivo['error'] . ').');
+    }
+
+    $maxBytes = 200 * 1024 * 1024;
+    if ($archivo['size'] > $maxBytes) {
+        throw new RuntimeException('El audio no puede pesar más de 200 MB.');
+    }
+
+    $extensionesPermitidas = [
+        'audio/mpeg' => 'mp3',
+        'audio/mp4' => 'm4a',
+        'audio/x-m4a' => 'm4a',
+        'audio/wav' => 'wav',
+        'audio/x-wav' => 'wav',
+        'audio/ogg' => 'ogg',
+    ];
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $archivo['tmp_name']);
+    finfo_close($finfo);
+
+    if (!isset($extensionesPermitidas[$mime])) {
+        throw new RuntimeException('Formato de audio no soportado. Usa MP3, M4A, WAV o OGG.');
+    }
+
+    $nombreNuevo = bin2hex(random_bytes(16)) . '.' . $extensionesPermitidas[$mime];
+    $dirDestino = __DIR__ . '/../uploads/audios_protegidos';
+    if (!is_dir($dirDestino)) {
+        mkdir($dirDestino, 0755, true);
+    }
+    $rutaDestino = $dirDestino . '/' . $nombreNuevo;
+
+    if (!move_uploaded_file($archivo['tmp_name'], $rutaDestino)) {
+        throw new RuntimeException('No se pudo guardar el audio en el servidor.');
+    }
+
+    return 'uploads/audios_protegidos/' . $nombreNuevo;
+}
+
+/**
  * Comprobante de pago (transferencia bancaria) subido directo desde la
  * plataforma — foto o PDF del depósito. Mismo patrón de validación/nombre
  * aleatorio que procesar_subida_imagen(), aceptando también PDF.

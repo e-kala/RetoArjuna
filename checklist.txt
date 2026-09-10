@@ -1,63 +1,632 @@
-cursos      |-
+# Objetivo
 
-Tienda      |- Al comprar en tienda te desbloquea y habilita la descarga si es digital
-            |- Si es físico se ve tiene que ver lo de el envío y etc
-            |- Si ya compraste el producto que ya no aparezca el precio, que aparezca "adquirido"
-            |- Que se puedan eliminar las filas o artículos en "mis compras" al igual que en la seccion admin de "pagos"
+Homogeneizar el lenguaje, los mensajes, los CTA, la iconografía y la lógica de ofertas de **arjuna.mx** para que toda la plataforma responda de manera consistente a:
 
-Membresía   |- Descripción del contenido: Encuentro semanal de entrenamiento en vivo para aplicar el sistema en situaciones específicas, con acceso a las grabaciones de cada sesión y acceso temprano a nuevos materiales."
+- quién está viendo el contenido;
+- qué relación tiene esa persona con Arjuna;
+- si ya tiene acceso al contenido;
+- qué oferta pública está vigente;
+- si existe alguna promoción o cupón aplicable;
+- y cómo está configurado el curso, evento o producto.
 
-Foro        |-       
+**Eka:** no resolver Inicio, catálogo, landing, cuenta y checkout como pantallas independientes. Siempre que representen el mismo estado, deben consumir la misma lógica transversal.
 
-Eventos     |- Que se puedan ver más detalles del evento
-            |- que los eventos se puedan configurar en el panel de administración, si ya está, que el boton también aparezca en la barra lateral del panel
+## Principio general de entrada
 
-Panel admin |- debe aparecer en la barra lateral el boton de productos
-            |- que en "editar producto" haya un form para añadir enlace para descargar el material.
+La **Cuenta Arjuna es la puerta de entrada al ecosistema**.
 
-            añade imágenes temporales a todas las tarjetas y la funcion de que por defecto las que no se les ponga imagenes se ponga esta RetoArjuna/banner.png
+Una persona que navega sin haber iniciado sesión debe recibir la **vista de Visitante**, tenga o no previamente una Cuenta Arjuna. Mientras la sesión no esté autenticada, no deben mostrarse promociones de Membresía Camino Arjuna.
+
+El Visitante primero debe poder conocer los cursos/eventos, sus precios y las promociones públicas disponibles y, cuando corresponda, crear su Cuenta Arjuna o iniciar sesión.
+
+Una vez autenticado como **Usuario Arjuna**, sí pueden mostrarse los beneficios, descuentos y alternativas de acceso relacionados con **Membresía Camino Arjuna**.
+
+Las promociones públicas, cupones y descuentos por creación de Cuenta Arjuna son mecanismos comerciales independientes de la membresía.
+
+---
+
+# Tareas
+
+- 1. Nomenclatura global
+    - [x]  **G01 — Sustituir la nomenclatura pública antigua.** Eliminar de la interfaz pública los usos de **Premium, usuario premium, miembro premium, VIP** o equivalentes.
+        - [x]  **Check Srivas:** revisar que no quede ningún uso público de esta nomenclatura.
+    - [ ]  **G02 — Aplicar las denominaciones oficiales en toda la plataforma.**
+        - **Visitante:** estado de navegación con sesión no autenticada. Puede tratarse de una persona que todavía no tiene Cuenta Arjuna o de alguien que ya la tiene pero no ha iniciado sesión. Es una clasificación operativa y no necesita mostrarse públicamente.
+        - **Usuario Arjuna:** persona con Cuenta Arjuna gratuita. Cuando inicia sesión, la plataforma puede reconocer su relación, accesos y beneficios aplicables.
+        - **Cuenta Arjuna:** nombre público de la cuenta.
+        - **Participante:** persona inscrita en un curso, reto o evento concreto.
+        - **Miembro de Camino Arjuna:** Usuario Arjuna con membresía activa.
+        - **Membresía Camino Arjuna:** nombre del producto recurrente.
+        
+        La relación de una persona con Arjuna puede expresarse mediante más de una denominación cuando corresponda. Por ejemplo, una misma persona puede ser **Usuario Arjuna**, **Miembro de Camino Arjuna** y **Participante** de un evento al mismo tiempo. Estas denominaciones describen relaciones o estados distintos y no establecen jerarquías de valor entre las personas.
+        
+        La membresía puede expresar una relación más profunda o continua con Camino Arjuna, pero nunca una mayor importancia, valor o prioridad humana frente a una persona usuaria, participante o visitante.
+        
+        - [ ]  **Check Srivas:** validar nomenclatura en las pantallas principales.
+            - [ ]  **G03 — Cambiar iconografía identitaria de la Membresía Camino Arjuna.** Sustituir la corona y cualquier distintivo equivalente por el **icono oficial de Membresía Camino Arjuna**: arco/flecha Arjuna amarillo con tres puntos verticales morado, verde y amarillo.
+                
+                Usar el mismo icono donde se identifique la membresía o sus beneficios. No deformarlo ni crear variantes por pantalla.
+                
+                **El icono de membresía no debe mostrarse en la vista de Visitante**, ya que en ese estado no se comunican beneficios de Membresía Camino Arjuna.
+                
+                Activo oficial: https://drive.google.com/file/d/19FmVUOqsuTfdJkeg84JVPjeiUptord93/view?usp=sharing
+                
+                - [ ]  **Check Srivas:** comprobar sustitución y consistencia en desktop y móvil.
+            - [ ]  **G04 — Aplicar una misma lógica de copy, oferta y CTA en toda la plataforma.** Evitar textos o reglas independientes para Inicio, catálogo y landing cuando representan el mismo estado.
+                
+                Verificar especialmente la consistencia entre:
+                
+                - **Inicio:** https://arjuna.mx/
+                - **Catálogo de Eventos:** https://arjuna.mx/plataforma/index.php?action=eventos
+                
+                Un mismo contenido debe responder a la misma lógica de oferta, acceso y CTA, aunque aparezca en superficies distintas.
+                
+                - [ ]  **Check Srivas:** comparar el mismo contenido en distintas pantallas.
+
+---
+
+- 2. Visitante, registro e inicio de sesión
+    - [ ]  **H01 — Header / navbar / footer.**
+        
+        **Vista de Visitante:**
+        
+        - “Iniciar sesión”
+        - “Crear cuenta”
+        - no mostrar “Camino Arjuna”, “Membresía” ni enlaces que expongan la oferta o los beneficios de Membresía Camino Arjuna.
+        
+        **Usuario autenticado:**
+        
+        - “Mi cuenta”
+        - puede mostrarse el acceso a “Camino Arjuna” o “Membresía” según corresponda.
+        
+        **Usuario con Membresia Camino Arjuna:**
+        
+        - “Camino Arjuna”
+        - “Membresía Camino Arjuna” cuando se hable específicamente del producto.
+        - [ ]  **Check Srivas:** revisar desktop y móvil, autenticado y no autenticado.
+        - [ ]  **H02 — No promocionar Membresía Camino Arjuna a Visitantes.** Mientras la sesión no esté autenticada:
+            - no mostrar beneficios de membresía;
+            - no mostrar descuentos para miembros;
+            - no mostrar contenido “incluido con membresía”;
+            - no mostrar iconografía de membresía;
+            - no mostrar contenido exclusivo para miembros;
+            - no utilizar la membresía como argumento para crear la cuenta;
+            - no mostrar enlaces de navegación cuyo propósito sea presentar o vender Membresía Camino Arjuna.
             
+            Si un Visitante accede directamente mediante URL a una zona que requiere autenticación, pedirle **crear Cuenta Arjuna o iniciar sesión**, conservando el destino para continuar después.
+            
+            - [ ]  **Check Srivas:** revisar Inicio, Eventos, Cursos, ruta directa de Membresía y navegación pública.
+        - [ ]  **R01 — Corregir pantalla de registro.** Ruta: `/plataforma/index.php?action=registro`
+            
+            Usar:
+            
+            - H1: **“Crea tu Cuenta Arjuna”**
+            - Botón: **“Crear mi cuenta”**
+            - Pie: **“¿Ya tienes cuenta? Inicia sesión”**
+            
+            Eliminar “Únete al Camino Arjuna” como descripción del registro gratuito.
+            
+            - [ ]  **Check Srivas:** validar copy final.
+                - [ ]  **R02 — Conservar contexto, promociones y cupones durante el registro.** Si una persona llega al registro desde un curso, evento, promoción o enlace con cupón:
+                    - crear su Cuenta Arjuna;
+                    - regresar automáticamente al mismo contenido;
+                    - conservar cualquier promoción o cupón válido con el que llegó.
+                    - [ ]  **Check Srivas:** probar flujo normal, promoción y cupón.
+            - [ ]  **L01 — Corregir pantalla de inicio de sesión.** Ruta: `/plataforma/index.php?action=ingreso`
+                
+                Usar:
+                
+                - H1: **“Inicia sesión”**
+                - Apoyo: **“Accede a tu Cuenta Arjuna”**
+                - Pie: **“¿Aún no tienes cuenta? Crea tu Cuenta Arjuna”**
+                
+                Eliminar:
+                
+                - “Bienvenido de vuelta al Camino Arjuna”
+                - “¿Aún no eres miembro?”
+                - [ ]  **Check Srivas:** validar que una persona sin membresía pueda iniciar sesión y continuar usando su Cuenta Arjuna sin ser llamada “miembro”.
 
+---
 
-_______________
-INDEX
-BIENVENIDOS AL ECOSISTEMA ARJUNA
-EN VEZ DE UNETE ES REGISTRATE
+- 3. Inicio y tarjetas de contenido
+    - [ ]  **IN01 — Corregir entrada principal del Inicio.** La invitación principal debe ser a crear una **Cuenta Arjuna**, no a adquirir membresía.
+        
+        CTA:
+        
+        - **“Crea tu Cuenta Arjuna gratis”**
+        - **“Explorar cursos”**
+        - [ ]  **Check Srivas:** validar Inicio.
+    - [ ]  **IN02 — Aplicar la misma lógica de oferta en Inicio, catálogos y landings.** Un mismo curso/evento debe mostrar la misma situación comercial según estado del usuario y oferta vigente.
+        
+        Para Visitantes:
+        
+        - precio público;
+        - promoción pública vigente, si existe;
+        - cupón/promoción particular si llegó mediante uno;
+        - nunca beneficios de Membresía Camino Arjuna.
+        - [ ]  **Check Srivas:** comparar un mismo contenido en Inicio, catálogo y landing.
+    - [ ]  **IN03 — Identificar contenido ya disponible.** Cuando el usuario ya tenga acceso a un contenido, las tarjetas, carruseles, catálogos y demás superficies de navegación deben sustituir el precio y las promociones, cuando corresponda, por un estado breve de disponibilidad.
+        
+        Usar:
+        
+        - **“Curso disponible”**
+        - **“Evento disponible”**
+        - **“Grabación disponible”**
+        
+        También puede utilizarse **“Ya tienes acceso”** como apoyo cuando sea útil.
+        
+        No usar expresiones artificiales como:
+        
+        - “Acceso Evento disponible”
+        - “Acceso Grabación disponible”
+        
+        Esta regla describe el estado posterior de acceso y no sustituye los mensajes de confirmación de una operación realizada.
+        
+        - [ ]  **Check Srivas:** validar tarjetas, carruseles y catálogos para cursos, eventos y grabaciones con acceso previo.
 
+---
 
-CURSOS
-y
-eventos
-juntos en edicion
-pasados y futuros
+- 4. Promociones públicas y cupones
+    - [ ]  **P01 — Permitir promociones públicas temporales independientes de membresía.** Un curso o evento debe poder configurarse con una promoción pública visible para Visitantes y Usuarios Arjuna.
+        
+        Ejemplo:
+        
+        - Precio regular: $1,000
+        - Promoción temporal: 40% de descuento
+        - Precio promocional: $600
+        
+        La promoción debe permitir:
+        
+        - porcentaje de descuento o precio promocional;
+        - fecha/hora de inicio;
+        - fecha/hora de término;
+        - activación y vencimiento automáticos;
+        - modalidad de **promoción o preventa pública temporal**, cuando corresponda.
+        - [ ]  **Check Srivas:** probar antes, durante y después de vigencia.
+    - [ ]  **P02 — Sistema de cupones independiente de Membresía Camino Arjuna.** Los cupones son emitidos y configurados por la plataforma o la administración.
+        
+        Pueden distribuirse mediante:
+        
+        - publicidad;
+        - eventos;
+        - campañas;
+        - enlaces especiales;
+        - Usuarios Arjuna que compartan un cupón previamente emitido;
+        - Miembros de Camino Arjuna que compartan un cupón previamente emitido.
+        
+        Compartir un cupón no implica que Usuarios Arjuna o Miembros de Camino Arjuna puedan crear, editar o definir descuentos. Esa capacidad corresponde a la administración, salvo que en el futuro se apruebe una función específica distinta.
+        
+        Los cupones deben poder configurarse, según el caso, con:
+        
+        - porcentaje o monto de descuento;
+        - productos aplicables;
+        - fecha de vigencia;
+        - límite total de usos;
+        - un solo uso por Cuenta Arjuna;
+        - enlace promocional que aplique el cupón automáticamente.
+        - [ ]  **Check Srivas:** probar código manual y enlace promocional.
+    - [ ]  **P03 — Conservar automáticamente un cupón durante la creación de Cuenta Arjuna.** Si un Visitante llega mediante un enlace que contiene un cupón:
+        - puede conocer la oferta antes de registrarse;
+        - crea su Cuenta Arjuna;
+        - regresa al contenido;
+        - el cupón continúa aplicado sin tener que volver a introducirlo.
+        - [ ]  **Check Srivas:** probar flujo completo desde enlace promocional.
+    - [ ]  **P04 — Permitir incentivo por creación de Cuenta Arjuna.** Debe ser posible realizar promociones como:
+        
+        **“Crea tu Cuenta Arjuna y obtén 20% de descuento en este evento.”**
+        
+        Después de crear la cuenta, el beneficio debe quedar aplicado automáticamente al contenido correspondiente.
+        
+        Este descuento:
+        
+        - es una promoción de adquisición;
+        - no es un beneficio de Membresía Camino Arjuna;
+        - puede limitarse a un solo uso por cuenta.
+        
+        Puede utilizar internamente el mismo sistema de cupones si resulta conveniente, siempre que el comportamiento para el usuario sea el indicado.
+        
+        - [ ]  **Check Srivas:** probar creación de cuenta y aplicación automática.
 
-vimeo
+---
 
-playeras
-creatuplayera.com
+- 5. Eventos
+    - [ ]  **E01 — Catálogo de Eventos: Visitante.** Mostrar únicamente:
+        - oferta pública;
+        - precio regular;
+        - promoción pública vigente, si existe;
+        - promoción/cupón particular cuando corresponda.
+        
+        CTA:
+        
+        - **“Ver evento”**
+        
+        No mostrar:
+        
+        - “Incluido con Membresía Camino Arjuna”;
+        - descuentos para miembros;
+        - icono de membresía;
+        - contenido exclusivo para miembros.
+        - [ ]  **Check Srivas:** validar diferentes tipos de oferta pública.
+    - [ ]  **E02 — Catálogo de Eventos: Usuario Arjuna sin membresía.** Una vez autenticado sí pueden mostrarse los beneficios de Camino Arjuna.
+        
+        Si el evento está incluido:
+        
+        - **“Incluido con Membresía Camino Arjuna”**
+        
+        Si tiene precio especial para miembros:
+        
+        - **“X% de descuento con Membresía Camino Arjuna”**
+        
+        Las promociones públicas y cupones siguen siendo mecanismos independientes.
+        
+        - [ ]  **Check Srivas:** comparar Visitante vs Usuario Arjuna.
+    - [ ]  **E03 — Catálogo de Eventos: Miembro de Camino Arjuna.** No promocionar como ventaja algo que la persona ya posee.
+        
+        Aplicar directamente:
+        
+        - inclusión con membresía;
+        - precio especial para miembros;
+        - o el mejor precio aplicable según las reglas comerciales.
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **E04 — Landing de evento: Visitante.** Mostrar:
+        - información del evento;
+        - precio público;
+        - promociones públicas aplicables;
+        - cupón/promoción particular si corresponde.
+        
+        No mencionar beneficios de membresía.
+        
+        Para continuar con inscripción o compra:
+        
+        - **“Crea tu Cuenta Arjuna gratis”**
+        
+        Después del registro:
+        
+        - regresar al mismo evento;
+        - conservar promoción/cupón.
+        - [ ]  **Check Srivas:** probar flujo completo.
+    - [ ]  **E05 — Landing de evento: Usuario Arjuna sin membresía.** Mostrar:
+        - precio/oferta pública;
+        - promociones o cupones aplicables;
+        - y, cuando corresponda, la alternativa mediante Membresía Camino Arjuna.
+        
+        Ejemplo:
+        
+        - **“Inscríbete por $X”**
+        - **“Incluido con Membresía Camino Arjuna”**
+        - **“Únete a Camino Arjuna”**
+        
+        El CTA **“Únete a Camino Arjuna”** debe llevar directamente al checkout correspondiente de la membresía.
+        
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **E06 — Evento incluido: Miembro de Camino Arjuna.** Mostrar:
+        - **“Inscríbete — incluido con tu membresía”**
+        
+        Al hacer clic:
+        
+        - inscribir directamente;
+        - no pasar por Stripe.
+        - [ ]  **Check Srivas:** verificar inscripción sin pago.
+    - [ ]  **E07 — Evento con precio especial para miembros.** Para Miembro:
+        - aplicar directamente el precio correspondiente;
+        - no presentar el descuento como publicidad de la membresía.
+        
+        Si existe otra promoción/cupón válido, aplicar la regla de mejor precio definida en OF10.
+        
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **E08 — Participante ya inscrito.** Si la persona ya tiene acceso:
+        - ocultar precio;
+        - ocultar promociones;
+        - ocultar membresía como alternativa;
+        - impedir recompra.
+        
+        Mostrar según corresponda:
+        
+        - **“Ver mi inscripción”**
+        - **“Entrar al evento”**
+        - **“Ver grabación”**
+        
+        En tarjetas, carruseles y catálogos, aplicar también IN03 para identificar el contenido como disponible.
+        
+        - [ ]  **Check Srivas:** verificar.
+        - [ ]  **E09 — Evento finalizado / grabación.**
+            - Con acceso adquirido: **“Ver grabación”**
+            - Sin acceso y grabación vendible: **“Comprar grabación por $X”**
+            - Sin acceso y no vendible: **“Evento finalizado”**
+            
+            El acceso adquirido se conserva aunque posteriormente termine la membresía.
+            
+            En superficies de navegación, cuando la grabación ya esté disponible para la persona, usar **“Grabación disponible”** o **“Ya tienes acceso”** según corresponda.
+            
+            - [ ]  **Check Srivas:** probar escenarios.
 
+---
 
-usuarios
-buscador
+- 6. Cursos
+    - [ ]  **C01 — Aplicar a Cursos la misma taxonomía de oferta y acceso utilizada en Eventos.** Distinguir:
+        - precio público;
+        - promoción pública temporal;
+        - cupón;
+        - incentivo por creación de cuenta;
+        - incluido con membresía;
+        - descuento para miembros;
+        - gratuito;
+        - acceso ya adquirido.
+        
+        Para Visitantes no mostrar beneficios de membresía.
+        
+        - [ ]  **Check Srivas:** validar cuando existan cursos públicos.
+    - [ ]  **C02 — Curso ya adquirido / participante.** Ocultar:
+        - promoción;
+        - membresía como alternativa;
+        - recompra.
+        
+        Mostrar:
+        
+        - **“Comenzar curso”**
+        - **“Continuar curso”**
+        
+        según progreso.
+        
+        En tarjetas, carruseles y catálogos, aplicar también IN03 para identificar el curso como disponible.
+        
+        - [ ]  **Check Srivas:** validar.
+        - [ ]  **C03 — Identificar y aplicar estas reglas en la ruta real de detalle de curso.** Eka debe identificar la pantalla real de detalle y aplicar allí las mismas reglas. **No inventar una ruta nueva ni una ruta alternativa** para resolver este comportamiento.
+            - [ ]  **Check Srivas:** confirmar pantalla revisada.
 
-usuarios de menmbresía por transferencia
-los pagos en stripe confirmación automatica
+---
 
-evento ->
-producto -> 
+- 7. Membresía Camino Arjuna
+    - [ ]  **M01 — Visitante.** La oferta, beneficios, precios y contenidos de Membresía Camino Arjuna no se muestran mientras la sesión no esté autenticada.
+        
+        Si un Visitante llega directamente a la ruta de membresía:
+        
+        - pedir crear Cuenta Arjuna o iniciar sesión;
+        - no mostrar todavía beneficios ni precio;
+        - conservar el destino para continuar después de autenticarse.
+        - [ ]  **Check Srivas:** validar acceso directo como Visitante.
+            - [ ]  **M02 — Usuario Arjuna sin membresía.** Aquí sí se presenta plenamente la propuesta de Camino Arjuna como un **espacio de práctica continua**:
+                - beneficios;
+                - contenidos incluidos;
+                - descuentos;
+                - precio;
+                - CTA para unirse.
+                
+                CTA principal:
+                
+                - **“Únete a Camino Arjuna — $[precio]/mes”**
+                
+                El CTA debe llevar directamente al checkout correspondiente de la membresía.
+                
+                - [ ]  **Check Srivas:** validar.
+        - [ ]  **M03 — Miembro activo.** No mostrar CTA para comprar otra membresía.
+            
+            Mostrar:
+            
+            - **“Tu Membresía Camino Arjuna está activa”**
+            - **“Gestionar membresía”**
+            - [ ]  **Check Srivas:** comprobar que no pueda adquirir una segunda membresía accidentalmente.
+        - [ ]  **M04 — Membresía pausada, vencida o cancelada.** La persona continúa siendo Usuario Arjuna.
+            
+            Mostrar:
+            
+            - estado de la membresía;
+            - opción de reactivar cuando corresponda.
+            
+            No crear una categoría pública tipo “exmiembro”.
+            
+            - [ ]  **Check Srivas:** validar.
 
-appsanscrit
+---
 
-membresía arjuna agregarlos como un plus
+- 8. Mi cuenta / panel
+    - [ ]  **A01 — Separar las distintas relaciones dentro de la Cuenta Arjuna.**
+        
+        Preferir:
+        
+        - Mis cursos
+        - Mis eventos
+        - Mis compras
+        - Mi membresía
+        - Mi perfil
+        
+        No llamar “miembro” a toda persona que tenga Cuenta Arjuna.
+        
+        - [ ]  **Check Srivas:** revisar estructura y nomenclatura.
+    - [ ]  **A02 — Conservar accesos adquiridos independientemente de la membresía.** Una compra, inscripción o acceso adquirido de manera independiente no desaparece porque la membresía se pause, venza o cancele.
+        - [ ]  **Check Srivas:** validar.
 
+---
 
-eventos exclusivos para miembros
+- 9. Reglas globales de oferta
+    - [ ]  **OF01 — Precio total.** Si `\$X` es el precio completo:
+        - **“Inscríbete por $X”**
+        
+        No utilizar lenguaje de apartado.
+        
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **OF02 — Apartado solo para eventos presenciales.** **“Aparta tu lugar con $X”** únicamente puede utilizarse en eventos presenciales cuando `\$X` sea realmente un anticipo y quede un saldo pendiente.
+        
+        En eventos online no utilizar modalidad ni lenguaje de apartado.
+        
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **OF03 — Gratuito.**
+        - **“Inscríbete gratis”**
+        - no pasar por Stripe cuando el total sea $0.
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **OF04 — Incluido con Membresía Camino Arjuna.**
+        
+        **Visitante:**
+        
+        - no mostrar este beneficio.
+        
+        **Usuario Arjuna:**
+        
+        - mostrarlo como alternativa de acceso.
+        
+        **Miembro:**
+        
+        - aplicar directamente el beneficio.
+        - [ ]  **Check Srivas:** validar los tres estados.
+    - [ ]  **OF05 — Exclusivo para miembros.**
+        
+        **Visitante:**
+        
+        - no mostrar contenido exclusivo de membresía.
+        
+        **Usuario Arjuna:**
+        
+        - puede mostrarse como **“Exclusivo para miembros de Camino Arjuna”**.
+        
+        **Miembro:**
+        
+        - mostrar acceso correspondiente.
+        
+        Mantener conceptualmente separado **“Exclusivo para miembros”** de **“Incluido con Membresía Camino Arjuna”**. El primero describe una restricción de acceso; el segundo describe una modalidad de acceso incluida dentro del producto de membresía.
+        
+        - [ ]  **Check Srivas:** validar.
+    - [ ]  **OF06 — Acceso ya adquirido.** Si la persona ya tiene acceso al contenido por una inscripción o adquisición previa, ese acceso prevalece sobre cualquier oferta o promoción.
+        
+        No mostrar opciones de recompra ni mensajes comerciales que ya no correspondan.
+        
+        En tarjetas, carruseles, catálogos y otras superficies de navegación, sustituir precio y promociones por un estado breve de disponibilidad conforme a IN03:
+        
+        - **“Curso disponible”**
+        - **“Evento disponible”**
+        - **“Grabación disponible”**
+        - **“Ya tienes acceso”**, cuando sea útil como apoyo.
+        
+        Esta regla describe el acceso posterior; no sustituye el mensaje que confirma la operación realizada.
+        
+        - [ ]  **Check Srivas:** probar.
+    - [ ]  **OF07 — Promoción pública temporal.** La promoción:
+        - es independiente de la membresía;
+        - puede ser visible para Visitantes;
+        - comienza y termina automáticamente según vigencia;
+        - puede configurarse como promoción o preventa pública temporal.
+        - [ ]  **Check Srivas:** probar vencimiento.
+    - [ ]  **OF08 — Cupón promocional.** El cupón:
+        - es independiente de la membresía;
+        - puede provenir de código o enlace;
+        - puede conservarse durante la creación de Cuenta Arjuna;
+        - respeta vigencia y límites de uso configurados.
+        - [ ]  **Check Srivas:** probar.
+    - [ ]  **OF09 — Incentivo por creación de Cuenta Arjuna.** Puede ofrecerse un descuento condicionado a crear la cuenta.
+        
+        El beneficio:
+        
+        - se aplica después del registro;
+        - puede ser de un solo uso;
+        - no se presenta como beneficio de membresía.
+        - [ ]  **Check Srivas:** probar.
+    - [ ]  **OF10 — Prioridad entre accesos, beneficios y descuentos.**
+        
+        Orden general:
+        
+        1. acceso ya adquirido;
+        2. contenido incluido con Membresía Camino Arjuna;
+        3. mejor precio válido entre:
+            - promoción pública;
+            - cupón;
+            - incentivo por creación de cuenta;
+            - precio especial de miembro;
+        4. precio público.
+        
+        Los descuentos **no se acumulan por defecto**.
+        
+        Si algún cupón o promoción puede combinarse con otra oferta, debe configurarse expresamente.
+        
+        - [ ]  **Check Srivas:** probar coincidencia de distintas ofertas.
+    - [ ]  **OF11 — Inscripciones cerradas / agotado.** Cuando ya no sea posible adquirir una nueva inscripción:
+        - bloquear compra nueva;
+        - conservar acceso de quienes ya estaban inscritos.
+        - [ ]  **Check Srivas:** validar.
 
-dashboard responsivo
+---
 
+- 10. Administrador
+    - [ ]  **ADM01 — Configurar beneficio de Membresía Camino Arjuna por curso/evento.** Permitir:
+        - sin beneficio;
+        - incluido con membresía;
+        - descuento/precio especial para miembros;
+        - exclusivo para miembros.
+        
+        Si es descuento, permitir configurar:
+        
+        - porcentaje (ejem. “50%” de descuento);
+        - o cantidad (ejem. descuento de “$50”).
+    - [ ]  **ADM02 — Configurar promoción pública temporal.** Permitir:
+        - porcentaje o precio promocional;
+        - inicio;
+        - fin;
+        - activación/vencimiento automáticos;
+        - modalidad de promoción o preventa pública temporal.
+    - [ ]  **ADM03 — Configurar cupones.** Permitir según necesidad:
+        - código;
+        - enlace;
+        - porcentaje o monto;
+        - productos;
+        - vigencia;
+        - usos totales;
+        - uso por cuenta;
+        - posibilidad de combinación con otras ofertas.
+    - [ ]  **ADM04 — Configurar incentivo por creación de Cuenta Arjuna.** Permitir asociar una promoción a la creación de cuenta para un contenido o campaña determinada.
+    - [ ]  **ADM05 — Una sola configuración debe alimentar frontend y checkout.** No crear manualmente sellos, precios o mensajes distintos por pantalla.
+        
+        La previsualización y cualquier simulación administrativa deben utilizar las mismas reglas reales del frontend y del checkout, no una lógica paralela o simplificada.
+        
+    - [ ]  **ADM06 — Previsualización de estados.** Poder comprobar comportamiento como:
+        - Visitante;
+        - Visitante con promoción/cupón;
+        - Usuario Arjuna;
+        - Miembro de Camino Arjuna;
+        - Participante / persona con acceso adquirido.
+        
+        La previsualización debe utilizar las mismas reglas reales del frontend y del checkout, no una lógica paralela.
+        
+        - [ ]  **Check Srivas:** validar configuraciones principales.
 
+---
 
-____________________________
-appsanscrit
-que aparezcan solo en español
-edge adaptación
+- 11. Checkout y confirmaciones
+    - [ ]  **CHK01 — Utilizar nombres reales de los productos.** Nunca utilizar Premium, VIP o equivalentes.
+    - [ ]  **CHK02 — Mostrar claramente los descuentos aplicados.**
+        
+        Ejemplo:
+        
+        **Precio regular:** $1,000
+        **Promoción Reto Arjuna — 40%:** −$400
+        **Total:** $600
+        
+        O:
+        
+        **Precio regular:** $1,000
+        **Cupón BIENVENIDA — 25%:** −$250
+        **Total:** $750
+        
+        - [ ]  **Check Srivas:** revisar checkout con distintas ofertas.
+    - [ ]  **CHK03 — Conservar promoción/cupón durante autenticación y checkout.** El descuento válido con el que llegó la persona no debe perderse por crear cuenta o iniciar sesión.
+        - [ ]  **Check Srivas:** probar.
+    - [ ]  **CHK04 — Confirmar claramente la operación realizada.** Después de una inscripción, compra, adquisición o activación, el mensaje debe indicar inequívocamente qué ocurrió.
+        
+        Usar **“adquirido”** cuando exista una adquisición o compra directa, y **“confirmado”** cuando el acceso provenga de inscripción gratuita, membresía, concesión u otra vía sin compra directa.
+        
+        Ejemplos:
+        
+        - **“Inscripción confirmada”**
+        - **“Acceso al curso adquirido”**
+        - **“Acceso al curso confirmado”**
+        - **“Acceso al evento adquirido”**
+        - **“Inscripción al evento confirmada”**
+        - **“Acceso a la grabación adquirido”**
+        - **“Acceso a la grabación confirmado”**
+        - **“Membresía activada”**
+        
+        Cuando exista una transacción económica, puede utilizarse una estructura de dos niveles:
+        
+        **“Compra confirmada”**
+        **“Ya adquiriste acceso a este curso/evento/grabación.”**
+        
+        La confirmación de la operación no debe confundirse con el estado posterior de acceso. Después de confirmar la operación, las tarjetas, carruseles, catálogos y demás superficies de navegación deben aplicar IN03 y OF06 para mostrar, cuando corresponda, **“Curso disponible”**, **“Evento disponible”**, **“Grabación disponible”** o **“Ya tienes acceso”**.
+        
+        - [ ]  **Check Srivas:** validar inscripciones gratuitas, compras directas, accesos por membresía, concesiones, activaciones y accesos a cursos, eventos y grabaciones.

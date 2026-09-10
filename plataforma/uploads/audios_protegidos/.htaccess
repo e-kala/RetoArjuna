@@ -1,0 +1,12 @@
+# A diferencia de uploads/<subdir>/ normal (protegido solo por nombre
+# aleatorio), aquí el acceso directo se bloquea por completo — el audio es
+# contenido de curso, no un entregable de tienda. Todo pasa por
+# backend/audio_stream.php, que revalida sesión + inscripción en cada
+# request.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>

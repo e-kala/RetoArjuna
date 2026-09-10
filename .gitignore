@@ -1,3 +1,13 @@
 /plataforma/vendor/
 plataforma/backend/config.local.php
 logs/*.log
+plataforma/backend/.deploy_estado.json
+
+# Notas personales de trabajo (una llegó a traer una contraseña real pegada) —
+# nunca deben comitearse.
+/notas.txt
+/ahorrar un click, cuando se registre se .txt
+
+# Contenido subido en tiempo de ejecución — no es código del proyecto.
+plataforma/uploads/*/*
+!plataforma/uploads/*/.htaccess

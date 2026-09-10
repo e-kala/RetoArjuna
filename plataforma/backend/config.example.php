@@ -57,3 +57,29 @@
 // --- Correo saliente ---
 // define('EMAIL_REMITENTE', 'noreply@...');
 // define('EMAIL_REMITENTE_NOMBRE', 'Reto Arjuna');
+//
+// SMTP opcional — si se definen estas 4, enviar_email() manda por SMTP (con el
+// PHPMailer ya vendorizado en plataforma/vendor/PHPMailer/) en vez de mail()
+// nativo. Pensado SOLO para LOCAL, donde no hay ningún servidor de correo (MTA)
+// instalado y mail() no puede enviar nada real. En pruebas.arjuna.mx/producción
+// NO definir estas 4 líneas — ahí mail() nativo ya funciona con el propio
+// servidor de correo del hosting (cPanel).
+// define('EMAIL_SMTP_HOST', 'smtp.gmail.com');
+// define('EMAIL_SMTP_PORT', 587);
+// define('EMAIL_SMTP_USER', 'tu-cuenta@gmail.com');
+// define('EMAIL_SMTP_PASS', 'contraseña de aplicación de 16 caracteres (NO la contraseña normal de la cuenta)');
+//
+// Redirección de pruebas — si se define, TODO correo que genere la plataforma
+// llega a esta dirección en vez de al destinatario real (notificaciones_log
+// sigue guardando el destinatario real, solo cambia a dónde LLEGA el correo).
+// Pensado para local/pruebas.arjuna.mx, para poder revisar cómo se ven los
+// correos sin arriesgar mandarle algo a un usuario real. NUNCA definir esto en
+// el config.local.php de producción.
+// define('EMAIL_FORZAR_DESTINATARIO', 'correo-de-pruebas@gmail.com');
+//
+// A dónde llegan los mensajes del formulario de contacto de las landing pages
+// (reto-arjuna.html/asesoria.html/entrenamiento.html) — a diferencia de los
+// correos transaccionales de arriba (que van al usuario dueño de la compra),
+// un mensaje de contacto siempre es PARA el equipo Arjuna, en cualquier
+// ambiente. Si no se define, cae de vuelta a EMAIL_REMITENTE.
+// define('EMAIL_ADMIN_CONTACTO', 'admin@...');

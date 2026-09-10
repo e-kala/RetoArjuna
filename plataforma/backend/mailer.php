@@ -2,16 +2,38 @@
 // Envío de correo con la función mail() nativa de PHP (sin PHPMailer, coherente con
 // el resto del proyecto). Cada intento se registra en notificaciones_log, éxito o
 // error, porque mail() en hosting compartido suele fallar en silencio.
-
+//
+// Dos overrides opcionales, activados solo si sus constantes están definidas en
+// config.local.php (ver config.example.php para la plantilla comentada):
+// - EMAIL_SMTP_HOST (+ _PORT/_USER/_PASS): en vez de mail() nativo, envía por SMTP
+//   con el PHPMailer ya vendorizado en plataforma/vendor/PHPMailer/. Pensado para
+//   LOCAL, donde no hay ningún servidor de correo (MTA) instalado y mail() no puede
+//   enviar nada real — en pruebas.arjuna.mx/producción no se define, ahí sigue
+//   usándose mail() nativo del propio hosting.
+// - EMAIL_FORZAR_DESTINATARIO: manda TODO correo a esta dirección sin importar el
+//   destinatario real (solo cambia a quién LLEGA el correo; notificaciones_log
+//   sigue registrando el destinatario original para que quede claro para quién era).
+//   Pensado para probar en local/pruebas sin arriesgar mandarle algo a un usuario
+//   real — nunca se define en el config.local.php de producción.
 function enviar_email(?int $usuarioPerfilId, string $destinatario, string $asunto, string $cuerpoHtml, string $tipo): bool
 {
     global $conn;
 
-    $headers = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $headers .= 'From: ' . EMAIL_REMITENTE_NOMBRE . ' <' . EMAIL_REMITENTE . ">\r\n";
+    $destinatarioEnvio = $destinatario;
+    $asuntoEnvio = $asunto;
+    if (defined('EMAIL_FORZAR_DESTINATARIO') && EMAIL_FORZAR_DESTINATARIO !== '') {
+        $destinatarioEnvio = EMAIL_FORZAR_DESTINATARIO;
+        $asuntoEnvio = '[Prueba → ' . $destinatario . '] ' . $asunto;
+    }
 
-    $enviado = @mail($destinatario, $asunto, $cuerpoHtml, $headers);
+    if (defined('EMAIL_SMTP_HOST') && EMAIL_SMTP_HOST !== '') {
+        $enviado = enviar_email_smtp($destinatarioEnvio, $asuntoEnvio, $cuerpoHtml);
+    } else {
+        $headers = "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $headers .= 'From: ' . EMAIL_REMITENTE_NOMBRE . ' <' . EMAIL_REMITENTE . ">\r\n";
+        $enviado = @mail($destinatarioEnvio, $asuntoEnvio, $cuerpoHtml, $headers);
+    }
 
     $estado = $enviado ? 'enviado' : 'error';
     $stmt = $conn->prepare(
@@ -22,6 +44,39 @@ function enviar_email(?int $usuarioPerfilId, string $destinatario, string $asunt
     $stmt->close();
 
     return $enviado;
+}
+
+function enviar_email_smtp(string $destinatario, string $asunto, string $cuerpoHtml): bool
+{
+    require_once __DIR__ . '/../vendor/PHPMailer/Exception.php';
+    require_once __DIR__ . '/../vendor/PHPMailer/PHPMailer.php';
+    require_once __DIR__ . '/../vendor/PHPMailer/SMTP.php';
+
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host = EMAIL_SMTP_HOST;
+        $mail->Port = defined('EMAIL_SMTP_PORT') ? (int) EMAIL_SMTP_PORT : 587;
+        $mail->SMTPAuth = true;
+        $mail->Username = EMAIL_SMTP_USER;
+        $mail->Password = EMAIL_SMTP_PASS;
+        // 465 = SSL directo (SMTPS), típico de cPanel; cualquier otro puerto
+        // (587 de Gmail, etc.) usa STARTTLS — se detecta solo por el puerto
+        // para no necesitar una constante más en config.local.php.
+        $mail->SMTPSecure = $mail->Port === 465
+            ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+            : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->CharSet = 'UTF-8';
+        $mail->setFrom(EMAIL_REMITENTE, EMAIL_REMITENTE_NOMBRE);
+        $mail->addAddress($destinatario);
+        $mail->isHTML(true);
+        $mail->Subject = $asunto;
+        $mail->Body = $cuerpoHtml;
+        return $mail->send();
+    } catch (\Throwable $e) {
+        error_log('enviar_email_smtp: ' . $e->getMessage());
+        return false;
+    }
 }
 
 function plantilla_email(string $titulo, string $mensajeHtml, string $botonTexto = '', string $botonUrl = ''): string
@@ -73,6 +128,18 @@ function enviar_email_membresia_activada(int $usuarioPerfilId, string $destinata
         SITE_URL . '/index.php?action=membresia'
     );
     return enviar_email($usuarioPerfilId, $destinatario, 'Tu membresía Camino Arjuna está activa', $html, 'membresia');
+}
+
+function enviar_email_recuperar_contrasena(int $usuarioPerfilId, string $destinatario, string $enlaceUrl): bool
+{
+    $html = plantilla_email(
+        'Recupera tu contraseña',
+        '<p>Recibimos una solicitud para restablecer tu contraseña. Si no fuiste tú, ignora este correo.</p>'
+        . '<p>El enlace vence en 1 hora.</p>',
+        'Restablecer contraseña',
+        $enlaceUrl
+    );
+    return enviar_email($usuarioPerfilId, $destinatario, 'Recupera tu contraseña — Reto Arjuna', $html, 'recuperar_contrasena');
 }
 
 function enviar_email_finalizacion(int $usuarioPerfilId, string $destinatario, string $cursoTitulo, string $certificadoUrl): bool

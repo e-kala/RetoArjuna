@@ -18,19 +18,24 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
           <div class="card h-100 border-0 shadow-sm">
             <img src="<?= htmlspecialchars($curso['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
             <div class="card-body d-flex flex-column">
+              <?php if ((int) $curso['gratuito'] === 1): ?>
+                <div class="mb-2">
+                  <span class="badge align-self-start" style="background:#F6C500;color:#171717;">🎉 Gratis</span>
+                </div>
+              <?php endif; ?>
               <h3 class="h5 fw-bold"><?= htmlspecialchars($curso['titulo']) ?></h3>
-              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth((string) $curso['descripcion'], 0, 120, '…')) ?></p>
+              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $curso['descripcion'])), 0, 120, '…')) ?></p>
               <div class="d-flex align-items-center justify-content-between mt-2">
                 <?php if ((int) $curso['gratuito'] === 1): ?>
                   <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">Gratuito</span>
                 <?php elseif ($esMiembroCatalogo && (int) $curso['incluido_membresia'] === 1): ?>
-                  <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;">👑 Incluido</span>
+                  <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido</span>
                 <?php elseif ($usuarioCatalogo && usuario_tiene_acceso_curso($usuarioCatalogo['id'], (int) $curso['id'])): ?>
-                  <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">Ya inscrito</span>
+                  <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">✔ Adquirido</span>
                 <?php else: ?>
                   <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">$<?= number_format((float) $curso['precio'], 2) ?> MXN</span>
-                  <?php if ((int) $curso['incluido_membresia'] === 1): ?>
-                    <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;">👑</span>
+                  <?php if ($usuarioCatalogo && (int) $curso['incluido_membresia'] === 1): ?>
+                    <span class="badge rounded-pill d-inline-flex align-items-center" style="background:#6f42c1;color:#fff;" title="Incluido con membresía"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" style="margin-right:0;" alt="Incluido con membresía"></span>
                   <?php endif; ?>
                 <?php endif; ?>
                 <a href="?action=curso&amp;slug=<?= urlencode($curso['slug']) ?>" class="btn btn-outline-secondary btn-sm">Ver curso</a>

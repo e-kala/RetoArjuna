@@ -135,6 +135,19 @@ a { text-decoration: none; }
   gap: 12px;
 }
 .pf-user-menu { position: relative; }
+/* Puente invisible sobre el espacio de 8px entre el botón y el menú: sin
+   esto, al bajar el mouse del botón al menú se cruza una zona que no
+   pertenece a ninguno de los dos, se pierde el :hover de .pf-user-menu y el
+   menú se cierra antes de llegar — con el puente, esa franja sigue contando
+   como "dentro" de .pf-user-menu y el hover nunca se interrumpe. */
+.pf-user-menu::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 8px;
+}
 .pf-user-chip {
   display: flex;
   align-items: center;
@@ -185,6 +198,24 @@ a { text-decoration: none; }
   font-size: 14px;
 }
 .pf-user-dropdown a:hover { background: var(--pf-bg); }
+.pf-user-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--pf-ink);
+  font-weight: 500;
+  font-size: 14px;
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+}
+.pf-user-dropdown button:hover { background: var(--pf-bg); }
+.pf-dropdown-switch-form { padding: 9px 12px; border-radius: 8px; }
+.pf-dropdown-switch-form:hover { background: var(--pf-bg); }
+.pf-dropdown-switch-form .form-check-label { color: var(--pf-ink); font-weight: 500; font-size: 14px; }
 .pf-dropdown-divider {
   height: 1px;
   background: var(--pf-line);
@@ -403,6 +434,163 @@ a { text-decoration: none; }
   font-weight: 600;
 }
 .pf-footer-links a:hover { color: var(--pf-ink); }
+/* .pf-nav-session es flex con align-items:center — sin align-self:stretch
+   aquí, esta caja solo mide lo que mide el ícono (~18px), mucho menos que
+   la barra completa del navbar. El :hover/:focus-within que abre el
+   dropdown vive en ESTA caja, así que ese hueco de más quedaba fuera del
+   área con hover activo: al bajar el mouse del ícono hacia el dropdown, se
+   salía del elemento antes de llegar y el menú se cerraba solo. Estirarla
+   a la altura completa (y centrar el ícono adentro) hace que el hover se
+   mantenga en todo ese trayecto. */
+.pf-nav-bell-menu {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+/* Mismo puente invisible que .pf-user-menu::after, para que el hover no se
+   pierda al bajar el mouse del botón al panel del dropdown. */
+.pf-nav-bell-menu::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 8px;
+}
+.pf-nav-bell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  color: var(--pf-ink);
+  margin-right: 4px;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+}
+.pf-nav-bell-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: var(--pf-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+.pf-nav-bell-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow);
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  z-index: 50;
+}
+.pf-nav-bell-menu:hover .pf-nav-bell-dropdown,
+.pf-nav-bell-menu:focus-within .pf-nav-bell-dropdown { display: block; }
+.pf-nav-bell-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pf-line);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--pf-ink);
+}
+.pf-nav-bell-marcar-todas {
+  background: none;
+  border: none;
+  color: var(--pf-accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pf-nav-bell-marcar-todas:hover { text-decoration: underline; }
+.pf-nav-bell-dropdown-lista {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.pf-nav-bell-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-nav-bell-item:last-child { border-bottom: none; }
+.pf-nav-bell-item-no-leida { background: #fffaf2; }
+.pf-nav-bell-item-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px 10px 14px;
+  color: var(--pf-ink);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.pf-nav-bell-item-link i { margin-top: 2px; color: var(--pf-accent-ink); }
+.pf-nav-bell-item-link small { display: block; color: var(--pf-muted); font-size: 11.5px; margin-top: 2px; }
+.pf-nav-bell-item-marcar {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--pf-muted);
+  cursor: pointer;
+  padding: 6px 12px 6px 6px;
+  font-size: 15px;
+}
+.pf-nav-bell-item-marcar:hover { color: var(--pf-accent-ink); }
+.pf-nav-bell-vacio {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--pf-muted);
+  font-size: 13.5px;
+}
+.pf-nav-bell-ver-todas {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pf-accent-ink);
+  border-top: 1px solid var(--pf-line);
+}
+.pf-nav-bell-ver-todas:hover { background: var(--pf-bg); }
+.pf-footer-contacto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.pf-footer-contacto-label { color: var(--pf-muted); }
+.pf-footer-contacto a {
+  color: #1e7d3c;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-footer-contacto a:hover { color: var(--pf-ink); }
 .pf-footer-social {
   display: flex;
   gap: 14px;
@@ -519,3 +707,135 @@ a { text-decoration: none; }
 }
 .ra-tool-card h3 { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
 .ra-tool-card p { font-size: 12.5px; color: var(--pf-muted); margin: 0; }
+
+/* ===================================================================
+   Subir archivo por arrastrar/click (comprobantes de pago) — pensado
+   para sentarse sobre fondos oscuros como .pf-callout, no sobre el
+   fondo claro normal de la página.
+=================================================================== */
+.pf-dropzone {
+  border: 2px dashed rgba(255,255,255,0.35);
+  border-radius: var(--pf-radius-md);
+  padding: 20px 16px;
+  text-align: center;
+  color: rgba(255,255,255,0.75);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.pf-dropzone:hover,
+.pf-dropzone:focus-visible {
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.05);
+  outline: none;
+}
+.pf-dropzone.pf-dropzone-activo {
+  border-color: var(--pf-accent);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+.pf-dropzone i { font-size: 22px; display: block; margin-bottom: 6px; }
+.pf-dropzone-archivo { color: #fff; font-weight: 600; }
+
+/* ===================================================================
+   Ícono oficial de Membresía Camino Arjuna (checklist G03) — arco/flecha
+   amarillo con tres puntos (morado/verde/amarillo). Un solo tamaño fijo en
+   toda la plataforma a propósito: nunca se deforma ni se recrea distinto
+   por pantalla, siempre el mismo archivo (img/logo-membresia-camino-arjuna.png)
+   escalado igual. Nunca se muestra a Visitante (sin sesión) — cada punto
+   donde se usa ya está condicionado a $usuario/$esMiembro.
+=================================================================== */
+.pf-icono-membresia {
+  height: 14px;
+  width: 14px;
+  object-fit: contain;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* ===================================================================
+   Descripción de curso/evento escrita con el editor Quill de
+   panel/admin/contenido_form.php — mismas reglas que .pf-forum-post-body
+   (foro/assets/foro.css), el otro lugar que ya renderiza HTML de Quill.
+=================================================================== */
+.pf-contenido-html { font-size: 15px; word-wrap: break-word; }
+.pf-contenido-html p { margin: 0 0 14px; }
+.pf-contenido-html p:last-child { margin-bottom: 0; }
+.pf-contenido-html h2, .pf-contenido-html h3 { font-weight: 800; margin: 20px 0 12px; }
+.pf-contenido-html h2 { font-size: 22px; }
+.pf-contenido-html h3 { font-size: 18px; }
+.pf-contenido-html ul, .pf-contenido-html ol { margin: 0 0 14px; padding-left: 22px; }
+.pf-contenido-html li { margin-bottom: 6px; }
+.pf-contenido-html blockquote {
+  border-left: 3px solid var(--pf-accent);
+  padding: 4px 16px;
+  margin: 0 0 14px;
+  color: var(--pf-muted);
+}
+.pf-contenido-html img { max-width: 100%; border-radius: 8px; margin: 0 0 14px; display: block; }
+/* iframe.ql-video (embed de YouTube insertado desde el editor) no trae su
+   propio tamaño responsivo — se fuerza aquí al clásico contenedor 16:9. */
+.pf-contenido-html iframe.ql-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: none;
+  border-radius: 8px;
+  margin: 0 0 14px;
+}
+.pf-contenido-html a { color: var(--pf-accent-ink); text-decoration: underline; }
+/* Bloque colapsable — un <details>/<summary> NATIVO del navegador, insertado
+   como un embed opaco de Quill (igual que el audio protegido): Quill nunca
+   entiende ni toca lo que hay adentro, así que Enter/Backspace/listas/etc.
+   dentro del título o el cuerpo son edición de contenteditable normal del
+   navegador, no del modelo de Quill — ver ColapsableEmbedBlot en
+   leccion_form.php/contenido_form.php. El abrir/cerrar en la página
+   publicada tampoco necesita JS: <details> ya lo hace solo. */
+.pf-colapsable-embed {
+  border: 1px solid #e6d9c3;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 14px;
+  background: #fffaf2;
+}
+.pf-colapsable-embed summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--pf-accent-ink);
+  outline: none;
+}
+.pf-colapsable-embed .pf-colapsable-body-editable { margin-top: 10px; }
+.pf-colapsable-embed .pf-colapsable-body-editable > :last-child { margin-bottom: 0; }
+/* Las listas del cuerpo se arman a mano con <ul>/<ol>/<li> reales (ver
+   leccion_form.php/contenido_form.php) — dentro del editor, el CSS propio
+   de Quill (.ql-editor li{list-style-type:none}) les quita la viñeta/número
+   nativos del navegador porque Quill dibuja las suyas con ::before sobre
+   un atributo data-list que estos <li> no tienen, dejando el espacio de la
+   sangría reservado pero sin nada visible adentro. Se restauran a mano,
+   con más especificidad que la regla de Quill para ganarle sin depender
+   del orden de las hojas de estilo.  */
+.pf-colapsable-embed .pf-colapsable-body-editable ul,
+.pf-colapsable-embed .pf-colapsable-body-editable ol { margin: 0 0 10px; padding-left: 22px; }
+.pf-colapsable-embed .pf-colapsable-body-editable ul > li,
+.pf-colapsable-embed .pf-colapsable-body-editable ol > li { list-style-position: outside; padding-left: 0; margin-bottom: 4px; }
+.pf-colapsable-embed .pf-colapsable-body-editable ul > li { list-style-type: disc; }
+.pf-colapsable-embed .pf-colapsable-body-editable ol > li { list-style-type: decimal; }
+
+/* Embed de curso/evento en una landing page (placeholder [curso:slug]/
+   [evento:slug], ver backend/embeds.php) — un "temario" con los títulos de
+   los colapsables de la descripción del curso/evento, reutilizando el
+   mismo <details>/.pf-colapsable-embed de siempre para no necesitar CSS/JS
+   aparte. Pensado para pegarse dentro de HTML generado externamente (por
+   ejemplo con ayuda de un asistente de IA), así que se mantiene sencillo
+   y no asume nada del resto del diseño de la landing. */
+.pf-embed-curso-evento { max-width: 720px; margin: 24px auto; }
+.pf-embed-curso-evento-titulo { color: var(--pf-ink); margin-bottom: 14px; }
+.pf-embed-curso-evento-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-weight: 700;
+  color: var(--pf-accent-ink);
+  text-decoration: none;
+}
+.pf-embed-curso-evento-link:hover { text-decoration: underline; }

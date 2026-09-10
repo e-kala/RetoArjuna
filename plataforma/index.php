@@ -1,5 +1,14 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
+// Buffer de salida para todo el router: navbar.php ya imprime HTML antes de
+// llegar al content/*.php de turno, y algunos de esos (curso_detalle.php,
+// evento_detalle.php, producto_detalle.php, leccion.php) necesitan poder
+// hacer header('Location: ...') más abajo (auto-inscripción al volver de
+// crear cuenta, accesos bloqueados, etc.). Sin este buffer, esos redirects
+// solo funcionaban por casualidad mientras el HTML de navbar.php cupiera
+// bajo el output_buffering de php.ini (4096 bytes) — dejó de alcanzar en
+// cuanto el navbar creció con el dropdown de notificaciones.
+ob_start();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -27,6 +36,12 @@ require_once __DIR__ . '/backend/auth.php';
         break;
       case 'registro':
         include 'content/registro.php';
+        break;
+      case 'olvide_contrasena':
+        include 'content/olvide_contrasena.php';
+        break;
+      case 'restablecer_contrasena':
+        include 'content/restablecer_contrasena.php';
         break;
       case 'cursos':
         include 'content/cursos_catalogo.php';
@@ -64,6 +79,15 @@ require_once __DIR__ . '/backend/auth.php';
       case '7a':
         include 'content/7aEdicion.php';
         break;
+      case 'landing':
+        include 'content/landing.php';
+        break;
+      case 'perfil_publico':
+        include 'content/perfil_publico.php';
+        break;
+      case 'regalo':
+        include 'content/regalo.php';
+        break;
       default:
     }
 
@@ -75,3 +99,4 @@ require_once __DIR__ . '/backend/auth.php';
 </body>
 
 </html>
+<?php ob_end_flush(); ?>

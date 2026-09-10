@@ -6,10 +6,16 @@ require_once __DIR__ . '/plataforma/backend/auth.php';
 
 $usuario = current_user();
 $plataformaUrl = BASE_URL; // .../plataforma
+$esMiembro = $usuario ? usuario_tiene_membresia_activa($usuario['id']) : false;
 
+// Un evento exclusivo para miembros (solo_miembros=1) no debe aparecer aquí
+// para quien no es miembro — ni el título ni la imagen, nada, para que no
+// se filtre información de un evento que de todos modos no podría ver.
 $proximosEventos = $conn->query(
-    "SELECT titulo, slug, tipo, ubicacion, fecha_inicio, precio, gratuito, imagen_portada
-     FROM eventos WHERE activo = 1 AND fecha_inicio >= NOW() ORDER BY fecha_inicio ASC LIMIT 3"
+    "SELECT id, titulo, slug, tipo, ubicacion, fecha_inicio, precio, gratuito, imagen_portada
+     FROM eventos WHERE activo = 1 AND fecha_inicio >= NOW()"
+     . ($esMiembro ? '' : ' AND solo_miembros = 0')
+     . " ORDER BY fecha_inicio ASC LIMIT 3"
 )->fetch_all(MYSQLI_ASSOC);
 
 $productosDestacados = $conn->query(
@@ -27,7 +33,7 @@ $productosDestacados = $conn->query(
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="plataforma/assets/css/platform.css?v=1.2">
+  <link rel="stylesheet" href="plataforma/assets/css/platform.css?v=2.2">
 </head>
 <body class="pf-body">
 
@@ -51,7 +57,7 @@ $productosDestacados = $conn->query(
               <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/<?= $usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php' ?>">Ir a mi panel</a>
               <a class="btn btn-outline-secondary btn-lg" href="plataforma/foro/">Ir al foro</a>
             <?php else: ?>
-              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Regístrate gratis</a>
+              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Crea tu Cuenta Arjuna gratis</a>
               <a class="btn btn-outline-secondary btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Explorar cursos</a>
             <?php endif; ?>
           </div>
@@ -62,6 +68,49 @@ $productosDestacados = $conn->query(
       </div>
     </div>
   </section>
+
+  <?php if (!$usuario): ?>
+  <section class="py-5">
+    <div class="container py-4">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold">¿Qué puedes hacer con tu Cuenta Arjuna?</h2>
+        <p class="text-muted">Gratis, y es la puerta de entrada a todo el ecosistema.</p>
+      </div>
+      <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <div class="rounded-3 d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;font-size:22px;background:#fff3e0;color:#c96a00;">🎓</div>
+              <h3 class="h6 fw-bold">Tomar cursos a tu ritmo</h3>
+              <p class="small text-muted mb-0">Avanza cuando puedas, guarda tu progreso y obtén tu certificado al completar cada curso.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <div class="rounded-3 d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;font-size:22px;background:#e6f4ea;color:#1e7d3c;">📅</div>
+              <h3 class="h6 fw-bold">Inscribirte a eventos</h3>
+              <p class="small text-muted mb-0">Reserva tu lugar en encuentros en línea y presenciales de la comunidad.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+              <div class="rounded-3 d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;font-size:22px;background:#e6f0fb;color:#1c5fa8;">💬</div>
+              <h3 class="h6 fw-bold">Participar en el foro</h3>
+              <p class="small text-muted mb-0">Conversa, pregunta y comparte tu proceso con otras personas del Reto Arjuna.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-center">
+        <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Crea tu Cuenta Arjuna gratis</a>
+      </div>
+    </div>
+  </section>
+  <?php endif; ?>
 
   <section class="py-5" style="background:var(--pf-surface);border-top:1px solid var(--pf-line);border-bottom:1px solid var(--pf-line);">
     <div class="container py-4">
@@ -78,7 +127,7 @@ $productosDestacados = $conn->query(
           ['icono' => '🛍️', 'bg' => '#fdeaea', 'color' => '#c0392b', 'titulo' => 'Tienda', 'texto' => 'Merchandise e infoproductos físicos y digitales para tu práctica.', 'href' => $plataformaUrl . '/index.php?action=tienda'],
           ['icono' => '🙏', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Actividades', 'texto' => 'Prácticas guiadas para sostener el método en tu día a día.', 'href' => $plataformaUrl . '/index.php?action=actividades'],
           ['icono' => '📰', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Noticias', 'texto' => 'Avisos y novedades de la comunidad, siempre al día.', 'href' => $plataformaUrl . '/index.php?action=noticias'],
-          ['icono' => '🧭', 'bg' => '#eeeeee', 'color' => '#444444', 'titulo' => 'Mi panel', 'texto' => 'Tu progreso, tus compras, tu membresía — todo en un solo lugar.', 'href' => $plataformaUrl . '/panel/index.php' . ($usuario ? '' : '?action=ingreso')],
+          ['icono' => '🧭', 'bg' => '#eeeeee', 'color' => '#444444', 'titulo' => 'Mi panel', 'texto' => 'Tu progreso, tus compras y tu Camino Arjuna — todo en un solo lugar.', 'href' => $usuario ? $plataformaUrl . '/panel/' . ($usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php') : $plataformaUrl . '/index.php?action=ingreso&volver=' . urlencode($plataformaUrl . '/panel/dashboard.php')],
         ];
         ?>
         <?php foreach ($mapaEcosistema as $item): ?>
@@ -146,6 +195,12 @@ $productosDestacados = $conn->query(
       </div>
       <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
         <?php foreach ($proximosEventos as $ev): ?>
+          <?php
+          // IN03 (checklist.txt) — quien ya tiene acceso ve un estado breve
+          // de disponibilidad en vez de precio/promoción, aquí mismo en la
+          // tarjeta de Inicio (misma lógica que eventos_catalogo.php).
+          $tieneAccesoEv = $usuario && usuario_esta_inscrito_evento((int) $usuario['id'], (int) $ev['id']);
+          ?>
           <div class="col" style="max-width:360px;">
             <div class="card h-100 border-0 shadow-sm">
               <img src="<?= htmlspecialchars($ev['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
@@ -155,8 +210,8 @@ $productosDestacados = $conn->query(
                   <?= $ev['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $ev['ubicacion']) ?>
                   · <?= htmlspecialchars(date('d/m/Y', strtotime($ev['fecha_inicio']))) ?>
                 </p>
-                <p class="mb-3"><?= (int) $ev['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $ev['precio'], 2) . ' MXN' ?></p>
-                <a class="btn mt-auto" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>">Inscribirme</a>
+                <p class="mb-3"><?= $tieneAccesoEv ? 'Evento disponible' : ((int) $ev['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $ev['precio'], 2) . ' MXN') ?></p>
+                <a class="btn mt-auto" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>"><?= $tieneAccesoEv ? 'Ver evento' : 'Inscribirme' ?></a>
               </div>
             </div>
           </div>
@@ -201,20 +256,7 @@ $productosDestacados = $conn->query(
     </div>
   </section>
 
-  <footer class="pf-footer">
-    <div class="pf-container">
-      <nav class="pf-footer-links">
-        <?php foreach (obtener_navbar_links('footer') as $footerLink): ?>
-          <a href="<?= htmlspecialchars(navbar_href($footerLink['url'], '')) ?>" <?= (int) $footerLink['abre_nueva_pestana'] === 1 ? 'target="_blank" rel="noopener"' : '' ?>><?= htmlspecialchars($footerLink['texto']) ?></a>
-        <?php endforeach; ?>
-        <?php if (!$usuario): ?>
-          <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=ingreso">Iniciar sesión</a>
-          <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Registrarse</a>
-        <?php endif; ?>
-      </nav>
-      <p class="pf-footer-copy">&copy; 2026 Reto Arjuna</p>
-    </div>
-  </footer>
+  <?php $navPrefijo = ''; include 'plataforma/content/footer.php'; ?>
 
 </body>
 </html>

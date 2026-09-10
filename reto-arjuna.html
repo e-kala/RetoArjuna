@@ -2076,6 +2076,31 @@
 
       <!-- /CIERRE -->
 
+      <!-- Contacto -->
+      <section class="py-5" id="contacto" style="background:#faf7f0;">
+         <div class="container" style="max-width:640px;">
+            <h2 class="text-center fw-bold mb-2">¿Tienes dudas? Escríbenos</h2>
+            <p class="text-center text-muted mb-4">Te respondemos lo antes posible.</p>
+            <div id="contactoArjunaResultado"></div>
+            <form id="formularioContactoArjuna">
+               <input type="text" name="nombre_web" class="d-none" tabindex="-1" autocomplete="off">
+               <div class="mb-3">
+                  <label class="form-label" for="contactoArjunaNombre">Nombre</label>
+                  <input type="text" class="form-control" id="contactoArjunaNombre" name="nombre" required>
+               </div>
+               <div class="mb-3">
+                  <label class="form-label" for="contactoArjunaCorreo">Correo</label>
+                  <input type="email" class="form-control" id="contactoArjunaCorreo" name="correo" required>
+               </div>
+               <div class="mb-3">
+                  <label class="form-label" for="contactoArjunaMensaje">Mensaje</label>
+                  <textarea class="form-control" id="contactoArjunaMensaje" name="mensaje" rows="4" required></textarea>
+               </div>
+               <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:#F6C500;color:#171717;">Enviar mensaje</button>
+            </form>
+         </div>
+      </section>
+
       <!-- Footer Start -->
 
       <footer class="no-gutters text-center">
@@ -2173,7 +2198,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <script src="plataforma/vendor/js/jquery.appear.js"></script>
       <script src="plataforma/vendor/js/wow.min.js"></script>
       <!-- custom script -->
-      <script src="plataforma/vendor/js/contact_us.js"></script>
+      <script src="plataforma/vendor/js/contacto_arjuna.js"></script>
       <script src="plataforma/digital-creative/js/script.js"></script>
       <script src="plataforma/digital-creative/js/temporizador.js"></script>
    </body>

@@ -35,6 +35,7 @@ foreach (foro_categorias_arbol_plano(foro_categorias_arbol()) as $c) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
     $orden = (int) ($_POST['orden'] ?? 0);
@@ -94,12 +95,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->execute();
         $stmt->close();
-        header('Location: foro_categorias.php');
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'redirect' => 'foro.php?tab=etiquetas']);
+            exit;
+        }
+        header('Location: foro.php?tab=etiquetas');
         exit;
     }
 
     // Conserva lo que el admin tecleó si hubo error, en vez de recargar de la DB.
     $categoria = ['nombre' => $nombre, 'slug' => $categoria['slug'], 'descripcion' => $descripcion, 'orden' => $orden, 'parent_id' => $parentId];
+
+    if ($esAjax) {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
+        exit;
+    }
 }
 
 $pageTitle = $id ? 'Editar categoría' : 'Nueva categoría';
@@ -107,7 +117,7 @@ include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3"><?= htmlspecialchars($pageTitle) ?></h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-<form method="post" class="row g-3">
+<form method="post" class="row g-3" data-ajax-form>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <div class="col-md-8"><label class="form-label">Nombre</label><input class="form-control" name="nombre" value="<?= htmlspecialchars($categoria['nombre']) ?>" required></div>

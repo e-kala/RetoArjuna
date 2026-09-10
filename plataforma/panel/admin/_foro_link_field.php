@@ -77,10 +77,12 @@ $foroFieldValor = $foroFieldValor ?? '';
         item.className = 'pf-foro-dropdown-item';
         var titulo = document.createElement('span');
         titulo.textContent = t.titulo;
-        var categoria = document.createElement('small');
-        categoria.textContent = t.categoria_nombre;
         item.appendChild(titulo);
-        item.appendChild(categoria);
+        if (t.etiquetas_nombres) {
+          var categoria = document.createElement('small');
+          categoria.textContent = t.etiquetas_nombres;
+          item.appendChild(categoria);
+        }
         item.addEventListener('click', function () {
           input.value = 'plataforma/foro/tema.php?id=' + t.id;
           cerrar();

@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 
+$etiquetasResumenSql = foro_etiquetas_resumen_sql('t');
 $stmt = $conn->prepare(
     "SELECT t.id, t.titulo, t.slug, t.fijado, t.cerrado, t.respuestas_count, t.vistas, t.editado_en, t.created_at,
-            c.nombre AS categoria_nombre
+            $etiquetasResumenSql AS etiquetas_nombres
      FROM foro_temas t
-     JOIN foro_categorias c ON c.id = t.categoria_id
      WHERE t.usuario_id = ?
      ORDER BY t.created_at DESC LIMIT 30"
 );
@@ -52,7 +53,7 @@ $stmt->close();
 <h2 class="h5 mb-3">Mis temas</h2>
 <div class="table-responsive mb-4">
 <table class="table table-bordered bg-white">
-    <thead><tr><th>Tema</th><th>Categoría</th><th>Estado</th><th>Respuestas</th><th>Vistas</th><th>Fecha</th></tr></thead>
+    <thead><tr><th>Tema</th><th>Etiquetas</th><th>Estado</th><th>Respuestas</th><th>Vistas</th><th>Fecha</th></tr></thead>
     <tbody>
         <?php foreach ($misTemas as $t): ?>
             <tr>
@@ -60,7 +61,7 @@ $stmt->close();
                     <a href="<?= htmlspecialchars(BASE_URL) ?>/foro/tema.php?id=<?= (int) $t['id'] ?>" target="_blank"><?= htmlspecialchars($t['titulo']) ?></a>
                     <?php if ($t['editado_en']): ?><span class="badge bg-light text-muted border">editado</span><?php endif; ?>
                 </td>
-                <td><?= htmlspecialchars($t['categoria_nombre']) ?></td>
+                <td><?= htmlspecialchars((string) $t['etiquetas_nombres']) ?></td>
                 <td>
                     <?php if ($t['fijado']): ?><span class="badge bg-warning text-dark">Fijado</span><?php endif; ?>
                     <?php if ($t['cerrado']): ?><span class="badge bg-secondary">Cerrado</span><?php endif; ?>

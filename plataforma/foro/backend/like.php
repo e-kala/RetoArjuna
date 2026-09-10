@@ -17,6 +17,25 @@ if (!$temaId && !$respuestaId) {
     exit;
 }
 
+if ($temaId) {
+    $stmt = $conn->prepare('SELECT usuario_id, oculto, visibilidad, compartido_con_usuario_id FROM foro_temas WHERE id = ?');
+    $stmt->bind_param('i', $temaId);
+} else {
+    $stmt = $conn->prepare(
+        'SELECT t.usuario_id, t.oculto, t.visibilidad, t.compartido_con_usuario_id
+         FROM foro_respuestas r JOIN foro_temas t ON t.id = r.tema_id WHERE r.id = ?'
+    );
+    $stmt->bind_param('i', $respuestaId);
+}
+$stmt->execute();
+$temaPadre = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if (!$temaPadre || !foro_tema_es_visible($temaPadre, $usuario)) {
+    echo json_encode(['success' => false, 'message' => 'No se pudo procesar el "me gusta".']);
+    exit;
+}
+
 $yaLeGusta = foro_usuario_dio_like($usuario['id'], $temaId, $respuestaId);
 
 if ($yaLeGusta) {

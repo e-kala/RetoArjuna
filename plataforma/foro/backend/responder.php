@@ -17,13 +17,13 @@ if ($temaId <= 0 || $contenido === '') {
     exit;
 }
 
-$stmt = $conn->prepare('SELECT id, usuario_id, cerrado FROM foro_temas WHERE id = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT id, usuario_id, cerrado, oculto, visibilidad, compartido_con_usuario_id FROM foro_temas WHERE id = ? LIMIT 1');
 $stmt->bind_param('i', $temaId);
 $stmt->execute();
 $tema = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-if (!$tema) {
+if (!$tema || !foro_tema_es_visible($tema, $usuario)) {
     echo json_encode(['success' => false, 'message' => 'El tema no existe.']);
     exit;
 }

@@ -13,16 +13,19 @@ if (mb_strlen($q) < 2) {
     exit;
 }
 
+$visSql = foro_visibilidad_sql();
+[$uid1, $uid2, $esAdmin, $esAdmin2] = foro_visibilidad_binds(current_user());
+
+$etiquetasResumenSql = foro_etiquetas_resumen_sql('t');
 $like = '%' . $q . '%';
 $stmt = $conn->prepare(
-    "SELECT t.id, t.titulo, c.nombre AS categoria_nombre
+    "SELECT t.id, t.titulo, $etiquetasResumenSql AS etiquetas_nombres
      FROM foro_temas t
-     JOIN foro_categorias c ON c.id = t.categoria_id
-     WHERE t.titulo LIKE ?
+     WHERE t.titulo LIKE ? AND $visSql
      ORDER BY t.ultima_respuesta_at DESC, t.created_at DESC
      LIMIT 6"
 );
-$stmt->bind_param('s', $like);
+$stmt->bind_param('siiii', $like, $uid1, $uid2, $esAdmin, $esAdmin2);
 $stmt->execute();
 $temas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();

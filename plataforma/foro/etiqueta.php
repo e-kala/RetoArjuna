@@ -1,19 +1,19 @@
 <?php
-// Temas con una "categoría libre" específica — tercera taxonomía de un tema,
-// aparte de curso/evento (categoria.php ya NO es esa; esta página es nueva)
-// y de las etiquetas (etiqueta.php/foro_categorias). Cualquier usuario elige
-// una existente o crea una nueva al publicar, sin aprobación de admin — ver
-// foro_resolver_o_crear_categoria_libre() en backend/foro_helpers.php.
+// Temas con una etiqueta específica — reemplaza a categoria.php ahora que
+// foro_categorias pasó de ser la categoría única de un tema a ser el
+// vocabulario de etiquetas (relación muchos-a-muchos vía
+// foro_tema_etiquetas). No hay "subcategorías" que listar aquí: las
+// etiquetas son planas.
 require_once __DIR__ . '/backend/foro_helpers.php';
 
 $slug = trim($_GET['slug'] ?? '');
-$categoria = $slug !== '' ? foro_categoria_libre_por_slug($slug) : null;
-if (!$categoria) {
+$etiqueta = $slug !== '' ? foro_categoria_por_slug($slug) : null;
+if (!$etiqueta) {
     header('Location: index.php');
     exit;
 }
 
-$page_title = $categoria['nombre'];
+$page_title = $etiqueta['nombre'];
 $usuarioActual = current_user();
 [$uid1, $uid2, $esAdmin, $esAdmin2] = foro_visibilidad_binds($usuarioActual);
 $visSql = foro_visibilidad_sql();
@@ -26,9 +26,10 @@ $porPagina = 20;
 $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
 
 $stmtTotal = $conn->prepare(
-    "SELECT COUNT(*) AS n FROM foro_temas t WHERE t.categoria_libre_id = ? AND $visSql$ocultoSql"
+    "SELECT COUNT(*) AS n FROM foro_temas t
+     WHERE EXISTS (SELECT 1 FROM foro_tema_etiquetas te WHERE te.tema_id = t.id AND te.categoria_id = ?) AND $visSql$ocultoSql"
 );
-$stmtTotal->bind_param('iiiii', $categoria['id'], $uid1, $uid2, $esAdmin, $esAdmin2);
+$stmtTotal->bind_param('iiiii', $etiqueta['id'], $uid1, $uid2, $esAdmin, $esAdmin2);
 $stmtTotal->execute();
 $totalTemas = (int) $stmtTotal->get_result()->fetch_assoc()['n'];
 $stmtTotal->close();
@@ -45,11 +46,11 @@ $stmt = $conn->prepare(
      JOIN usuarios_perfil u ON u.id = t.usuario_id
      LEFT JOIN cursos cu ON cu.id = t.curso_id
      LEFT JOIN eventos ev ON ev.id = t.evento_id
-     WHERE t.categoria_libre_id = ? AND $visSql$ocultoSql
+     WHERE EXISTS (SELECT 1 FROM foro_tema_etiquetas te WHERE te.tema_id = t.id AND te.categoria_id = ?) AND $visSql$ocultoSql
      ORDER BY t.fijado DESC, " . foro_orden_sql($orden) . "
      LIMIT ? OFFSET ?"
 );
-$stmt->bind_param('iiiiiii', $categoria['id'], $uid1, $uid2, $esAdmin, $esAdmin2, $porPagina, $offset);
+$stmt->bind_param('iiiiiii', $etiqueta['id'], $uid1, $uid2, $esAdmin, $esAdmin2, $porPagina, $offset);
 $stmt->execute();
 $temas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -63,16 +64,17 @@ require __DIR__ . '/inc/header.php';
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="index.php">Foro</a></li>
-    <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($categoria['nombre']) ?></li>
+    <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($etiqueta['nombre']) ?></li>
   </ol>
 </nav>
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
   <div>
-    <h1 class="h3 fw-bold mb-1"><i class="bi bi-bookmark-fill"></i> <?= htmlspecialchars($categoria['nombre']) ?></h1>
+    <h1 class="h3 fw-bold mb-1"><i class="bi bi-tag-fill"></i> <?= htmlspecialchars($etiqueta['nombre']) ?></h1>
+    <?php if ($etiqueta['descripcion']): ?><p class="text-muted mb-0"><?= htmlspecialchars($etiqueta['descripcion']) ?></p><?php endif; ?>
   </div>
   <?php if ($usuarioActual): ?>
-    <a class="btn fw-bold" style="background:var(--pf-accent);color:#fff;" href="nuevo_tema.php?categoria_libre_id=<?= (int) $categoria['id'] ?>"><i class="bi bi-plus-lg"></i> Nuevo tema</a>
+    <a class="btn fw-bold" style="background:var(--pf-accent);color:#fff;" href="nuevo_tema.php?etiqueta_id=<?= (int) $etiqueta['id'] ?>"><i class="bi bi-plus-lg"></i> Nuevo tema</a>
   <?php endif; ?>
 </div>
 
@@ -118,7 +120,7 @@ require __DIR__ . '/inc/header.php';
   <?php if (!$temas): ?>
     <div class="list-group-item text-center text-muted py-5">
       <i class="bi bi-chat-square-dots fs-2 d-block mb-2"></i>
-      Todavía no hay temas en esta categoría. ¡Sé el primero en publicar!
+      Todavía no hay temas con esta etiqueta. ¡Sé el primero en publicar!
     </div>
   <?php endif; ?>
 </div>

@@ -1,24 +1,24 @@
 <?php
 require_once __DIR__ . '/backend/foro_helpers.php';
 
-$cursoId = (int) ($_GET['curso_id'] ?? 0);
+$eventoId = (int) ($_GET['evento_id'] ?? 0);
 $leccionId = (int) ($_GET['leccion_id'] ?? 0);
 
-$stmt = $conn->prepare('SELECT id, titulo, slug FROM cursos WHERE id = ? LIMIT 1');
-$stmt->bind_param('i', $cursoId);
+$stmt = $conn->prepare('SELECT id, titulo, slug FROM eventos WHERE id = ? LIMIT 1');
+$stmt->bind_param('i', $eventoId);
 $stmt->execute();
-$curso = $stmt->get_result()->fetch_assoc();
+$evento = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-if (!$curso) {
+if (!$evento) {
     header('Location: index.php');
     exit;
 }
 
 $leccion = null;
 if ($leccionId) {
-    $stmt = $conn->prepare('SELECT id, titulo FROM lecciones WHERE id = ? AND curso_id = ? LIMIT 1');
-    $stmt->bind_param('ii', $leccionId, $cursoId);
+    $stmt = $conn->prepare('SELECT id, titulo FROM lecciones WHERE id = ? AND evento_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $leccionId, $eventoId);
     $stmt->execute();
     $leccion = $stmt->get_result()->fetch_assoc();
     if (!$leccion) {
@@ -26,15 +26,15 @@ if ($leccionId) {
     }
 }
 
-$page_title = $leccion ? $leccion['titulo'] : $curso['titulo'];
+$page_title = $leccion ? $leccion['titulo'] : $evento['titulo'];
 $usuarioActual = current_user();
 [$uid1, $uid2, $esAdmin, $esAdmin2] = foro_visibilidad_binds($usuarioActual);
 $visSql = foro_visibilidad_sql();
 $ocultoFiltro = foro_oculto_filtro_admin($usuarioActual);
 $ocultoSql = foro_oculto_filtro_sql($ocultoFiltro);
 
-$stmt = $conn->prepare('SELECT id, titulo FROM lecciones WHERE curso_id = ? ORDER BY orden');
-$stmt->bind_param('i', $cursoId);
+$stmt = $conn->prepare('SELECT id, titulo FROM lecciones WHERE evento_id = ? ORDER BY orden');
+$stmt->bind_param('i', $eventoId);
 $stmt->execute();
 $lecciones = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -48,26 +48,26 @@ if ($leccionId) {
                 t.ultima_respuesta_at, t.created_at, u.username_cache
          FROM foro_temas t
          JOIN usuarios_perfil u ON u.id = t.usuario_id
-         WHERE t.curso_id = ? AND t.leccion_id = ? AND $visSql$ocultoSql
+         WHERE t.evento_id = ? AND t.leccion_id = ? AND $visSql$ocultoSql
          ORDER BY t.fijado DESC, $ordenSql"
     );
-    $stmt->bind_param('iiiiii', $cursoId, $leccionId, $uid1, $uid2, $esAdmin, $esAdmin2);
+    $stmt->bind_param('iiiiii', $eventoId, $leccionId, $uid1, $uid2, $esAdmin, $esAdmin2);
 } else {
     $stmt = $conn->prepare(
         "SELECT t.id, t.usuario_id, t.titulo, t.fijado, t.cerrado, t.oculto, t.respuestas_count, t.vistas,
                 t.ultima_respuesta_at, t.created_at, u.username_cache
          FROM foro_temas t
          JOIN usuarios_perfil u ON u.id = t.usuario_id
-         WHERE t.curso_id = ? AND $visSql$ocultoSql
+         WHERE t.evento_id = ? AND $visSql$ocultoSql
          ORDER BY t.fijado DESC, $ordenSql"
     );
-    $stmt->bind_param('iiiii', $cursoId, $uid1, $uid2, $esAdmin, $esAdmin2);
+    $stmt->bind_param('iiiii', $eventoId, $uid1, $uid2, $esAdmin, $esAdmin2);
 }
 $stmt->execute();
 $temas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-$nuevoTemaUrl = 'nuevo_tema.php?curso_id=' . $cursoId . ($leccionId ? '&leccion_id=' . $leccionId : '');
+$nuevoTemaUrl = 'nuevo_tema.php?evento_id=' . $eventoId . ($leccionId ? '&leccion_id=' . $leccionId : '');
 
 require __DIR__ . '/inc/header.php';
 ?>
@@ -75,20 +75,20 @@ require __DIR__ . '/inc/header.php';
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="index.php">Foro</a></li>
-    <li class="breadcrumb-item"><a href="curso.php?curso_id=<?= (int) $curso['id'] ?>"><?= htmlspecialchars($curso['titulo']) ?></a></li>
+    <li class="breadcrumb-item"><a href="evento.php?evento_id=<?= (int) $evento['id'] ?>"><?= htmlspecialchars($evento['titulo']) ?></a></li>
     <?php if ($leccion): ?><li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($leccion['titulo']) ?></li><?php endif; ?>
   </ol>
 </nav>
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
   <div>
-    <h1 class="h3 fw-bold mb-1"><i class="bi bi-mortarboard-fill"></i> <?= htmlspecialchars($leccion ? $leccion['titulo'] : $curso['titulo']) ?></h1>
+    <h1 class="h3 fw-bold mb-1"><i class="bi bi-calendar-event-fill"></i> <?= htmlspecialchars($leccion ? $leccion['titulo'] : $evento['titulo']) ?></h1>
     <p class="text-muted mb-0">
-      <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=curso&slug=<?= urlencode($curso['slug']) ?>">Ver el curso</a>
-      <?php if ($leccion): ?> · <a href="curso.php?curso_id=<?= (int) $curso['id'] ?>">Ver todos los temas del curso</a><?php endif; ?>
+      <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=evento&slug=<?= urlencode($evento['slug']) ?>">Ver el evento</a>
+      <?php if ($leccion): ?> · <a href="evento.php?evento_id=<?= (int) $evento['id'] ?>">Ver todos los temas del evento</a><?php endif; ?>
     </p>
   </div>
-  <?php if (current_user()): ?>
+  <?php if ($usuarioActual): ?>
     <a class="btn fw-bold" style="background:var(--pf-accent);color:#fff;" href="<?= htmlspecialchars($nuevoTemaUrl) ?>"><i class="bi bi-plus-lg"></i> Nuevo tema</a>
   <?php endif; ?>
 </div>
@@ -96,11 +96,11 @@ require __DIR__ . '/inc/header.php';
 <div class="row g-4">
   <div class="col-lg-8">
     <div class="mb-3 d-flex flex-wrap align-items-center gap-2">
-      <?php $ordenCamposOcultos = ['curso_id' => $cursoId, 'leccion_id' => $leccionId ?: null]; require __DIR__ . '/inc/orden_selector.php'; ?>
+      <?php $ordenCamposOcultos = ['evento_id' => $eventoId, 'leccion_id' => $leccionId ?: null]; require __DIR__ . '/inc/orden_selector.php'; ?>
       <?php if ($usuarioActual && $usuarioActual['rol'] === 'admin'): ?>
         <form method="get" class="ms-auto">
           <?php if ($orden !== 'recientes'): ?><input type="hidden" name="orden" value="<?= htmlspecialchars($orden) ?>"><?php endif; ?>
-          <input type="hidden" name="curso_id" value="<?= (int) $cursoId ?>">
+          <input type="hidden" name="evento_id" value="<?= (int) $eventoId ?>">
           <?php if ($leccionId): ?><input type="hidden" name="leccion_id" value="<?= (int) $leccionId ?>"><?php endif; ?>
           <select name="oculto" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
             <option value="">Ocultos y publicados</option>
@@ -135,7 +135,7 @@ require __DIR__ . '/inc/header.php';
       <?php if (!$temas): ?>
         <div class="list-group-item text-center text-muted py-5">
           <i class="bi bi-chat-square-dots fs-2 d-block mb-2"></i>
-          Todavía no hay temas <?= $leccion ? 'sobre esta lección' : 'sobre este curso' ?>. ¡Sé el primero en publicar!
+          Todavía no hay temas <?= $leccion ? 'sobre esta lección' : 'sobre este evento' ?>. ¡Sé el primero en publicar!
         </div>
       <?php endif; ?>
     </div>
@@ -146,11 +146,11 @@ require __DIR__ . '/inc/header.php';
       <div class="card-body">
         <h2 class="h6 fw-bold mb-3"><i class="bi bi-list-ol"></i> Lecciones</h2>
         <div class="list-group list-group-flush">
-          <a class="list-group-item list-group-item-action <?= !$leccionId ? 'active' : '' ?>" href="curso.php?curso_id=<?= (int) $curso['id'] ?>">
+          <a class="list-group-item list-group-item-action <?= !$leccionId ? 'active' : '' ?>" href="evento.php?evento_id=<?= (int) $evento['id'] ?>">
             Todos los temas
           </a>
           <?php foreach ($lecciones as $l): ?>
-            <a class="list-group-item list-group-item-action <?= $leccionId === (int) $l['id'] ? 'active' : '' ?>" href="curso.php?curso_id=<?= (int) $curso['id'] ?>&leccion_id=<?= (int) $l['id'] ?>">
+            <a class="list-group-item list-group-item-action <?= $leccionId === (int) $l['id'] ? 'active' : '' ?>" href="evento.php?evento_id=<?= (int) $evento['id'] ?>&leccion_id=<?= (int) $l['id'] ?>">
               <?= htmlspecialchars($l['titulo']) ?>
             </a>
           <?php endforeach; ?>

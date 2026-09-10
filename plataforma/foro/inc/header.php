@@ -1,7 +1,6 @@
 <?php
 // $page_title (string, opcional) puede definirse antes de incluir este archivo.
 $usuarioForo = current_user();
-$noLeidas = $usuarioForo ? foro_notificaciones_no_leidas($usuarioForo['id']) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -13,8 +12,16 @@ $noLeidas = $usuarioForo ? foro_notificaciones_no_leidas($usuarioForo['id']) : 0
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=1.2">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=2.8">
   <link rel="stylesheet" href="assets/foro.css?v=2.0">
+  <!-- notify.js (plataforma/content/notify.min.js) necesita jQuery cargado
+       ANTES que él — arma su propio "jQuery" global al analizarse (no de
+       forma perezosa dentro de una función), así que el orden de estos dos
+       <script> no se puede invertir. Ver inc/footer.php: window.pfMostrarToast(). -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+    integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="../content/notify.min.js"></script>
   <?php if (!empty($usaEditorEnriquecido)): ?>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css">
     <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
@@ -31,16 +38,6 @@ $noLeidas = $usuarioForo ? foro_notificaciones_no_leidas($usuarioForo['id']) : 0
   </form>
   <?php
   $navExtraTrasLinks = ob_get_clean();
-
-  ob_start();
-  if ($usuarioForo):
-  ?>
-  <a class="pf-forum-bell" href="notificaciones.php" title="Notificaciones">
-    <i class="bi bi-bell-fill"></i><?php if ($noLeidas > 0): ?><span class="pf-forum-bell-badge"><?= $noLeidas > 9 ? '9+' : $noLeidas ?></span><?php endif; ?>
-  </a>
-  <?php
-  endif;
-  $navExtraEnSesion = ob_get_clean();
 
   $navPrefijo = '../../';
   $navActivoContiene = 'foro/';

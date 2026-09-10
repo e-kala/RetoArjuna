@@ -46,25 +46,6 @@
 .pf-search-dropdown-titulo { display: block; font-size: 14px; font-weight: 700; }
 .pf-search-dropdown-cat { display: block; font-size: 12px; color: var(--pf-muted); }
 
-.pf-forum-bell {
-  position: relative;
-  font-size: 18px;
-  color: var(--pf-ink);
-  margin-right: 4px;
-}
-.pf-forum-bell-badge {
-  position: absolute;
-  top: -6px;
-  right: -8px;
-  background: var(--pf-accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  border-radius: 999px;
-  padding: 1px 5px;
-  line-height: 1.4;
-}
-
 .pf-user-avatar {
   display: inline-flex;
   align-items: center;

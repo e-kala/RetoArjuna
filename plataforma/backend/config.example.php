@@ -34,6 +34,20 @@
 // cada modo (test/live) tiene el suyo — no reutilizar el de otro entorno.
 // define('STRIPE_WEBHOOK_SECRET', 'whsec_...');
 
+// --- Modo prueba de Stripe (solo tiene sentido en producción/pruebas.arjuna.mx) ---
+// Permite que un admin, o una cuenta marcada "es_prueba" (ver
+// usuarios_perfil.es_prueba), active desde el sitio (menú de usuario →
+// "Activar modo prueba de Stripe") un modo donde SOLO ESA CUENTA ve/usa
+// llaves TEST — cualquier otro usuario, incluida otra cuenta admin/de prueba
+// que no lo haya activado, sigue viendo siempre las llaves LIVE de arriba.
+// Útil para probar el flujo completo de pagos en el sitio real sin arriesgar
+// dinero real ni tener que editar este archivo a mano cada vez. Si no se
+// definen estas 3 líneas, el botón de activar sigue apareciendo pero no
+// cambia nada (cae de vuelta a LIVE).
+// define('STRIPE_PUBLISHABLE_KEY_PRUEBA', 'pk_test_...');
+// define('STRIPE_SECRET_KEY_PRUEBA', 'sk_test_...');
+// define('STRIPE_WEBHOOK_SECRET_PRUEBA', 'whsec_...'); // webhook aparte en modo TEST, o `stripe listen --forward-to` apuntando a stripe_webhook.php
+
 // --- Transferencia bancaria ---
 // define('BANCO_NOMBRE', '...');
 // define('BANCO_CLABE', '...');

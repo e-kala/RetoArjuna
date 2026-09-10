@@ -17,6 +17,7 @@ $error = '';
 $valores = ['username' => '', 'email' => '', 'rol' => 'estudiante', 'es_prueba' => 0, 'asignar_membresia' => 0];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $rol = $_POST['rol'] ?? 'estudiante';
@@ -55,16 +56,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             if ($asignarMembresia && $hayMembresias) {
-                header(
-                    'Location: usuarios.php?otorgar_membresia_id=' . $nuevoUsuarioId
-                    . '&otorgar_membresia_label=' . urlencode($username . ' — ' . $email)
-                );
+                $redirect = 'usuarios.php?otorgar_membresia_id=' . $nuevoUsuarioId
+                    . '&otorgar_membresia_label=' . urlencode($username . ' — ' . $email);
+                if ($esAjax) {
+                    echo json_encode(['success' => true, 'redirect' => $redirect]);
+                    exit;
+                }
+                header('Location: ' . $redirect);
                 exit;
             }
 
+            if ($esAjax) {
+                echo json_encode(['success' => true, 'redirect' => 'usuarios.php']);
+                exit;
+            }
             header('Location: usuarios.php');
             exit;
         }
+    }
+    if ($esAjax && $error !== '') {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
+        exit;
     }
 }
 
@@ -73,7 +85,7 @@ include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3">Nuevo usuario</h1>
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-<form method="post" class="row g-3" style="max-width:560px;">
+<form method="post" class="row g-3" style="max-width:560px;" data-ajax-form>
   <?= csrf_field() ?>
   <div class="col-12"><label class="form-label">Usuario</label><input class="form-control" name="username" value="<?= htmlspecialchars($valores['username']) ?>" required></div>
   <div class="col-12"><label class="form-label">Correo</label><input type="email" class="form-control" name="email" value="<?= htmlspecialchars($valores['email']) ?>" required></div>
@@ -85,8 +97,8 @@ include __DIR__ . '/_header.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-md-6 form-check mt-4">
-    <input type="checkbox" class="form-check-input" name="es_prueba" id="es_prueba" <?= $valores['es_prueba'] ? 'checked' : '' ?>>
+  <div class="col-md-6 form-check form-switch mt-4">
+    <input type="checkbox" class="form-check-input" role="switch" name="es_prueba" id="es_prueba" <?= $valores['es_prueba'] ? 'checked' : '' ?>>
     <label class="form-check-label" for="es_prueba">Cuenta de prueba (no es un usuario real)</label>
   </div>
   <div class="col-12">
@@ -95,9 +107,9 @@ include __DIR__ . '/_header.php';
     <div class="form-text">Compártela con la persona — podrá cambiarla después desde su perfil.</div>
   </div>
   <?php if ($hayMembresias): ?>
-    <div class="col-12 form-check">
-      <input type="checkbox" class="form-check-input" name="asignar_membresia" id="asignar_membresia" <?= $valores['asignar_membresia'] ? 'checked' : '' ?>>
-      <label class="form-check-label" for="asignar_membresia">👑 Asignar membresía a este usuario (se abre el formulario de membresía justo después de crearlo)</label>
+    <div class="col-12 form-check form-switch">
+      <input type="checkbox" class="form-check-input" role="switch" name="asignar_membresia" id="asignar_membresia" <?= $valores['asignar_membresia'] ? 'checked' : '' ?>>
+      <label class="form-check-label" for="asignar_membresia"> Asignar membresía a este usuario (se abre el formulario de membresía justo después de crearlo)</label>
     </div>
   <?php endif; ?>
   <div class="col-12">

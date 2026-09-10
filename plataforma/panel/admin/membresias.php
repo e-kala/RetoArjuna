@@ -7,6 +7,7 @@ requerir_csrf_form();
 $miId = (int) $_SESSION['usuario_perfil_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $esAjax = es_peticion_ajax();
     $id = (int) ($_POST['id'] ?? 0);
     $accion = $_POST['accion'] ?? '';
 
@@ -15,16 +16,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'eliminado' => true, 'mensaje' => 'Membresía eliminada.']);
+            exit;
+        }
     } elseif ($accion === 'toggle_activo') {
         $stmt = $conn->prepare('UPDATE membresias SET activo = 1 - activo WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            $stmt = $conn->prepare('SELECT activo FROM membresias WHERE id = ?');
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $activo = (int) ($stmt->get_result()->fetch_assoc()['activo'] ?? 0);
+            $stmt->close();
+            echo json_encode([
+                'success' => true,
+                'mensaje' => $activo ? 'Membresía activada.' : 'Membresía oculta.',
+                'boton_texto' => $activo ? 'Ocultar' : 'Mostrar',
+                'boton_accion' => 'toggle_activo',
+                'estado_html' => $activo ? 'Activa' : 'Oculta',
+            ]);
+            exit;
+        }
     } elseif ($accion === 'cancelar_pendiente') {
         $stmt = $conn->prepare("DELETE FROM membresia_suscripciones WHERE id = ? AND estado = 'pendiente'");
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+        if ($esAjax) {
+            echo json_encode(['success' => true, 'eliminado' => true, 'mensaje' => 'Solicitud descartada.']);
+            exit;
+        }
     }
 
     header('Location: membresias.php');
@@ -67,7 +91,7 @@ include __DIR__ . '/_header.php';
 </div>
 <div class="table-responsive">
 <table class="table table-bordered bg-white mb-5">
-  <thead><tr><th>Nombre</th><th>Precio</th><th>Intervalo</th><th>Stripe Price ID</th><th>Estado</th><th>Acciones</th></tr></thead>
+  <thead><tr><th>Nombre</th><th>Precio</th><th>Intervalo</th><th>Stripe Price ID</th><th>Creada</th><th>Estado</th><th>Acciones</th></tr></thead>
   <tbody>
     <?php foreach ($membresias as $m): ?>
       <tr>
@@ -75,21 +99,22 @@ include __DIR__ . '/_header.php';
         <td>$<?= number_format((float) $m['precio'], 2) ?> MXN</td>
         <td><?= $m['intervalo'] === 'anual' ? 'Anual' : 'Mensual' ?></td>
         <td><?= $m['stripe_price_id'] ? '<code>' . htmlspecialchars($m['stripe_price_id']) . '</code>' : '<span class="text-danger">sin configurar</span>' ?></td>
-        <td><?= (int) $m['activo'] === 1 ? 'Activa' : 'Oculta' ?></td>
+        <td><?= htmlspecialchars(date('d/m/Y', strtotime($m['created_at']))) ?></td>
+        <td data-ajax-estado><?= (int) $m['activo'] === 1 ? 'Activa' : 'Oculta' ?></td>
         <td class="d-flex gap-2">
           <a href="membresia_form.php?id=<?= (int) $m['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
-          <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $m['id'] ?>"><input type="hidden" name="accion" value="toggle_activo"><button class="btn btn-sm btn-outline-secondary"><?= (int) $m['activo'] === 1 ? 'Ocultar' : 'Mostrar' ?></button></form>
-          <form method="post" onsubmit="return confirm('¿Eliminar membresía?');"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $m['id'] ?>"><input type="hidden" name="accion" value="eliminar_membresia"><button class="btn btn-sm btn-outline-danger">Eliminar</button></form>
+          <form method="post" data-ajax="toggle" class="d-flex align-items-center"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $m['id'] ?>"><input type="hidden" name="accion" value="toggle_activo"><div class="form-check form-switch mb-0"><input type="checkbox" class="form-check-input" role="switch" <?= (int) $m['activo'] === 1 ? 'checked' : '' ?> aria-label="<?= (int) $m['activo'] === 1 ? 'Ocultar' : 'Mostrar' ?>"></div></form>
+          <form method="post" data-ajax="eliminar" data-confirm="¿Eliminar membresía?"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $m['id'] ?>"><input type="hidden" name="accion" value="eliminar_membresia"><button class="btn btn-sm btn-outline-danger">Eliminar</button></form>
         </td>
       </tr>
     <?php endforeach; ?>
-    <?php if (!$membresias): ?><tr><td colspan="6" class="text-muted">No hay membresías creadas.</td></tr><?php endif; ?>
+    <?php if (!$membresias): ?><tr><td colspan="7" class="text-muted">No hay membresías creadas.</td></tr><?php endif; ?>
   </tbody>
 </table>
 </div>
 
 <div class="mb-5">
-  <h2 class="h5 mb-2">👑 Membresías de usuarios</h2>
+  <h2 class="h5 mb-2"> Membresías de usuarios</h2>
   <p class="text-muted small">Para pagos en efectivo, cortesías, o cualquier alta que no pase por Stripe.</p>
   <?php if ($membresias): ?>
     <button type="button" class="btn btn-success btn-sm" onclick="abrirMembresiaModal({ titulo: 'Otorgar membresía', volver: 'membresias.php' })">+ Otorgar membresía</button>
@@ -97,28 +122,39 @@ include __DIR__ . '/_header.php';
 </div>
 
 <?php if ($pendientes): ?>
-<h2 class="h5 mb-3">Pendientes de confirmar (transferencia)</h2>
+<h2 class="h5 mb-3">Pendientes de confirmar</h2>
 <div class="table-responsive">
 <table class="table table-bordered bg-white mb-5">
-  <thead><tr><th>Usuario</th><th>Membresía</th><th>Comprobante</th><th>Solicitado</th><th>Confirmar</th></tr></thead>
+  <thead><tr><th>Usuario</th><th>Membresía</th><th>Método</th><th>Comprobante</th><th>Solicitado</th><th>Confirmar</th></tr></thead>
   <tbody>
     <?php foreach ($pendientes as $p): ?>
       <tr>
         <td><?= htmlspecialchars((string) $p['username_cache']) ?><br><span class="text-muted small"><?= htmlspecialchars((string) $p['email_cache']) ?></span></td>
         <td><?= htmlspecialchars($p['membresia_nombre']) ?></td>
-        <td><?= $p['comprobante_url'] ? '<a href="../../' . htmlspecialchars($p['comprobante_url']) . '" target="_blank">Ver</a>' : '<span class="text-muted">— (revisa WhatsApp)</span>' ?></td>
+        <td><?= $metodoLabel[$p['metodo']] ?? htmlspecialchars($p['metodo']) ?></td>
+        <td>
+          <?php if ($p['metodo'] === 'stripe'): ?>
+            <span class="text-muted">—</span>
+          <?php else: ?>
+            <?= $p['comprobante_url'] ? '<a href="../../' . htmlspecialchars($p['comprobante_url']) . '" target="_blank">Ver</a>' : '<span class="text-muted">— (revisa WhatsApp)</span>' ?>
+          <?php endif; ?>
+        </td>
         <td><?= htmlspecialchars(date('d/m/Y', strtotime($p['created_at']))) ?></td>
         <td class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn btn-sm btn-success" onclick="abrirMembresiaModal({
-            titulo: 'Confirmar transferencia',
-            suscripcionId: <?= (int) $p['id'] ?>,
-            usuarioId: <?= (int) $p['usuario_id'] ?>,
-            usuarioLabel: <?= htmlspecialchars(json_encode($p['username_cache'] . ' — ' . $p['email_cache']), ENT_QUOTES) ?>,
-            membresiaId: <?= (int) $p['membresia_id'] ?>,
-            metodo: 'transferencia',
-            volver: 'membresias.php'
-          })">Confirmar</button>
-          <form method="post" class="d-inline" onsubmit="return confirm('¿Descartar esta solicitud?');">
+          <?php if ($p['metodo'] !== 'stripe'): ?>
+            <button type="button" class="btn btn-sm btn-success" onclick="abrirMembresiaModal({
+              titulo: 'Confirmar transferencia',
+              suscripcionId: <?= (int) $p['id'] ?>,
+              usuarioId: <?= (int) $p['usuario_id'] ?>,
+              usuarioLabel: <?= htmlspecialchars(json_encode($p['username_cache'] . ' — ' . $p['email_cache']), ENT_QUOTES) ?>,
+              membresiaId: <?= (int) $p['membresia_id'] ?>,
+              metodo: 'transferencia',
+              volver: 'membresias.php'
+            })">Confirmar</button>
+          <?php else: ?>
+            <span class="text-muted small">Pendiente de que el usuario confirme el pago con tarjeta</span>
+          <?php endif; ?>
+          <form method="post" class="d-inline" data-ajax="eliminar" data-confirm="¿Descartar esta solicitud?">
             <?= csrf_field() ?>
             <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
             <input type="hidden" name="accion" value="cancelar_pendiente">

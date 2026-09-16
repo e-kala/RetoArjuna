@@ -66,7 +66,18 @@ include __DIR__ . '/_header.php';
         <td><code><?= htmlspecialchars($c['codigo']) ?></code> <?= $c['origen'] === 'incentivo_cuenta_nueva' ? '<span class="badge bg-info">incentivo cuenta nueva</span>' : '' ?> <?= $c['combinable'] ? '<span class="badge bg-secondary">combinable</span>' : '' ?></td>
         <td><?= $c['tipo_descuento'] === 'monto' ? '$' . number_format((float) $c['valor'], 2) : (float) $c['valor'] . '%' ?></td>
         <td><?= (int) $c['n_alcance'] === 0 ? 'Global' : $c['n_alcance'] . ' ítem(s)' ?></td>
-        <td class="small"><?= $c['fecha_inicio'] ? htmlspecialchars($c['fecha_inicio']) : 'sin inicio' ?> — <?= $c['fecha_fin'] ? htmlspecialchars($c['fecha_fin']) : 'sin fin' ?></td>
+        <td class="small">
+          <?php if ($c['vigencia_tipo'] === 'meses'): ?>
+            Por <?= (int) $c['vigencia_meses'] ?> mes<?= (int) $c['vigencia_meses'] === 1 ? '' : 'es' ?> (membresía)
+          <?php elseif ($c['vigencia_tipo'] === 'una_vez'): ?>
+            Un solo uso
+          <?php else: ?>
+            Para siempre
+          <?php endif; ?>
+          <?php if ($c['fecha_inicio'] || $c['fecha_fin']): ?>
+            <br><span class="text-muted"><?= $c['fecha_inicio'] ? htmlspecialchars($c['fecha_inicio']) : 'sin inicio' ?> — <?= $c['fecha_fin'] ? htmlspecialchars($c['fecha_fin']) : 'sin fin' ?></span>
+          <?php endif; ?>
+        </td>
         <td><?= (int) $c['usos'] ?><?= $c['usos_totales'] !== null ? ' / ' . (int) $c['usos_totales'] : '' ?></td>
         <td><?= htmlspecialchars(date('d/m/Y', strtotime($c['created_at']))) ?></td>
         <td data-ajax-estado><?= (int) $c['activo'] === 1 ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Desactivado</span>' ?></td>

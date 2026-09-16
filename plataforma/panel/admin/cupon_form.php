@@ -11,6 +11,7 @@ $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 $cupon = [
     'codigo' => '', 'tipo_descuento' => 'porcentaje', 'valor' => '',
     'fecha_inicio' => '', 'fecha_fin' => '', 'usos_totales' => '',
+    'vigencia_tipo' => 'siempre', 'vigencia_meses' => '',
     'combinable' => 0, 'origen' => 'admin', 'activo' => 1,
 ];
 $alcanceActual = [];
@@ -56,23 +57,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $codigo = strtoupper(trim($_POST['codigo'] ?? ''));
     $tipoDescuento = in_array($_POST['tipo_descuento'] ?? '', ['porcentaje', 'monto'], true) ? $_POST['tipo_descuento'] : 'porcentaje';
     $valor = (float) ($_POST['valor'] ?? 0);
-    $fechaInicio = trim($_POST['fecha_inicio'] ?? '') ?: null;
-    $fechaFin = trim($_POST['fecha_fin'] ?? '') ?: null;
-    $usosTotales = trim($_POST['usos_totales'] ?? '') !== '' ? (int) $_POST['usos_totales'] : null;
     $combinable = isset($_POST['combinable']) ? 1 : 0;
     $origen = isset($_POST['es_incentivo_cuenta_nueva']) ? 'incentivo_cuenta_nueva' : 'admin';
     $activo = isset($_POST['activo']) ? 1 : 0;
     $alcanceElegido = $_POST['alcance'] ?? [];
 
+    // Vigencia: el selector de 3 modalidades reemplaza la edición manual de
+    // fecha_inicio/fecha_fin/usos_totales — 'siempre' y 'meses' dejan las
+    // fechas del cupón sin restricción (para 'meses', la repetición mensual
+    // la controla Stripe en la suscripción de cada usuario, no una fecha
+    // fija del código, ver membresia_iniciar.php); 'una_vez' fuerza
+    // usos_totales=1, mismo mecanismo que ya validaba ofertas.php.
+    $vigenciaTipo = in_array($_POST['vigencia_tipo'] ?? '', ['siempre', 'meses', 'una_vez'], true) ? $_POST['vigencia_tipo'] : 'siempre';
+    $vigenciaMeses = $vigenciaTipo === 'meses' ? max(1, (int) ($_POST['vigencia_meses'] ?? 0)) : null;
+    $fechaInicio = null;
+    $fechaFin = null;
+    $usosTotales = $vigenciaTipo === 'una_vez' ? 1 : null;
+
     if ($codigo === '' || $valor <= 0) {
         $error = 'Código y valor del descuento son obligatorios.';
+    } elseif ($vigenciaTipo === 'meses' && !$vigenciaMeses) {
+        $error = 'Indica cuántos meses dura el descuento.';
     } else {
         if ($id) {
-            $stmt = $conn->prepare('UPDATE cupones SET codigo=?, tipo_descuento=?, valor=?, fecha_inicio=?, fecha_fin=?, usos_totales=?, combinable=?, origen=?, activo=? WHERE id=?');
-            $stmt->bind_param('ssdssiisii', $codigo, $tipoDescuento, $valor, $fechaInicio, $fechaFin, $usosTotales, $combinable, $origen, $activo, $id);
+            $stmt = $conn->prepare('UPDATE cupones SET codigo=?, tipo_descuento=?, valor=?, fecha_inicio=?, fecha_fin=?, usos_totales=?, vigencia_tipo=?, vigencia_meses=?, combinable=?, origen=?, activo=? WHERE id=?');
+            $stmt->bind_param('ssdssisiisii', $codigo, $tipoDescuento, $valor, $fechaInicio, $fechaFin, $usosTotales, $vigenciaTipo, $vigenciaMeses, $combinable, $origen, $activo, $id);
         } else {
-            $stmt = $conn->prepare('INSERT INTO cupones (codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_totales, combinable, origen, activo) VALUES (?,?,?,?,?,?,?,?,?)');
-            $stmt->bind_param('ssdssiisi', $codigo, $tipoDescuento, $valor, $fechaInicio, $fechaFin, $usosTotales, $combinable, $origen, $activo);
+            $stmt = $conn->prepare('INSERT INTO cupones (codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_totales, vigencia_tipo, vigencia_meses, combinable, origen, activo) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+            $stmt->bind_param('ssdssisiisi', $codigo, $tipoDescuento, $valor, $fechaInicio, $fechaFin, $usosTotales, $vigenciaTipo, $vigenciaMeses, $combinable, $origen, $activo);
         }
         if ($stmt->execute()) {
             $id = $id ?: $stmt->insert_id;
@@ -134,15 +146,25 @@ include __DIR__ . '/_header.php';
   </div>
   <div class="col-md-3"><label class="form-label" id="label_valor"><?= $cupon['tipo_descuento'] === 'monto' ? 'Monto (MXN)' : 'Porcentaje' ?></label><input type="number" step="0.01" min="0" class="form-control" name="valor" id="valor" value="<?= htmlspecialchars((string) $cupon['valor']) ?>" required></div>
 
-  <div class="col-md-6"><label class="form-label">Vigente desde (opcional)</label><input type="datetime-local" class="form-control" name="fecha_inicio" value="<?= htmlspecialchars(str_replace(' ', 'T', substr((string) $cupon['fecha_inicio'], 0, 16))) ?>"></div>
-  <div class="col-md-6"><label class="form-label">Vigente hasta (opcional)</label><input type="datetime-local" class="form-control" name="fecha_fin" value="<?= htmlspecialchars(str_replace(' ', 'T', substr((string) $cupon['fecha_fin'], 0, 16))) ?>"></div>
-  <div class="form-text col-12 mt-0">Vacío = sin límite de fechas.</div>
-
   <div class="col-md-6">
-    <label class="form-label">Límite total de usos (opcional)</label>
-    <input type="number" min="1" class="form-control" name="usos_totales" value="<?= htmlspecialchars((string) $cupon['usos_totales']) ?>" placeholder="Vacío = ilimitado">
+    <label class="form-label">Vigencia</label>
+    <select class="form-select" name="vigencia_tipo" id="vigencia_tipo">
+      <option value="siempre" <?= $cupon['vigencia_tipo'] === 'siempre' ? 'selected' : '' ?>>Para siempre</option>
+      <option value="meses" <?= $cupon['vigencia_tipo'] === 'meses' ? 'selected' : '' ?>>Temporal — por X meses</option>
+      <option value="una_vez" <?= $cupon['vigencia_tipo'] === 'una_vez' ? 'selected' : '' ?>>Un solo uso</option>
+    </select>
   </div>
-  <div class="col-md-6 form-check form-switch mt-4">
+  <div class="col-md-6" id="campoVigenciaMeses" style="<?= $cupon['vigencia_tipo'] === 'meses' ? '' : 'display:none;' ?>">
+    <label class="form-label">Duración (meses)</label>
+    <input type="number" min="1" step="1" class="form-control" name="vigencia_meses" value="<?= htmlspecialchars((string) $cupon['vigencia_meses']) ?>" placeholder="Ej. 3">
+  </div>
+  <div class="form-text col-12 mt-0" id="ayudaVigencia">
+    <span data-vigencia-ayuda="siempre" <?= $cupon['vigencia_tipo'] !== 'siempre' ? 'hidden' : '' ?>>Sin fecha de vencimiento ni límite de usos.</span>
+    <span data-vigencia-ayuda="meses" <?= $cupon['vigencia_tipo'] !== 'meses' ? 'hidden' : '' ?>>En una membresía, el descuento se aplica a las primeras N mensualidades de cada quien se suscriba con este cupón (contadas desde su propia inscripción, no desde una fecha fija). En una compra única (curso/evento/producto) no hay mensualidades, así que ahí el cupón simplemente no tiene fecha de vencimiento.</span>
+    <span data-vigencia-ayuda="una_vez" <?= $cupon['vigencia_tipo'] !== 'una_vez' ? 'hidden' : '' ?>>Se desactiva solo después de usarse una vez en total, sin importar quién lo use.</span>
+  </div>
+
+  <div class="col-md-6 form-check form-switch">
     <input type="checkbox" class="form-check-input" role="switch" name="combinable" id="combinable" <?= (int) $cupon['combinable'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="combinable">Se puede combinar con una promoción pública vigente</label>
   </div>
@@ -204,6 +226,12 @@ include __DIR__ . '/_header.php';
   document.getElementById('codigo').addEventListener('blur', function () { this.value = this.value.toUpperCase().trim(); });
   document.getElementById('tipo_descuento').addEventListener('change', function () {
     document.getElementById('label_valor').textContent = this.value === 'monto' ? 'Monto (MXN)' : 'Porcentaje';
+  });
+  document.getElementById('vigencia_tipo').addEventListener('change', function () {
+    document.getElementById('campoVigenciaMeses').style.display = this.value === 'meses' ? '' : 'none';
+    document.querySelectorAll('[data-vigencia-ayuda]').forEach(function (el) {
+      el.hidden = el.dataset.vigenciaAyuda !== document.getElementById('vigencia_tipo').value;
+    });
   });
 </script>
 <?php include __DIR__ . '/_footer.php'; ?>

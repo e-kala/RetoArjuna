@@ -1,8 +1,14 @@
 <?php
 // Prestaciones y regalos — quien ya tiene acceso a un curso/evento puede
-// regalar ese mismo acceso (o un descuento) a alguien más, dentro de un
+// regalar ese mismo acceso o un descuento a alguien más, dentro de un
 // permiso que el admin configura por curso/evento (regalo_configuracion,
 // panel/admin/contenido_form.php) — nunca por default.
+//
+// Rediseño: "Regalar descuento" y "Regalar acceso" son dos prestaciones
+// INDEPENDIENTES (cada una con su propio interruptor y límites), no un solo
+// % donde 100 significa "acceso completo". "Regalar descuento" además admite
+// VARIOS tipos de descuento configurables (tabla regalo_tipos_descuento) —
+// el estudiante elige cuál usar al generar su enlace.
 //
 // `regalos` es la ÚNICA fuente de verdad de disponibilidad/reclamación/
 // consumo/vigencia/estado del enlace: toda la UI (tarjeta "Regalar",
@@ -14,71 +20,157 @@
 // ambos reduzcan el precio — el origen se conserva distinto en checkout,
 // pagos y el panel admin.
 
-/** Configuración activa de regalo para un curso o evento (nunca ambos). */
+/**
+ * Configuración de regalo para un curso o evento (nunca ambos), con sus
+ * tipos de descuento — null si nunca se guardó ninguna fila para este
+ * curso/evento (nunca se crea implícita, solo desde el form de admin).
+ */
 function regalo_configuracion_obtener(?int $cursoId, ?int $eventoId): ?array
 {
     global $conn;
     $columna = $cursoId !== null ? 'curso_id' : 'evento_id';
     $itemId = $cursoId !== null ? $cursoId : $eventoId;
-    $stmt = $conn->prepare("SELECT * FROM regalo_configuracion WHERE $columna = ? AND activo = 1");
+    $stmt = $conn->prepare("SELECT * FROM regalo_configuracion WHERE $columna = ?");
     $stmt->bind_param('i', $itemId);
     $stmt->execute();
     $fila = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return $fila ?: null;
+    if (!$fila) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT * FROM regalo_tipos_descuento WHERE configuracion_id = ? ORDER BY orden, descuento_pct DESC');
+    $stmt->bind_param('i', $fila['id']);
+    $stmt->execute();
+    $fila['tipos_descuento'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $fila;
+}
+
+/** Igual que regalo_configuracion_obtener() pero solo si hay algo realmente activo para mostrar al estudiante. */
+function regalo_configuracion_publica(?int $cursoId, ?int $eventoId): ?array
+{
+    $config = regalo_configuracion_obtener($cursoId, $eventoId);
+    if (!$config) {
+        return null;
+    }
+    $hayDescuento = (int) $config['activo_descuento'] === 1 && count($config['tipos_descuento']) > 0;
+    $hayAcceso = (int) $config['activo_acceso'] === 1;
+    return ($hayDescuento || $hayAcceso) ? $config : null;
 }
 
 /**
- * Cuántos enlaces ya generó este usuario para esta configuración y si
- * todavía puede generar más — respeta enlaces_por_usuario (tope personal) y,
- * solo la primera vez, max_usuarios_habilitados (tope de cuántas cuentas
- * distintas pueden tener el permiso en total).
+ * Cuántos enlaces ya generó este usuario para un tipo de regalo específico
+ * (un tipo de descuento, o null = "Regalar acceso") y si todavía puede
+ * generar más — respeta enlaces_por_usuario (tope personal) y, solo la
+ * primera vez, max_usuarios_habilitados (tope de cuentas distintas en total).
  */
-function regalo_estado_usuario(array $config, int $usuarioId): array
+function regalo_estado_usuario(array $config, ?array $tipo, int $usuarioId): array
 {
     global $conn;
-    $stmt = $conn->prepare("SELECT COUNT(*) AS n FROM regalos WHERE configuracion_id = ? AND usuario_da_id = ? AND estado <> 'revocado'");
-    $stmt->bind_param('ii', $config['id'], $usuarioId);
+    $esAcceso = $tipo === null;
+    $enlacesPorUsuario = $esAcceso ? (int) $config['acceso_enlaces_por_usuario'] : (int) $tipo['enlaces_por_usuario'];
+    $maxUsuarios = $esAcceso ? $config['acceso_max_usuarios_habilitados'] : $tipo['max_usuarios_habilitados'];
+
+    if ($esAcceso) {
+        $stmt = $conn->prepare("SELECT COUNT(*) AS n FROM regalos WHERE configuracion_id = ? AND tipo_descuento_id IS NULL AND usuario_da_id = ? AND estado <> 'revocado'");
+        $stmt->bind_param('ii', $config['id'], $usuarioId);
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) AS n FROM regalos WHERE tipo_descuento_id = ? AND usuario_da_id = ? AND estado <> 'revocado'");
+        $stmt->bind_param('ii', $tipo['id'], $usuarioId);
+    }
     $stmt->execute();
     $generados = (int) $stmt->get_result()->fetch_assoc()['n'];
     $stmt->close();
 
-    $disponibles = max(0, (int) $config['enlaces_por_usuario'] - $generados);
+    $disponibles = max(0, $enlacesPorUsuario - $generados);
     $puede = $disponibles > 0;
     $motivoBloqueo = null;
 
-    if ($puede && $generados === 0 && $config['max_usuarios_habilitados'] !== null) {
-        $stmt = $conn->prepare('SELECT COUNT(DISTINCT usuario_da_id) AS n FROM regalos WHERE configuracion_id = ?');
-        $stmt->bind_param('i', $config['id']);
+    if ($puede && $generados === 0 && $maxUsuarios !== null) {
+        if ($esAcceso) {
+            $stmt = $conn->prepare("SELECT COUNT(DISTINCT usuario_da_id) AS n FROM regalos WHERE configuracion_id = ? AND tipo_descuento_id IS NULL");
+            $stmt->bind_param('i', $config['id']);
+        } else {
+            $stmt = $conn->prepare('SELECT COUNT(DISTINCT usuario_da_id) AS n FROM regalos WHERE tipo_descuento_id = ?');
+            $stmt->bind_param('i', $tipo['id']);
+        }
         $stmt->execute();
         $totalDadores = (int) $stmt->get_result()->fetch_assoc()['n'];
         $stmt->close();
-        if ($totalDadores >= (int) $config['max_usuarios_habilitados']) {
+        if ($totalDadores >= (int) $maxUsuarios) {
             $puede = false;
             $disponibles = 0;
-            $motivoBloqueo = 'Ya se alcanzó el número de personas que pueden regalar este contenido.';
+            $motivoBloqueo = 'Ya se alcanzó el número de personas que pueden regalar esto.';
         }
     }
 
     return ['generados' => $generados, 'disponibles' => $disponibles, 'puede_generar' => $puede, 'motivo_bloqueo' => $motivoBloqueo];
 }
 
-/** Genera un nuevo enlace de regalo — revalida elegibilidad server-side, nunca confía en el cliente. */
-function regalo_generar(array $config, int $usuarioId): array
+/**
+ * Estado de CADA opción de regalo disponible para este usuario (un tipo de
+ * descuento por fila, más "acceso" si aplica) — lo que curso_detalle.php/
+ * evento_detalle.php necesitan para dejar elegir al estudiante.
+ */
+function regalo_opciones_usuario(array $config, int $usuarioId): array
 {
-    $estado = regalo_estado_usuario($config, $usuarioId);
+    $opciones = [];
+    if ((int) $config['activo_descuento'] === 1) {
+        foreach ($config['tipos_descuento'] as $tipo) {
+            $opciones[] = [
+                'tipo' => 'descuento',
+                'tipo_descuento_id' => (int) $tipo['id'],
+                'descuento_pct' => (float) $tipo['descuento_pct'],
+                'estado' => regalo_estado_usuario($config, $tipo, $usuarioId),
+            ];
+        }
+    }
+    if ((int) $config['activo_acceso'] === 1) {
+        $opciones[] = [
+            'tipo' => 'acceso',
+            'tipo_descuento_id' => null,
+            'descuento_pct' => 100.0,
+            'estado' => regalo_estado_usuario($config, null, $usuarioId),
+        ];
+    }
+    return $opciones;
+}
+
+/** Genera un nuevo enlace de regalo — revalida elegibilidad server-side, nunca confía en el cliente. */
+function regalo_generar(array $config, ?int $tipoDescuentoId, int $usuarioId): array
+{
+    $tipo = null;
+    if ($tipoDescuentoId !== null) {
+        $tipo = null;
+        foreach ($config['tipos_descuento'] as $t) {
+            if ((int) $t['id'] === $tipoDescuentoId) {
+                $tipo = $t;
+                break;
+            }
+        }
+        if (!$tipo || (int) $config['activo_descuento'] !== 1) {
+            return ['success' => false, 'message' => 'Este tipo de descuento ya no está disponible.'];
+        }
+    } elseif ((int) $config['activo_acceso'] !== 1) {
+        return ['success' => false, 'message' => 'Regalar acceso completo ya no está disponible.'];
+    }
+
+    $estado = regalo_estado_usuario($config, $tipo, $usuarioId);
     if (!$estado['puede_generar']) {
         return ['success' => false, 'message' => $estado['motivo_bloqueo'] ?? 'Ya generaste el máximo de enlaces que puedes regalar.'];
     }
 
     global $conn;
     $codigo = strtoupper(bin2hex(random_bytes(8)));
-    $venceEn = $config['vigencia_dias'] !== null
-        ? date('Y-m-d H:i:s', strtotime('+' . (int) $config['vigencia_dias'] . ' days'))
+    $vigenciaDias = $tipo ? $tipo['vigencia_dias'] : $config['acceso_vigencia_dias'];
+    $venceEn = $vigenciaDias !== null
+        ? date('Y-m-d H:i:s', strtotime('+' . (int) $vigenciaDias . ' days'))
         : null;
 
-    $stmt = $conn->prepare('INSERT INTO regalos (codigo, configuracion_id, usuario_da_id, vence_en) VALUES (?, ?, ?, ?)');
-    $stmt->bind_param('siis', $codigo, $config['id'], $usuarioId, $venceEn);
+    $stmt = $conn->prepare('INSERT INTO regalos (codigo, configuracion_id, tipo_descuento_id, usuario_da_id, vence_en) VALUES (?, ?, ?, ?, ?)');
+    $stmt->bind_param('siiis', $codigo, $config['id'], $tipoDescuentoId, $usuarioId, $venceEn);
     $stmt->execute();
     $id = $stmt->insert_id;
     $stmt->close();
@@ -91,8 +183,10 @@ function regalos_generados_por(int $usuarioId, int $configuracionId): array
 {
     global $conn;
     $stmt = $conn->prepare(
-        'SELECT r.*, u.username_cache AS recibe_username
-         FROM regalos r LEFT JOIN usuarios_perfil u ON u.id = r.usuario_recibe_id
+        'SELECT r.*, t.descuento_pct AS tipo_descuento_pct, u.username_cache AS recibe_username
+         FROM regalos r
+         LEFT JOIN regalo_tipos_descuento t ON t.id = r.tipo_descuento_id
+         LEFT JOIN usuarios_perfil u ON u.id = r.usuario_recibe_id
          WHERE r.usuario_da_id = ? AND r.configuracion_id = ? ORDER BY r.created_at DESC'
     );
     $stmt->bind_param('ii', $usuarioId, $configuracionId);
@@ -107,12 +201,13 @@ function regalo_obtener_por_codigo(string $codigo): ?array
 {
     global $conn;
     $stmt = $conn->prepare(
-        'SELECT r.*, c.descuento_pct, c.curso_id, c.evento_id,
+        'SELECT r.*, t.descuento_pct AS tipo_descuento_pct, c.curso_id, c.evento_id,
                 cu.titulo AS curso_titulo, cu.slug AS curso_slug,
                 ev.titulo AS evento_titulo, ev.slug AS evento_slug,
                 u.username_cache AS da_username
          FROM regalos r
          JOIN regalo_configuracion c ON c.id = r.configuracion_id
+         LEFT JOIN regalo_tipos_descuento t ON t.id = r.tipo_descuento_id
          LEFT JOIN cursos cu ON cu.id = c.curso_id
          LEFT JOIN eventos ev ON ev.id = c.evento_id
          JOIN usuarios_perfil u ON u.id = r.usuario_da_id
@@ -122,15 +217,21 @@ function regalo_obtener_por_codigo(string $codigo): ?array
     $stmt->execute();
     $fila = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    if ($fila) {
+        // NULL en tipo_descuento_id (o el tipo ya borrado) = acceso completo.
+        $fila['descuento_pct'] = $fila['tipo_descuento_id'] !== null && $fila['tipo_descuento_pct'] !== null
+            ? (float) $fila['tipo_descuento_pct']
+            : 100.0;
+    }
     return $fila ?: null;
 }
 
 /**
  * "Reclamar" = un usuario logueado abre el enlace por primera vez, queda
  * ligado a su cuenta (usuario_recibe_id) sin aplicar todavía el beneficio
- * — eso pasa hasta "Aceptar" (regalo_aceptar()). Revisitar el mismo enlace
- * ya reclamado por la MISMA cuenta es idempotente; otra cuenta lo
- * encuentra ya tomado.
+ * — eso pasa hasta "Aceptar" (regalo_aceptar_gratis()/regalo_aceptar_descuento()).
+ * Revisitar el mismo enlace ya reclamado por la MISMA cuenta es idempotente;
+ * otra cuenta lo encuentra ya tomado.
  */
 function regalo_reclamar(array $regalo, int $usuarioId): array
 {
@@ -168,7 +269,7 @@ function regalo_reclamar(array $regalo, int $usuarioId): array
 }
 
 /**
- * Acepta un regalo de acceso completo (descuento_pct = 100): otorga el
+ * Acepta un regalo de acceso completo (tipo_descuento_id = NULL): otorga el
  * acceso directo (mismo criterio que curso_inscribir.php/evento_inscribir.php
  * para lo gratuito) y marca el regalo consumido. Para descuento parcial no
  * se usa esta función — el llamador manda al usuario a checkout.php con

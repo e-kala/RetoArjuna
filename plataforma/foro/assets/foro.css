@@ -79,8 +79,16 @@
   color: var(--pf-muted);
 }
 .pf-forum-post-body hr { border: none; border-top: 1px solid var(--pf-line); margin: 20px 0; }
-.pf-forum-post-body img { max-width: 100%; border-radius: 8px; margin: 0 0 14px; display: block; }
+.pf-forum-post-body img { max-width: 100%; border-radius: 8px; margin: 0 0 6px; display: block; }
+.pf-forum-post-body iframe { max-width: 100%; width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 8px; margin: 0 0 14px; display: block; }
 .pf-forum-post-body a { color: var(--pf-accent-ink); text-decoration: underline; }
+/* Botón de descarga (clases de Bootstrap: btn btn-sm btn-outline-secondary)
+   insertado por assets/pf_imagenes_descargables.js justo después de cada
+   <img> (incluidas las que están dentro de un colapsable) — sobreescribe el
+   subrayado/color de ".pf-forum-post-body a" genérico de arriba, para que
+   no se vea como un link normal del texto. */
+.pf-forum-post-body .pf-imagen-descargar { margin: 0 0 14px; text-decoration: none; color: var(--bs-btn-color, #6c757d); }
+.pf-forum-post-body .pf-imagen-descargar:hover { text-decoration: none; color: var(--bs-btn-hover-color, #fff); }
 .pf-forum-post-body code { background: var(--pf-bg); padding: 2px 6px; border-radius: 4px; font-size: 13.5px; }
 .pf-forum-spoiler { background: #333; color: #333; border-radius: 4px; padding: 0 4px; }
 .pf-forum-spoiler:hover { background: transparent; color: inherit; }
@@ -91,8 +99,9 @@
   border-radius: var(--pf-radius-md);
   overflow: hidden;
 }
-.pf-forum-editor .ql-toolbar { border: none; border-bottom: 1px solid var(--pf-line); }
-.pf-forum-editor .ql-container { border: none; font-family: inherit; font-size: 14.5px; min-height: 120px; }
+.pf-forum-editor .pf-editor-toolbar { border: none; border-bottom: 1px solid var(--pf-line); }
+.pf-forum-editor .pf-editor-wrap { border: none; }
+.pf-forum-editor .pf-editor-superficie { font-family: inherit; font-size: 14.5px; min-height: 120px; }
 
 @media (max-width: 860px) {
   .pf-forum-search-nav { display: none; }

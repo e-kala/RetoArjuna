@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/mailer.php';
+require_once __DIR__ . '/_filtro_tipo_usuario.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -57,12 +58,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $membresias = $conn->query('SELECT * FROM membresias ORDER BY orden ASC, nombre ASC')->fetch_all(MYSQLI_ASSOC);
 
+$tipoUsuario = pf_tipo_usuario_actual();
+$filtroTipoUsuario = pf_filtro_tipo_usuario_sql($tipoUsuario, 'u', 's.modo');
+$whereFiltroTipo = $filtroTipoUsuario ? " AND {$filtroTipoUsuario}" : '';
+
 $pendientes = $conn->query(
     "SELECT s.*, u.username_cache, u.email_cache, m.nombre AS membresia_nombre
      FROM membresia_suscripciones s
      JOIN usuarios_perfil u ON u.id = s.usuario_id
      JOIN membresias m ON m.id = s.membresia_id
-     WHERE s.estado = 'pendiente'
+     WHERE s.estado = 'pendiente'{$whereFiltroTipo}
      ORDER BY s.created_at ASC"
 )->fetch_all(MYSQLI_ASSOC);
 
@@ -71,7 +76,7 @@ $suscripciones = $conn->query(
      FROM membresia_suscripciones s
      JOIN usuarios_perfil u ON u.id = s.usuario_id
      JOIN membresias m ON m.id = s.membresia_id
-     WHERE s.estado <> 'pendiente'
+     WHERE s.estado <> 'pendiente'{$whereFiltroTipo}
      ORDER BY (s.estado = 'activa') DESC, s.created_at DESC
      LIMIT 100"
 )->fetch_all(MYSQLI_ASSOC);
@@ -80,7 +85,7 @@ $usuarios = $conn->query('SELECT id, username_cache, email_cache FROM usuarios_p
 $listaMembresiasModal = $membresias;
 $listaUsuariosModal = $usuarios;
 
-$estadoBadge = ['activa' => 'bg-success', 'cancelada' => 'bg-secondary', 'vencida' => 'bg-danger', 'pendiente' => 'bg-warning'];
+$estadoBadge = ['activa' => 'bg-success', 'gracia' => 'bg-warning text-dark', 'cancelada' => 'bg-secondary', 'vencida' => 'bg-danger', 'pendiente' => 'bg-warning'];
 $metodoLabel = ['stripe' => 'Stripe', 'transferencia' => 'Transferencia', 'manual' => 'Manual'];
 $pageTitle = 'Membresías';
 include __DIR__ . '/_header.php';
@@ -117,8 +122,9 @@ include __DIR__ . '/_header.php';
   <h2 class="h5 mb-2"> Membresías de usuarios</h2>
   <p class="text-muted small">Para pagos en efectivo, cortesías, o cualquier alta que no pase por Stripe.</p>
   <?php if ($membresias): ?>
-    <button type="button" class="btn btn-success btn-sm" onclick="abrirMembresiaModal({ titulo: 'Otorgar membresía', volver: 'membresias.php' })">+ Otorgar membresía</button>
+    <button type="button" class="btn btn-success btn-sm mb-3" onclick="abrirMembresiaModal({ titulo: 'Otorgar membresía', volver: 'membresias.php' })">+ Otorgar membresía</button>
   <?php endif; ?>
+  <?= pf_filtro_tipo_usuario_botones($tipoUsuario, 'membresias.php') ?>
 </div>
 
 <?php if ($pendientes): ?>
@@ -141,7 +147,9 @@ include __DIR__ . '/_header.php';
         </td>
         <td><?= htmlspecialchars(date('d/m/Y', strtotime($p['created_at']))) ?></td>
         <td class="d-flex gap-2 flex-wrap">
-          <?php if ($p['metodo'] !== 'stripe'): ?>
+          <?php if ($p['metodo'] === 'oxxo_recurrente'): ?>
+            <span class="text-muted small">🎫 Se activa sola cuando el usuario pague su voucher OXXO en tienda — no requiere confirmar aquí.</span>
+          <?php elseif ($p['metodo'] !== 'stripe'): ?>
             <button type="button" class="btn btn-sm btn-success" onclick="abrirMembresiaModal({
               titulo: 'Confirmar transferencia',
               suscripcionId: <?= (int) $p['id'] ?>,

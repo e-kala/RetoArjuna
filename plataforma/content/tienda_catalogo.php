@@ -25,7 +25,7 @@ $usuarioTienda = current_user();
                 <?= htmlspecialchars($producto['nombre']) ?>
                 <?php if ($producto['tipo'] === 'digital'): ?><span class="badge bg-secondary align-middle">Digital</span><?php endif; ?>
               </h3>
-              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth((string) $producto['descripcion'], 0, 100, '…')) ?></p>
+              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $producto['descripcion'])), 0, 100, '…')) ?></p>
               <div class="d-flex align-items-center justify-content-between mt-2">
                 <?php if ($adquirido): ?>
                   <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">Adquirido</span>

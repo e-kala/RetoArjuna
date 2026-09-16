@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/certificados.php';
+require_once __DIR__ . '/_filtro_tipo_usuario.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -48,13 +49,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'marca
     exit;
 }
 
+$tipoUsuario = pf_tipo_usuario_actual();
+$filtroTipoUsuarioSql = pf_filtro_tipo_usuario_sql($tipoUsuario, 'u');
+$condicionTipoUsuario = $filtroTipoUsuarioSql ? " AND {$filtroTipoUsuarioSql}" : '';
+
 $inscritos = $conn->query(
     "SELECT ei.id, ei.usuario_id, ei.estado, ei.created_at, u.username_cache, u.email_cache,
             cert.codigo AS codigo_reconocimiento
      FROM evento_inscripciones ei
      JOIN usuarios_perfil u ON u.id = ei.usuario_id
      LEFT JOIN certificados cert ON cert.usuario_id = ei.usuario_id AND cert.evento_id = ei.evento_id
-     WHERE ei.evento_id = " . (int) $eventoId . "
+     WHERE ei.evento_id = " . (int) $eventoId . "{$condicionTipoUsuario}
      ORDER BY ei.created_at"
 )->fetch_all(MYSQLI_ASSOC);
 
@@ -62,6 +67,7 @@ $pageTitle = 'Inscritos · ' . $evento['titulo'];
 include __DIR__ . '/_header.php';
 ?>
 <h1 class="h4 mb-3">Inscritos a "<?= htmlspecialchars($evento['titulo']) ?>"</h1>
+<?= pf_filtro_tipo_usuario_botones($tipoUsuario, 'evento_inscritos.php', 'evento_id=' . $eventoId) ?>
 <div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Usuario</th><th>Correo</th><th>Inscrito</th><th>Estado</th><th>Reconocimiento</th><th>Acciones</th></tr></thead>

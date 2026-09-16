@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/../backend/ofertas.php';
 $slug = $_GET['slug'] ?? '';
-$stmt = $conn->prepare('SELECT * FROM productos WHERE slug = ? AND activo = 1 LIMIT 1');
+// Sin filtrar por activo aquí — un admin necesita poder ver un producto
+// oculto (ver el guard de abajo, justo después de saber si es admin).
+$stmt = $conn->prepare('SELECT * FROM productos WHERE slug = ? LIMIT 1');
 $stmt->bind_param('s', $slug);
 $stmt->execute();
 $producto = $stmt->get_result()->fetch_assoc();
@@ -14,6 +16,14 @@ if (!$producto) {
 
 $productoId = (int) $producto['id'];
 $usuario = current_user();
+$esAdminProducto = $usuario && $usuario['rol'] === 'admin';
+
+// Un producto oculto (activo=0) es igual de invisible que "no existe" para
+// cualquiera que no sea admin — un admin sí lo ve, con un aviso.
+if ((int) $producto['activo'] !== 1 && !$esAdminProducto) {
+    echo '<div class="container" style="margin-top:143px;"><p>Producto no encontrado.</p></div>';
+    return;
+}
 $agotado = $producto['tipo'] === 'fisico' && $producto['stock'] !== null && (int) $producto['stock'] <= 0;
 $adquirido = $usuario ? usuario_compro_producto($usuario['id'], $productoId) : false;
 
@@ -42,6 +52,9 @@ if ($usuario && !$adquirido && !$agotado && ($_GET['auto'] ?? '') === '1') {
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=tienda" class="d-inline-block mb-3">&larr; Volver a la tienda</a>
+  <?php if ((int) $producto['activo'] !== 1): ?>
+    <div class="alert alert-warning">Estás viendo este producto como oculto — no aparece en la tienda ni pueden verlo los usuarios.</div>
+  <?php endif; ?>
   <div class="row">
     <div class="col-md-5 mb-3">
       <img src="<?= htmlspecialchars($producto['imagen'] ?: BASE_URL . '/../banner.png') ?>" class="img-fluid rounded" alt="">
@@ -49,7 +62,7 @@ if ($usuario && !$adquirido && !$agotado && ($_GET['auto'] ?? '') === '1') {
     <div class="col-md-7">
       <h1><?= htmlspecialchars($producto['nombre']) ?></h1>
       <span class="badge mb-3" style="background:#f7931e;"><?= $producto['tipo'] === 'fisico' ? 'Físico' : 'Digital' ?></span>
-      <p><?= nl2br(htmlspecialchars((string) $producto['descripcion'])) ?></p>
+      <div class="pf-contenido-html"><?= (string) $producto['descripcion'] ?></div>
 
       <?php if ($adquirido): ?>
         <p class="h5 text-success mb-3">✔ Adquirido</p>

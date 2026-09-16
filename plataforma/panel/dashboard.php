@@ -30,14 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'elimi
     exit;
 }
 
-// "mis_cursos" es la pestaña de entrada por default — antes había una vista
+// "mis_eventos" es la pestaña de entrada por default — antes había una vista
 // "Mi aprendizaje" que combinaba cursos+eventos+reconocimientos+explorar en
 // una sola pantalla; se separó en pestañas propias, cada una resuelve sus
 // propias consultas en su content/*.php (mismo patrón que ya usaban
 // mis_compras.php/perfil.php). El mapeo se centraliza aquí para reusarlo
 // tanto en la carga completa como en el corte temprano de Ajax de abajo.
+// "mis_cursos" se quitó de aquí (2026-09-15): el navbar ya no tiene "Cursos"
+// como sección propia, así que esta pestaña quedaría apuntando a una
+// sección que ya no existe en la navegación — content/mis_cursos.php se
+// deja sin tocar por si algo más lo vuelve a necesitar más adelante.
 $mapaContenidoPestanas = [
-    'mis_cursos' => 'content/mis_cursos.php',
     'mis_eventos' => 'content/mis_eventos.php',
     'mis_compras' => 'content/mis_compras.php',
     'reconocimientos' => 'content/reconocimientos.php',
@@ -46,8 +49,8 @@ $mapaContenidoPestanas = [
     'foro_actividad' => 'content/foro_actividad.php',
     'notificaciones' => 'content/notificaciones.php',
 ];
-$action = $_GET['action'] ?? 'mis_cursos';
-$archivoContenido = $mapaContenidoPestanas[$action] ?? $mapaContenidoPestanas['mis_cursos'];
+$action = $_GET['action'] ?? 'mis_eventos';
+$archivoContenido = $mapaContenidoPestanas[$action] ?? $mapaContenidoPestanas['mis_eventos'];
 $esMiembro = usuario_tiene_membresia_activa($usuarioPerfilId);
 
 // Cambio de pestaña asíncrono (JS al fondo de este archivo): si la petición
@@ -71,7 +74,7 @@ if (es_peticion_ajax()) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=2.8">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=2.9">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen algunas clases
        de sb-admin-2 (panel/index.php) que aquí no se cargan — se preservan con
@@ -103,7 +106,7 @@ if (es_peticion_ajax()) {
       ?>
         <li class="nav-item">
           <a class="btn btn-sm pf-tab-link <?= $action === $accionPestana ? 'pf-tab-activa' : 'btn-outline-secondary' ?>" data-accion="<?= $accionPestana ?>" href="?action=<?= $accionPestana ?>">
-            <?= ['mis_cursos' => 'Mis cursos', 'mis_eventos' => 'Mis eventos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
+            <?= ['mis_eventos' => 'Mis eventos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
           </a>
         </li>
       <?php endforeach; ?>
@@ -171,7 +174,7 @@ if (es_peticion_ajax()) {
       });
 
       window.addEventListener('popstate', function (e) {
-        var accion = (e.state && e.state.accion) || 'mis_cursos';
+        var accion = (e.state && e.state.accion) || 'mis_eventos';
         cargarPestana(accion, false);
       });
 

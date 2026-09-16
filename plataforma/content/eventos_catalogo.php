@@ -1,20 +1,37 @@
 <?php
 $usuarioEventosCatalogo = current_user();
 $esMiembroEventosCatalogo = $usuarioEventosCatalogo && usuario_tiene_membresia_activa($usuarioEventosCatalogo['id']);
+$usuarioIdEventosCatalogo = (int) ($usuarioEventosCatalogo['id'] ?? 0);
 
 // Un evento exclusivo para miembros (solo_miembros=1) no aparece en ningún
 // listado para quien no es miembro — ni la tarjeta ni el enlace al detalle.
 $filtroSoloMiembros = $esMiembroEventosCatalogo ? '' : ' AND solo_miembros = 0';
 
-$eventos = $conn->query(
-    "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url
+// total_lecciones/completadas — mismo patrón de subqueries correlacionadas
+// que ya usa panel/content/mis_cursos.php, para la barra de progreso que se
+// muestra en la tarjeta cuando el usuario ya está inscrito (usuario_id=0
+// para un Visitante simplemente no matchea ninguna fila de `progreso`).
+$stmtEventos = $conn->prepare(
+    "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url,
+            (SELECT COUNT(*) FROM lecciones WHERE evento_id = eventos.id AND estado_publicacion = 'publicado') AS total_lecciones,
+            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
      FROM eventos WHERE activo = 1 AND fecha_inicio >= NOW()$filtroSoloMiembros ORDER BY fecha_inicio ASC"
-)->fetch_all(MYSQLI_ASSOC);
+);
+$stmtEventos->bind_param('i', $usuarioIdEventosCatalogo);
+$stmtEventos->execute();
+$eventos = $stmtEventos->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmtEventos->close();
 
-$eventosPasados = $conn->query(
-    "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url
+$stmtEventosPasados = $conn->prepare(
+    "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url,
+            (SELECT COUNT(*) FROM lecciones WHERE evento_id = eventos.id AND estado_publicacion = 'publicado') AS total_lecciones,
+            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
      FROM eventos WHERE activo = 1 AND fecha_inicio < NOW()$filtroSoloMiembros ORDER BY fecha_inicio DESC"
-)->fetch_all(MYSQLI_ASSOC);
+);
+$stmtEventosPasados->bind_param('i', $usuarioIdEventosCatalogo);
+$stmtEventosPasados->execute();
+$eventosPasados = $stmtEventosPasados->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmtEventosPasados->close();
 
 // "Todos" = un solo orden cronológico, de más antiguo (izquierda) a más
 // próximo/nuevo (derecha) — pedido explícito del usuario. Se re-ordena aparte
@@ -25,8 +42,10 @@ $eventosPasados = $conn->query(
 $eventosTodos = array_merge($eventosPasados, $eventos);
 usort($eventosTodos, fn($a, $b) => strtotime($a['fecha_inicio']) <=> strtotime($b['fecha_inicio']));
 
-// "Todos" es la pestaña que se ve al entrar por default.
-$tabActiva = 'todos';
+// "Todos" es la pestaña que se ve al entrar por default — ?tab=pasados en
+// la URL (ver content/proximo_evento.php: botón "Ver grabaciones pasadas")
+// permite entrar directo a "Pasados / grabados" en vez de "Todos".
+$tabActiva = ($_GET['tab'] ?? 'todos') === 'pasados' ? 'pasados' : 'todos';
 
 function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $haySesion, int $usuarioId = 0): void
 {
@@ -38,7 +57,7 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
     $tieneAcceso = $usuarioId > 0 && usuario_esta_inscrito_evento($usuarioId, (int) $evento['id']);
     ?>
     <div class="col" style="max-width:360px;">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="?action=evento&slug=<?= urlencode($evento['slug']) ?>">
         <div class="position-relative">
           <img src="<?= htmlspecialchars($evento['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
           <?php if ($esPasado && $evento['video_grabado_url']): ?>
@@ -74,9 +93,22 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
             <?php endif; ?>
           </p>
           <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $evento['descripcion'])), 0, 100, '…')) ?></p>
+          <?php
+          // Progreso: mismo patrón de mis_cursos.php — solo tiene sentido
+          // mostrarlo si el evento tiene lecciones y el usuario ya está
+          // inscrito (sin acceso no puede haber avanzado nada).
+          $totalLecciones = (int) ($evento['total_lecciones'] ?? 0);
+          $porcentajeEvento = $totalLecciones > 0 ? (int) round((int) ($evento['lecciones_completadas'] ?? 0) / $totalLecciones * 100) : null;
+          ?>
+          <?php if ($tieneAcceso && $porcentajeEvento !== null): ?>
+            <div class="progress mb-1" style="height:6px;">
+              <div class="progress-bar" style="width:<?= $porcentajeEvento ?>%;background:#F6C500;"></div>
+            </div>
+            <p class="small text-muted mb-2"><?= $porcentajeEvento ?>% completado</p>
+          <?php endif; ?>
           <?php if ($esPasado): ?>
-            <?php if ($tieneAcceso && $evento['video_grabado_url']): ?>
-              <span class="badge rounded-pill align-self-start mb-2" style="background:#e6f4ea;color:#1e7d3c;">Grabación disponible</span>
+            <?php if ($tieneAcceso): ?>
+              <span class="badge rounded-pill align-self-start mb-2" style="background:#e6f4ea;color:#1e7d3c;">✔ Adquirido<?= $evento['video_grabado_url'] ? ' · Grabación disponible' : '' ?></span>
             <?php endif; ?>
             <a href="?action=evento&amp;slug=<?= urlencode($evento['slug']) ?>" class="btn btn-outline-secondary btn-sm mt-2"><?= $evento['video_grabado_url'] ? 'Ver grabación' : 'Ver detalle' ?></a>
           <?php else: ?>
@@ -102,7 +134,7 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
 
     <ul class="nav nav-pills justify-content-center gap-2 mb-4">
       <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-pasados" type="button">Pasados / grabados</button>
+        <button class="nav-link <?= $tabActiva === 'pasados' ? 'active' : '' ?>" data-bs-toggle="pill" data-bs-target="#tab-pasados" type="button">Pasados / grabados</button>
       </li>
       <li class="nav-item">
         <button class="nav-link <?= $tabActiva === 'todos' ? 'active' : '' ?>" data-bs-toggle="pill" data-bs-target="#tab-todos" type="button">Todos</button>
@@ -113,7 +145,7 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
     </ul>
 
     <div class="tab-content">
-      <div class="tab-pane fade" id="tab-pasados">
+      <div class="tab-pane fade <?= $tabActiva === 'pasados' ? 'show active' : '' ?>" id="tab-pasados">
         <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
           <?php foreach ($eventosPasados as $evento): ?>
             <?php pf_evento_card($evento, true, $esMiembroEventosCatalogo, $usuarioEventosCatalogo !== null, (int) ($usuarioEventosCatalogo['id'] ?? 0)); ?>
@@ -139,12 +171,32 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
                 <?php pf_evento_card($evento, false, $esMiembroEventosCatalogo, $usuarioEventosCatalogo !== null, (int) ($usuarioEventosCatalogo['id'] ?? 0)); ?>
               <?php endforeach; ?>
               <?php if (!$eventos): ?>
-                <p class="text-muted text-center">No hay eventos próximos por ahora.</p>
+                <div class="text-center py-4">
+                  <p class="text-muted mb-3">No hay eventos próximos por ahora.</p>
+                  <a href="?action=proximo_evento" class="btn" style="background:#f7931e;color:#fff;">Ver opciones mientras tanto</a>
+                </div>
               <?php endif; ?>
             </div>
           </div>
 
-      
+
     </div>
   </div>
 </section>
+<script>
+  // Tarjeta completa clicable — navegación explícita por JS en vez de
+  // stretched-link (Bootstrap): se detectó que en navegadores reales un
+  // click en una zona distinta al botón interno (imagen, título, badges)
+  // no siempre navegaba pese a que el CSS/elementFromPoint reportaba que el
+  // link cubría toda la tarjeta — inconsistencia de stacking/hit-testing
+  // difícil de aislar. Un listener delegado que lee data-href es más
+  // predecible y no depende de ese comportamiento del navegador.
+  document.addEventListener('click', function (e) {
+    const tarjeta = e.target.closest('.pf-card-clicable');
+    if (!tarjeta) return;
+    // Si el click cayó en el propio link/botón (o dentro de él), se deja
+    // que navegue solo — no se dispara una segunda navegación redundante.
+    if (e.target.closest('a, button')) return;
+    window.location.href = tarjeta.dataset.href;
+  });
+</script>

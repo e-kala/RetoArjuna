@@ -34,7 +34,12 @@ if (!$config) {
     exit;
 }
 
-$resultado = regalo_generar($config, $usuarioPerfilId);
+// tipo_descuento_id=0/vacío => "Regalar acceso" (null); con valor => ese tipo
+// de descuento específico — nunca se confía en el % que mande el cliente,
+// solo en a cuál fila ya configurada por el admin se está refiriendo.
+$tipoDescuentoId = (int) ($_POST['tipo_descuento_id'] ?? 0) ?: null;
+
+$resultado = regalo_generar($config, $tipoDescuentoId, $usuarioPerfilId);
 if (!$resultado['success']) {
     echo json_encode($resultado);
     exit;
@@ -43,5 +48,5 @@ if (!$resultado['success']) {
 echo json_encode([
     'success' => true,
     'codigo' => $resultado['codigo'],
-    'url' => BASE_URL . '/index.php?action=regalo&codigo=' . $resultado['codigo'],
+    'url' => SITE_URL . '/index.php?action=regalo&codigo=' . $resultado['codigo'],
 ]);

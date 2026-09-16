@@ -150,10 +150,16 @@ function foro_sanitizar_html_editor(string $html): string
         $html = mb_substr($html, 0, 50000);
     }
 
-    $tagsPermitidos = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'img', 'span'];
-    $tagsAEliminar = ['script', 'style', 'template', 'svg', 'math', 'iframe', 'object', 'embed', 'form', 'input', 'button'];
+    // 'iframe' se permite a propósito (para el botón de video del editor),
+    // pero su src se valida con un patrón estricto más abajo — solo el
+    // embed de YouTube, nunca cualquier otro origen. Si el src no matchea,
+    // se quita el atributo (queda un iframe en blanco, inofensivo) en vez
+    // de borrar el tag completo — mismo criterio que ya usa <a>/<img> aquí.
+    $tagsPermitidos = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'img', 'span', 'iframe'];
+    $tagsAEliminar = ['script', 'style', 'template', 'svg', 'math', 'object', 'embed', 'form', 'input', 'button'];
     $esquemasEnlace = ['http', 'https', 'mailto'];
     $esquemasImagen = ['http', 'https'];
+    $patronIframeYoutube = '~^https://www\.youtube\.com/embed/[A-Za-z0-9_-]+$~';
     $profundidadMaxima = 40;
 
     libxml_use_internal_errors(true);
@@ -180,7 +186,7 @@ function foro_sanitizar_html_editor(string $html): string
         return '';
     }
 
-    $limpiarNodo = function (DOMNode $nodo, int $profundidad) use (&$limpiarNodo, $tagsPermitidos, $tagsAEliminar, $esquemasEnlace, $esquemasImagen, $profundidadMaxima): void {
+    $limpiarNodo = function (DOMNode $nodo, int $profundidad) use (&$limpiarNodo, $tagsPermitidos, $tagsAEliminar, $esquemasEnlace, $esquemasImagen, $patronIframeYoutube, $profundidadMaxima): void {
         // Copia de la lista de hijos: se modifica el árbol mientras se recorre.
         foreach (iterator_to_array($nodo->childNodes) as $hijo) {
             if ($hijo->nodeType === XML_TEXT_NODE) {
@@ -220,6 +226,10 @@ function foro_sanitizar_html_editor(string $html): string
                     $mantener = foro_url_esquema_permitido($atributo->nodeValue, $esquemasEnlace);
                 } elseif ($tag === 'img' && $nombre === 'src') {
                     $mantener = foro_url_esquema_permitido($atributo->nodeValue, $esquemasImagen);
+                } elseif ($tag === 'iframe' && $nombre === 'src') {
+                    $mantener = (bool) preg_match($patronIframeYoutube, $atributo->nodeValue);
+                } elseif ($tag === 'iframe' && in_array($nombre, ['frameborder', 'allowfullscreen'], true)) {
+                    $mantener = true; // cosméticos, sin riesgo — no dependen del valor
                 }
                 if (!$mantener) {
                     $hijo->removeAttribute($atributo->nodeName);
@@ -268,7 +278,7 @@ function foro_url_esquema_permitido(string $url, array $esquemasPermitidos): boo
  */
 function foro_contenido_html_vacio(string $html): bool
 {
-    return trim(strip_tags($html)) === '' && stripos($html, '<img') === false;
+    return trim(strip_tags($html)) === '' && stripos($html, '<img') === false && stripos($html, '<iframe') === false;
 }
 
 function foro_categorias(): array

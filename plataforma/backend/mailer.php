@@ -97,8 +97,40 @@ function plantilla_email(string $titulo, string $mensajeHtml, string $botonTexto
         . '</div>';
 }
 
+// Busca una plantilla personalizada activa para este tipo (ver
+// panel/admin/email_plantillas.php) — la tabla es un override opcional,
+// nunca la única fuente de verdad: sin fila (o con activo=0), el llamador
+// se queda con su texto default hardcodeado.
+function email_plantilla_personalizada(string $tipo): ?array
+{
+    global $conn;
+    $stmt = $conn->prepare('SELECT asunto, titulo, mensaje_html, boton_texto FROM email_plantillas WHERE tipo = ? AND activo = 1');
+    $stmt->bind_param('s', $tipo);
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $fila ?: null;
+}
+
+// Placeholders simples disponibles en el mensaje/asunto de una plantilla
+// personalizada — %usuario% es el único dato que cada correo transaccional
+// ya trae siempre a mano (los demás, como %curso%, varían por tipo y se
+// arman aparte en cada función de abajo antes de llegar aquí).
+function email_reemplazar_placeholders(string $texto, array $valores): string
+{
+    foreach ($valores as $clave => $valor) {
+        $texto = str_replace('%' . $clave . '%', $valor, $texto);
+    }
+    return $texto;
+}
+
 function enviar_email_bienvenida(int $usuarioPerfilId, string $destinatario): bool
 {
+    $personalizada = email_plantilla_personalizada('bienvenida');
+    if ($personalizada) {
+        $html = plantilla_email($personalizada['titulo'], $personalizada['mensaje_html'], $personalizada['boton_texto'] ?? '', SITE_URL . '/index.php?action=cursos');
+        return enviar_email($usuarioPerfilId, $destinatario, $personalizada['asunto'], $html, 'bienvenida');
+    }
     $html = plantilla_email(
         '¡Bienvenido a Reto Arjuna!',
         '<p>Tu cuenta ya está lista. Explora el catálogo de cursos cuando quieras.</p>',
@@ -110,6 +142,12 @@ function enviar_email_bienvenida(int $usuarioPerfilId, string $destinatario): bo
 
 function enviar_email_inscripcion(int $usuarioPerfilId, string $destinatario, string $cursoTitulo, string $cursoUrl): bool
 {
+    $personalizada = email_plantilla_personalizada('inscripcion');
+    if ($personalizada) {
+        $mensaje = email_reemplazar_placeholders($personalizada['mensaje_html'], ['curso' => htmlspecialchars($cursoTitulo, ENT_QUOTES)]);
+        $html = plantilla_email($personalizada['titulo'], $mensaje, $personalizada['boton_texto'] ?? '', $cursoUrl);
+        return enviar_email($usuarioPerfilId, $destinatario, $personalizada['asunto'], $html, 'inscripcion');
+    }
     $html = plantilla_email(
         '¡Tu pago fue confirmado!',
         '<p>Tu acceso a <strong>' . htmlspecialchars($cursoTitulo, ENT_QUOTES) . '</strong> ya está activo.</p>',
@@ -121,6 +159,12 @@ function enviar_email_inscripcion(int $usuarioPerfilId, string $destinatario, st
 
 function enviar_email_membresia_activada(int $usuarioPerfilId, string $destinatario, string $membresiaNombre): bool
 {
+    $personalizada = email_plantilla_personalizada('membresia');
+    if ($personalizada) {
+        $mensaje = email_reemplazar_placeholders($personalizada['mensaje_html'], ['membresia' => htmlspecialchars($membresiaNombre, ENT_QUOTES)]);
+        $html = plantilla_email($personalizada['titulo'], $mensaje, $personalizada['boton_texto'] ?? '', SITE_URL . '/index.php?action=membresia');
+        return enviar_email($usuarioPerfilId, $destinatario, $personalizada['asunto'], $html, 'membresia');
+    }
     $html = plantilla_email(
         '¡Tu membresía ya está activa!',
         '<p>Tu membresía <strong>' . htmlspecialchars($membresiaNombre, ENT_QUOTES) . '</strong> fue activada — ya tienes acceso a todos los cursos y a los eventos exclusivos para miembros.</p>',
@@ -132,6 +176,11 @@ function enviar_email_membresia_activada(int $usuarioPerfilId, string $destinata
 
 function enviar_email_recuperar_contrasena(int $usuarioPerfilId, string $destinatario, string $enlaceUrl): bool
 {
+    $personalizada = email_plantilla_personalizada('recuperar_contrasena');
+    if ($personalizada) {
+        $html = plantilla_email($personalizada['titulo'], $personalizada['mensaje_html'], $personalizada['boton_texto'] ?? '', $enlaceUrl);
+        return enviar_email($usuarioPerfilId, $destinatario, $personalizada['asunto'], $html, 'recuperar_contrasena');
+    }
     $html = plantilla_email(
         'Recupera tu contraseña',
         '<p>Recibimos una solicitud para restablecer tu contraseña. Si no fuiste tú, ignora este correo.</p>'
@@ -144,6 +193,12 @@ function enviar_email_recuperar_contrasena(int $usuarioPerfilId, string $destina
 
 function enviar_email_finalizacion(int $usuarioPerfilId, string $destinatario, string $cursoTitulo, string $certificadoUrl): bool
 {
+    $personalizada = email_plantilla_personalizada('finalizacion');
+    if ($personalizada) {
+        $mensaje = email_reemplazar_placeholders($personalizada['mensaje_html'], ['curso' => htmlspecialchars($cursoTitulo, ENT_QUOTES)]);
+        $html = plantilla_email($personalizada['titulo'], $mensaje, $personalizada['boton_texto'] ?? '', $certificadoUrl);
+        return enviar_email($usuarioPerfilId, $destinatario, $personalizada['asunto'], $html, 'finalizacion');
+    }
     $html = plantilla_email(
         '¡Completaste el curso!',
         '<p>Terminaste <strong>' . htmlspecialchars($cursoTitulo, ENT_QUOTES) . '</strong>. Tu certificado ya está disponible.</p>',

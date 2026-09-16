@@ -323,11 +323,18 @@ function usuario_tiene_membresia_activa(int $usuarioPerfilId): bool
     global $conn;
 
     // Ver usuario_tiene_acceso_curso() — una suscripción en modo prueba
-    // también otorga acceso aquí.
+    // también otorga acceso aquí. estado='gracia' (solo aplica a
+    // oxxo_recurrente) también cuenta como acceso: son los 2 días extra
+    // tras vencer el voucher del mes, antes de que el cron la pase a
+    // 'vencida' — ver backend/membresia_oxxo_generar_vouchers.php. Durante
+    // la gracia periodo_actual_fin YA está en el pasado (por eso pasó a ese
+    // estado), así que ahí se compara contra periodo_actual_fin + 2 días en
+    // vez del propio periodo_actual_fin.
     $stmt = $conn->prepare(
         "SELECT id FROM membresia_suscripciones
-         WHERE usuario_id = ? AND estado = 'activa'
-           AND (periodo_actual_fin IS NULL OR periodo_actual_fin >= NOW())
+         WHERE usuario_id = ?
+           AND ((estado = 'activa' AND (periodo_actual_fin IS NULL OR periodo_actual_fin >= NOW()))
+                OR (estado = 'gracia' AND periodo_actual_fin >= DATE_SUB(NOW(), INTERVAL 2 DAY)))
          LIMIT 1"
     );
     $stmt->bind_param('i', $usuarioPerfilId);

@@ -772,7 +772,17 @@ a { text-decoration: none; }
   margin: 0 0 14px;
   color: var(--pf-muted);
 }
-.pf-contenido-html img { max-width: 100%; border-radius: 8px; margin: 0 0 14px; display: block; }
+.pf-contenido-html img { max-width: 100%; border-radius: 8px; margin: 0 0 6px; display: block; }
+/* Botón de descarga (clases de Bootstrap: btn btn-sm btn-outline-secondary)
+   insertado por assets/pf_imagenes_descargables.js justo después de cada
+   <img> (incluidas las que están dentro de un colapsable) — el HTML
+   guardado por el editor nunca lo trae, se agrega en el cliente al mostrar
+   la página. El selector ".pf-contenido-html a" de abajo (color/subrayado
+   de enlaces normales del texto) tiene más especificidad que las clases de
+   Bootstrap del botón — se pisa explícitamente aquí para que sí se vea como
+   btn-outline-secondary y no como un link de texto. */
+.pf-contenido-html .pf-imagen-descargar { margin: 0 0 14px; text-decoration: none; color: var(--bs-btn-color, #6c757d); }
+.pf-contenido-html .pf-imagen-descargar:hover { text-decoration: none; color: var(--bs-btn-hover-color, #fff); }
 /* iframe.ql-video (embed de YouTube insertado desde el editor) no trae su
    propio tamaño responsivo — se fuerza aquí al clásico contenedor 16:9. */
 .pf-contenido-html iframe.ql-video {

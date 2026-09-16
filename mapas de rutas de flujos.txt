@@ -1,0 +1,146 @@
+Usuario autenticado sin acceso
+Usuario autenticado
+    ↓
+Catálogo o tarjeta de producto
+    ↓
+Landing comercial
+    ↓
+¿Desea adquirir?
+    ├── Adquirir directamente
+    │       ↓
+    │   Adquirir producto
+    │       ↓
+    │   Página de consumo
+    │
+    └── Opción de membresía
+            ↓
+        Adquirir membresía
+            ↓
+        Adquirir producto con beneficios
+            ↓
+        Página de consumo
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1.1 Solo desea comprar, sin membresía
+
+Usuario autenticado sin acceso
+    ↓
+Catálogo o tarjeta
+    ↓
+Landing comercial
+    ↓
+Adquirir
+    ↓
+Checkout / adquisición
+    ↓
+Página de consumo
+
+
+
+
+1.2 Quiere información de la membresía
+Usuario autenticado sin acceso
+    ↓
+Catálogo o tarjeta
+    ↓
+Landing comercial
+    ↓
+Más información de membresía
+    ↓
+Adquirir membresía
+    ↓
+Adquirir producto con beneficios
+    ↓
+Página de consumo
+
+2. Usuario autenticado con acceso directo al producto
+Usuario autenticado
+    ↓
+¿Tiene acceso al producto?
+    ↓
+SÍ
+    ↓
+Catálogo / Tarjeta / Mi espacio
+    ↓
+Página de acceso o consumo
+
+No pasa por Landing comercial.
+
+
+3. Usuario autenticado con membresía Camino Arjuna, pero sin acceso específico
+
+Aquí la membresía no le da automáticamente acceso al producto, sino que le permite obtener un beneficio para adquirirlo.
+Usuario autenticado
+    ↓
+Tiene membresía Camino Arjuna
+    ↓
+NO tiene acceso al producto específico
+    ↓
+Catálogo o tarjeta
+    ↓
+Landing comercial
+    ↓
+Landing muestra beneficio de membresía
+    ↓
+Activar beneficio / Adquirir acceso
+    ↓
+Página de acceso o consumo
+
+4. Usuario autenticado con acceso mediante membresía
+Usuario autenticado
+    ↓
+Tiene membresía Camino Arjuna
+    ↓
+Tiene acceso al producto
+    ↓
+Catálogo / Tarjeta / Mi espacio
+    ↓
+Página de acceso o consumo
+
+5. Usuario con acceso parcial
+
+Este es un caso diferente porque sí puede consumir una parte del contenido, pero el contenido completo está bloqueado.
+Usuario con acceso parcial
+    ↓
+Dispositivo / página de consumo de prueba
+    ↓
+Contenido restringido
+    ↓
+Adquirir acceso completo
+    ↓
+¿Adquisición exitosa?
+    ├── SÍ
+    │    ↓
+    │  Página de consumo desbloqueado
+    │
+    └── NO
+         ↓
+       Permanece acceso parcial
+
+
+6. Usuario con acceso parcial → descubre contenidos
+Usuario con acceso parcial
+    ↓
+Mi cuenta o Catálogo
+    ↓
+Página de acceso
+    ↓
+Mostrar:
+    ├── Contenidos disponibles
+    └── Contenidos bloqueados
+            ↓
+        Adquirir acceso
+            ↓
+        Página de consumo desbloqueado

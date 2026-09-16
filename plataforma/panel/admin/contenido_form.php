@@ -37,13 +37,16 @@ if ($id && $tipo === 'curso') {
 }
 
 // Prestaciones y regalos (ver backend/regalos.php) — configuración opcional,
-// nunca activa por default.
-$regalo = ['activo' => 0, 'descuento_pct' => 100, 'max_usuarios_habilitados' => '', 'enlaces_por_usuario' => 1, 'vigencia_dias' => ''];
+// nunca activa por default. "Regalar descuento" y "Regalar acceso" son
+// prestaciones independientes; "Regalar descuento" además admite varios
+// tipos de % (regalo['tipos_descuento'], una fila de tabla por cada uno).
+$regaloDefault = ['activo_descuento' => 0, 'activo_acceso' => 0, 'acceso_max_usuarios_habilitados' => '', 'acceso_enlaces_por_usuario' => 1, 'acceso_vigencia_dias' => '', 'tipos_descuento' => []];
+$regalo = $regaloDefault;
 if ($id) {
     $regalo = $tipo === 'curso'
         ? regalo_configuracion_obtener($id, null)
         : regalo_configuracion_obtener(null, $id);
-    $regalo = $regalo ?: ['activo' => 0, 'descuento_pct' => 100, 'max_usuarios_habilitados' => '', 'enlaces_por_usuario' => 1, 'vigencia_dias' => ''];
+    $regalo = $regalo ?: $regaloDefault;
 }
 
 // Flujo de venta: landing comercial a la que se redirige a un visitante sin
@@ -76,11 +79,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mostrarCodigoPromocion = isset($_POST['mostrar_codigo_promocion']) ? 1 : 0;
     $landingPageId = trim($_POST['landing_page_id'] ?? '') !== '' ? (int) $_POST['landing_page_id'] : null;
 
-    $regaloActivo = isset($_POST['regalo_activo']) ? 1 : 0;
-    $regaloDescuentoPct = min(100.0, max(0.01, (float) ($_POST['regalo_descuento_pct'] ?? 100)));
-    $regaloMaxUsuarios = trim($_POST['regalo_max_usuarios'] ?? '') !== '' ? (int) $_POST['regalo_max_usuarios'] : null;
-    $regaloEnlacesPorUsuario = max(1, (int) ($_POST['regalo_enlaces_por_usuario'] ?? 1));
-    $regaloVigenciaDias = trim($_POST['regalo_vigencia_dias'] ?? '') !== '' ? (int) $_POST['regalo_vigencia_dias'] : null;
+    // "Regalar descuento" y "Regalar acceso" son dos prestaciones
+    // independientes (cada una con su interruptor y límites propios) — ver
+    // backend/regalos.php. "Regalar descuento" además admite varios tipos de
+    // % (uno por fila del formulario, ver regalo_tipos[] más abajo).
+    $regaloActivoDescuento = isset($_POST['regalo_activo_descuento']) ? 1 : 0;
+    $regaloActivoAcceso = isset($_POST['regalo_activo_acceso']) ? 1 : 0;
+    $regaloAccesoMaxUsuarios = trim($_POST['regalo_acceso_max_usuarios'] ?? '') !== '' ? (int) $_POST['regalo_acceso_max_usuarios'] : null;
+    $regaloAccesoEnlacesPorUsuario = max(1, (int) ($_POST['regalo_acceso_enlaces_por_usuario'] ?? 1));
+    $regaloAccesoVigenciaDias = trim($_POST['regalo_acceso_vigencia_dias'] ?? '') !== '' ? (int) $_POST['regalo_acceso_vigencia_dias'] : null;
+
+    // Cada fila enviada por el formulario es un tipo de descuento distinto —
+    // ids negativos/vacíos ("nuevo-N") se insertan, ids existentes se
+    // actualizan, y cualquier id existente que ya NO venga en el POST se
+    // borra (el admin lo quitó con el botón de la fila).
+    $regaloTiposDescuento = [];
+    $tiposPct = $_POST['regalo_tipo_descuento_pct'] ?? [];
+    $tiposId = $_POST['regalo_tipo_id'] ?? [];
+    $tiposMax = $_POST['regalo_tipo_max_usuarios'] ?? [];
+    $tiposEnlaces = $_POST['regalo_tipo_enlaces_por_usuario'] ?? [];
+    $tiposVigencia = $_POST['regalo_tipo_vigencia_dias'] ?? [];
+    foreach ($tiposPct as $i => $pctCrudo) {
+        if (trim((string) $pctCrudo) === '') {
+            continue; // fila vacía (ej. la plantilla de "agregar tipo" sin llenar) — se ignora
+        }
+        $regaloTiposDescuento[] = [
+            'id' => (int) ($tiposId[$i] ?? 0) ?: null,
+            'descuento_pct' => min(99.99, max(0.01, (float) $pctCrudo)),
+            'max_usuarios_habilitados' => trim((string) ($tiposMax[$i] ?? '')) !== '' ? (int) $tiposMax[$i] : null,
+            'enlaces_por_usuario' => max(1, (int) ($tiposEnlaces[$i] ?? 1)),
+            'vigencia_dias' => trim((string) ($tiposVigencia[$i] ?? '')) !== '' ? (int) $tiposVigencia[$i] : null,
+        ];
+    }
 
     // Autoguardado del editor (ver panel/admin/_autosave.js) — actualiza el
     // registro ya existente sin difundir notificaciones de "nuevo curso/evento"
@@ -98,14 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
 
     /**
-     * Upsert de regalo_configuracion para el curso/evento recién guardado —
-     * compartido entre ambas ramas de abajo para no repetirlo dos veces.
+     * Upsert de regalo_configuracion + sus tipos de descuento para el
+     * curso/evento recién guardado — compartido entre ambas ramas de abajo.
      */
-    $guardarRegaloConfig = function (int $itemId, bool $esCurso) use ($conn, $regaloActivo, $regaloDescuentoPct, $regaloMaxUsuarios, $regaloEnlacesPorUsuario, $regaloVigenciaDias): void {
+    $guardarRegaloConfig = function (int $itemId, bool $esCurso) use (
+        $conn, $regaloActivoDescuento, $regaloActivoAcceso,
+        $regaloAccesoMaxUsuarios, $regaloAccesoEnlacesPorUsuario, $regaloAccesoVigenciaDias,
+        $regaloTiposDescuento
+    ): void {
         $columna = $esCurso ? 'curso_id' : 'evento_id';
-        // regalo_configuracion_obtener() solo trae config activa=1 — aquí se
-        // busca sin ese filtro, para decidir UPDATE vs INSERT sin importar
-        // si la config existente está apagada.
         $stmt = $conn->prepare("SELECT id FROM regalo_configuracion WHERE {$columna} = ?");
         $stmt->bind_param('i', $itemId);
         $stmt->execute();
@@ -113,14 +144,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         if ($fila) {
-            $stmt = $conn->prepare('UPDATE regalo_configuracion SET activo=?, descuento_pct=?, max_usuarios_habilitados=?, enlaces_por_usuario=?, vigencia_dias=? WHERE id=?');
-            $stmt->bind_param('idiiii', $regaloActivo, $regaloDescuentoPct, $regaloMaxUsuarios, $regaloEnlacesPorUsuario, $regaloVigenciaDias, $fila['id']);
+            $configId = (int) $fila['id'];
+            $stmt = $conn->prepare('UPDATE regalo_configuracion SET activo_descuento=?, activo_acceso=?, acceso_max_usuarios_habilitados=?, acceso_enlaces_por_usuario=?, acceso_vigencia_dias=? WHERE id=?');
+            $stmt->bind_param('iiiiii', $regaloActivoDescuento, $regaloActivoAcceso, $regaloAccesoMaxUsuarios, $regaloAccesoEnlacesPorUsuario, $regaloAccesoVigenciaDias, $configId);
         } else {
-            $stmt = $conn->prepare("INSERT INTO regalo_configuracion ({$columna}, activo, descuento_pct, max_usuarios_habilitados, enlaces_por_usuario, vigencia_dias) VALUES (?,?,?,?,?,?)");
-            $stmt->bind_param('iidiii', $itemId, $regaloActivo, $regaloDescuentoPct, $regaloMaxUsuarios, $regaloEnlacesPorUsuario, $regaloVigenciaDias);
+            $stmt = $conn->prepare("INSERT INTO regalo_configuracion ({$columna}, activo_descuento, activo_acceso, acceso_max_usuarios_habilitados, acceso_enlaces_por_usuario, acceso_vigencia_dias, descuento_pct) VALUES (?,?,?,?,?,?,0)");
+            $stmt->bind_param('iiiiii', $itemId, $regaloActivoDescuento, $regaloActivoAcceso, $regaloAccesoMaxUsuarios, $regaloAccesoEnlacesPorUsuario, $regaloAccesoVigenciaDias);
         }
         $stmt->execute();
         $stmt->close();
+        if (!$fila) {
+            $configId = $conn->insert_id;
+        }
+
+        // Reemplazo total de los tipos de descuento: se borran los que ya no
+        // vinieron en el POST (el admin quitó esa fila) y se hace upsert del
+        // resto — más simple y confiable que diffear fila por fila, y el
+        // volumen por curso/evento es siempre pequeño (unas pocas filas).
+        $idsEnviados = array_values(array_filter(array_column($regaloTiposDescuento, 'id')));
+        if ($idsEnviados) {
+            $placeholders = implode(',', array_fill(0, count($idsEnviados), '?'));
+            $tipos = str_repeat('i', count($idsEnviados));
+            $stmt = $conn->prepare("DELETE FROM regalo_tipos_descuento WHERE configuracion_id = ? AND id NOT IN ({$placeholders})");
+            $stmt->bind_param('i' . $tipos, $configId, ...$idsEnviados);
+        } else {
+            $stmt = $conn->prepare('DELETE FROM regalo_tipos_descuento WHERE configuracion_id = ?');
+            $stmt->bind_param('i', $configId);
+        }
+        $stmt->execute();
+        $stmt->close();
+
+        foreach ($regaloTiposDescuento as $orden => $t) {
+            if ($t['id']) {
+                $stmt = $conn->prepare('UPDATE regalo_tipos_descuento SET descuento_pct=?, max_usuarios_habilitados=?, enlaces_por_usuario=?, vigencia_dias=?, orden=? WHERE id=? AND configuracion_id=?');
+                $stmt->bind_param('diiiiii', $t['descuento_pct'], $t['max_usuarios_habilitados'], $t['enlaces_por_usuario'], $t['vigencia_dias'], $orden, $t['id'], $configId);
+            } else {
+                $stmt = $conn->prepare('INSERT INTO regalo_tipos_descuento (configuracion_id, descuento_pct, max_usuarios_habilitados, enlaces_por_usuario, vigencia_dias, orden) VALUES (?,?,?,?,?,?)');
+                $stmt->bind_param('idiiii', $configId, $t['descuento_pct'], $t['max_usuarios_habilitados'], $t['enlaces_por_usuario'], $t['vigencia_dias'], $orden);
+            }
+            $stmt->execute();
+            $stmt->close();
+        }
     };
 
     if ($tipo === 'curso') {
@@ -396,31 +460,106 @@ include __DIR__ . '/_header.php';
   <div class="col-12"><hr></div>
   <div class="col-12">
     <h2 class="h6">🎁 Prestaciones y regalos</h2>
-    <p class="text-muted small">Quien tenga acceso a este <?= $tipo === 'curso' ? 'curso' : 'evento' ?> podrá generar enlaces para regalarlo — apagado por default.</p>
-  </div>
-  <div class="col-12 form-check form-switch">
-    <input type="checkbox" class="form-check-input" role="switch" name="regalo_activo" id="regalo_activo" <?= (int) ($regalo['activo'] ?? 0) === 1 ? 'checked' : '' ?>>
-    <label class="form-check-label" for="regalo_activo">Permitir que quien tenga acceso pueda regalarlo</label>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">Descuento del regalo (%)</label>
-    <input type="number" step="0.01" min="0.01" max="100" class="form-control" name="regalo_descuento_pct" value="<?= htmlspecialchars((string) ($regalo['descuento_pct'] ?? 100)) ?>">
-    <div class="form-text">100 = acceso completo gratis.</div>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">Máximo de cuentas que pueden regalar</label>
-    <input type="number" min="1" class="form-control" name="regalo_max_usuarios" value="<?= htmlspecialchars((string) ($regalo['max_usuarios_habilitados'] ?? '')) ?>" placeholder="Vacío = sin tope">
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">Enlaces por persona</label>
-    <input type="number" min="1" class="form-control" name="regalo_enlaces_por_usuario" value="<?= htmlspecialchars((string) ($regalo['enlaces_por_usuario'] ?? 1)) ?>">
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">Vigencia del enlace (días)</label>
-    <input type="number" min="1" class="form-control" name="regalo_vigencia_dias" value="<?= htmlspecialchars((string) ($regalo['vigencia_dias'] ?? '')) ?>" placeholder="Vacío = no vence">
+    <p class="text-muted small">Quien tenga acceso a este <?= $tipo === 'curso' ? 'curso' : 'evento' ?> podrá generar enlaces para regalarlo.</p>
   </div>
 
-  <div class="col-12"><button class="btn btn-success">Guardar</button></div>
+  <div class="col-12">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <h3 class="h6 mb-1">% Regalar descuento</h3>
+            <p class="text-muted small mb-0">Permite generar enlaces con un descuento sobre el precio del <?= $tipo === 'curso' ? 'curso' : 'evento' ?>.</p>
+          </div>
+          <div class="form-check form-switch flex-shrink-0">
+            <input type="checkbox" class="form-check-input" role="switch" name="regalo_activo_descuento" id="regalo_activo_descuento" <?= (int) ($regalo['activo_descuento'] ?? 0) === 1 ? 'checked' : '' ?>>
+            <label class="form-check-label" for="regalo_activo_descuento">Habilitado</label>
+          </div>
+        </div>
+        <div class="mt-3">
+          <p class="fw-bold small mb-1">Descuentos configurados</p>
+          <p class="text-muted small">Puedes crear varios tipos de descuento para que el estudiante elija al generar un enlace.</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered bg-white align-middle" id="tablaRegaloTipos">
+              <thead><tr><th>Descuento (%)</th><th>Máx. cuentas</th><th>Enlaces por persona</th><th>Vigencia (días)</th><th></th></tr></thead>
+              <tbody id="tablaRegaloTiposBody">
+                <?php foreach ($regalo['tipos_descuento'] as $i => $t): ?>
+                  <tr>
+                    <td>
+                      <input type="hidden" name="regalo_tipo_id[]" value="<?= (int) $t['id'] ?>">
+                      <input type="number" step="0.01" min="0.01" max="99.99" class="form-control form-control-sm" name="regalo_tipo_descuento_pct[]" value="<?= htmlspecialchars((string) $t['descuento_pct']) ?>" required>
+                    </td>
+                    <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_max_usuarios[]" value="<?= htmlspecialchars((string) ($t['max_usuarios_habilitados'] ?? '')) ?>" placeholder="Sin tope"></td>
+                    <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_enlaces_por_usuario[]" value="<?= htmlspecialchars((string) $t['enlaces_por_usuario']) ?>"></td>
+                    <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_vigencia_dias[]" value="<?= htmlspecialchars((string) ($t['vigencia_dias'] ?? '')) ?>" placeholder="No vence"></td>
+                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger pf-regalo-tipo-quitar"><i class="bi bi-trash"></i></button></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-success" id="btnAgregarRegaloTipo"><i class="bi bi-plus-lg"></i> Agregar tipo de descuento</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <h3 class="h6 mb-1">🎁 Regalar acceso</h3>
+            <p class="text-muted small mb-0">Permite generar enlaces para otorgar acceso completo y gratuito al <?= $tipo === 'curso' ? 'curso' : 'evento' ?>.</p>
+          </div>
+          <div class="form-check form-switch flex-shrink-0">
+            <input type="checkbox" class="form-check-input" role="switch" name="regalo_activo_acceso" id="regalo_activo_acceso" <?= (int) ($regalo['activo_acceso'] ?? 0) === 1 ? 'checked' : '' ?>>
+            <label class="form-check-label" for="regalo_activo_acceso">Habilitado</label>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-4">
+            <label class="form-label small">Máximo de cuentas que pueden regalar</label>
+            <input type="number" min="1" class="form-control form-control-sm" name="regalo_acceso_max_usuarios" value="<?= htmlspecialchars((string) ($regalo['acceso_max_usuarios_habilitados'] ?? '')) ?>" placeholder="Vacío = sin tope">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Enlaces por persona</label>
+            <input type="number" min="1" class="form-control form-control-sm" name="regalo_acceso_enlaces_por_usuario" value="<?= htmlspecialchars((string) ($regalo['acceso_enlaces_por_usuario'] ?? 1)) ?>">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Vigencia del enlace (días)</label>
+            <input type="number" min="1" class="form-control form-control-sm" name="regalo_acceso_vigencia_dias" value="<?= htmlspecialchars((string) ($regalo['acceso_vigencia_dias'] ?? '')) ?>" placeholder="Vacío = no vence">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-info small">El estudiante podrá elegir, al generar un enlace, el tipo de descuento que desee o regalar acceso completo.</div>
+  </div>
+
+  <template id="plantillaRegaloTipoFila">
+    <tr>
+      <td><input type="hidden" name="regalo_tipo_id[]" value="0"><input type="number" step="0.01" min="0.01" max="99.99" class="form-control form-control-sm" name="regalo_tipo_descuento_pct[]" required></td>
+      <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_max_usuarios[]" placeholder="Sin tope"></td>
+      <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_enlaces_por_usuario[]" value="1"></td>
+      <td><input type="number" min="1" class="form-control form-control-sm" name="regalo_tipo_vigencia_dias[]" placeholder="No vence"></td>
+      <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger pf-regalo-tipo-quitar"><i class="bi bi-trash"></i></button></td>
+    </tr>
+  </template>
+  <script>
+    (function () {
+      const cuerpo = document.getElementById('tablaRegaloTiposBody');
+      const plantilla = document.getElementById('plantillaRegaloTipoFila');
+      document.getElementById('btnAgregarRegaloTipo').addEventListener('click', function () {
+        cuerpo.appendChild(plantilla.content.cloneNode(true));
+      });
+      cuerpo.addEventListener('click', function (e) {
+        const boton = e.target.closest('.pf-regalo-tipo-quitar');
+        if (boton) boton.closest('tr').remove();
+      });
+    })();
+  </script>
+
+  <div class="col-12 d-flex gap-2 align-items-center">
+    <button class="btn btn-success">Guardar</button>
+  </div>
 </form>
 
 <!-- Editor de texto completo (Quill — ya se usa en el foro, aquí con una
@@ -428,381 +567,29 @@ include __DIR__ . '/_header.php';
      curso/evento. Reusa procesar_subida_imagen() (uploads.php) para las
      imágenes que se insertan dentro del contenido — mismo subdir
      "contenido" para todas, sin importar si es curso o evento. -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css">
-<style>
-  /* El picker de tamaño de Quill solo trae texto ("Small"/"Large"/"Huge")
-     para su propia lista por defecto — con valores en px propios, sin esto
-     cae en la regla genérica de abajo y todos se ven como "Normal". */
-  .ql-picker.ql-size .ql-picker-label[data-value]:not([data-value=""])::before,
-  .ql-picker.ql-size .ql-picker-item[data-value]:not([data-value=""])::before {
-    content: attr(data-value);
-  }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="../../assets/pf_editor.js?v=3"></script>
 <script>
-  // Aviso VISIBLE de cualquier error de JS sin capturar en esta página — la
-  // vez pasada un bug real en el editor quedó invisible hasta que se abrió
-  // la consola a mano (F12) y se copió el error; con esto se nota de
-  // inmediato con un toast, en vez de fallar en silencio. Un solo aviso por
-  // carga de página, así no inunda de toasts si el mismo error se repite en
-  // cada tecla.
-  (function () {
-    let avisadoDeError = false;
-    window.addEventListener('error', function (e) {
-      console.error('[Editor] Error no capturado:', e.error || e.message, e);
-      if (avisadoDeError || !window.jQuery || !jQuery.notify) return;
-      avisadoDeError = true;
-      jQuery.notify(
-        'Ocurrió un error inesperado en el editor. Abre la consola (F12) y copia el error para reportarlo: ' + (e.message || 'error desconocido'),
-        { className: 'error', position: 'top right', autoHide: false }
-      );
-    });
-  })();
-
-  // Tamaño de fuente y alineación con estilo inline (no clases) — así el HTML
-  // guardado se ve igual en cualquier página que lo renderice
-  // (.pf-contenido-html) sin depender del CSS propio del editor.
-  const TamanoEstilo = Quill.import('attributors/style/size');
-  TamanoEstilo.whitelist = ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'];
-  Quill.register(TamanoEstilo, true);
-  Quill.register(Quill.import('attributors/style/align'), true);
-  const Delta = Quill.import('delta');
-
-  // Bloque colapsable estilo Notion, como un <details>/<summary> NATIVO del
-  // navegador, insertado como un embed OPACO de Quill (ver leccion_form.php,
-  // mismo patrón exacto): Quill lo trata como una sola "unidad" en su
-  // documento y nunca mira ni toca lo que hay adentro. El título y el cuerpo
-  // son sus propias islas contenteditable="true" DENTRO de un contenedor
-  // contenteditable="false" — typing/Enter/Backspace/listas ahí dentro son
-  // edición nativa del navegador, no del modelo de Quill. Esto reemplaza un
-  // intento anterior con formatos de línea propios que competía con el
-  // manejo de teclado interno de Quill de forma impredecible.
-  const BlockEmbedColapsable = Quill.import('blots/block/embed');
-  class ColapsableEmbedBlot extends BlockEmbedColapsable {
-    static create(value) {
-      const node = super.create();
-      node.setAttribute('contenteditable', 'false');
-      node.setAttribute('open', '');
-      const resumen = document.createElement('summary');
-      resumen.setAttribute('contenteditable', 'true');
-      resumen.innerHTML = (value && value.titulo) || 'Título del colapsable';
-      const cuerpo = document.createElement('div');
-      cuerpo.className = 'pf-colapsable-body-editable';
-      cuerpo.setAttribute('contenteditable', 'true');
-      cuerpo.innerHTML = (value && value.cuerpo) || '<p><br></p>';
-      node.appendChild(resumen);
-      node.appendChild(cuerpo);
-      return node;
-    }
-    static value(node) {
-      const resumen = node.querySelector('summary');
-      const cuerpo = node.querySelector('.pf-colapsable-body-editable');
-      return {
-        titulo: resumen ? resumen.innerHTML : '',
-        cuerpo: cuerpo ? cuerpo.innerHTML : '',
-      };
-    }
-  }
-  ColapsableEmbedBlot.blotName = 'colapsable-embed';
-  ColapsableEmbedBlot.tagName = 'details';
-  ColapsableEmbedBlot.className = 'pf-colapsable-embed';
-  Quill.register(ColapsableEmbedBlot);
-
-  // Cualquier tecla/entrada dentro del título o el cuerpo del colapsable
-  // nunca debe llegarle a Quill — se intercepta en fase de CAPTURA sobre el
-  // contenedor (un ancestro de quill.root) para garantizar que se detiene
-  // ANTES de que el evento alcance a Quill. Un solo keydown/stopPropagation
-  // no bastaba: Quill 2 reacciona a 'beforeinput' (así detecta y aplica lo
-  // que el usuario escribió) y también observa la SELECCIÓN del documento
-  // completo — al escribir dentro de una isla contenteditable anidada,
-  // Quill no sabe traducir esa posición a su propio modelo, la confunde con
-  // "todo el embed está seleccionado" y termina borrándolo con la primera
-  // tecla (confirmado con un stack trace real: Editor.deleteText llamado
-  // desde adentro de quill.js). 'copy'/'cut'/'paste' se agregaron después:
-  // Quill los intercepta con su propio módulo de portapapeles
-  // (this.quill.root.addEventListener('copy'|'cut'|'paste', ...)) para
-  // armar el contenido desde SU modelo de Delta en vez del DOM real —
-  // dentro del colapsable ese modelo no ve nada, así que Ctrl+C terminaba
-  // copiando vacío aunque la selección nativa sí tuviera el texto correcto
-  // (confirmado: getSelection().toString() traía el texto bien, pero el
-  // portapapeles llegaba vacío). 'mousedown'/'click' también están en la
-  // lista: Quill los escucha en quill.root para su propio manejo de
-  // selección/formato del toolbar, y eso interfería con el doble-click
-  // nativo del navegador para seleccionar una palabra (confirmado:
-  // funcionaba en una página aislada sin Quill, pero no aquí). Frenar
-  // TODOS estos tipos de evento aquí es lo que de verdad aísla al
-  // colapsable de Quill; edición nativa runs.
-  ['beforeinput', 'input', 'compositionstart', 'compositionupdate', 'compositionend', 'keyup', 'keypress', 'copy', 'cut', 'paste', 'mousedown', 'mouseup', 'click', 'dblclick'].forEach(function (tipo) {
-    document.getElementById('editorDescripcion').addEventListener(tipo, function (e) {
-      if (e.target.closest && e.target.closest('.pf-colapsable-embed')) {
-        e.stopPropagation();
-      }
-    }, true);
-  });
-  // El keydown se maneja aparte porque además necesita casos especiales
-  // dentro del <summary>: por ser un elemento nativamente "interactivo",
-  // Espacio y Enter activan su comportamiento propio de abrir/cerrar el
-  // <details> en vez de escribir texto — Espacio incluso se "come" el
-  // carácter (preventDefault bloquea también la inserción nativa, van
-  // pegados), así que se inserta a mano con execCommand. Enter no inserta
-  // salto de línea en el título (es de una sola línea) — mueve el cursor al
-  // cuerpo, para seguir la expectativa original de "Enter avanza".
-  document.getElementById('editorDescripcion').addEventListener('keydown', function (e) {
-    if (!(e.target.closest && e.target.closest('.pf-colapsable-embed'))) return;
-    const resumen = e.target.closest('summary');
-    const cuerpoDelKeydown = e.target.closest('.pf-colapsable-body-editable');
-    const isla = resumen || cuerpoDelKeydown;
-    if (isla && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-      // "Seleccionar todo" nativo (Ctrl/Cmd+A) no funciona en un
-      // contenteditable=true anidado dentro de uno false anidado dentro de
-      // otro true — confirmado hasta en una página aislada sin Quill de
-      // por medio, es una limitación real del navegador con este triple
-      // anidado, no un bug de este código. Se arma la selección a mano,
-      // acotada nada más a la isla enfocada (título o cuerpo).
-      e.preventDefault();
-      const rango = document.createRange();
-      rango.selectNodeContents(isla);
-      const seleccion = window.getSelection();
-      seleccion.removeAllRanges();
-      seleccion.addRange(rango);
-    } else if (resumen && e.key === ' ') {
-      e.preventDefault();
-      document.execCommand('insertText', false, ' ');
-    } else if (resumen && e.key === 'Enter') {
-      e.preventDefault();
-      const cuerpo = resumen.parentElement.querySelector('.pf-colapsable-body-editable');
-      if (cuerpo) {
-        cuerpo.focus();
-        const seleccion = window.getSelection();
-        const rango = document.createRange();
-        rango.selectNodeContents(cuerpo);
-        rango.collapse(true);
-        seleccion.removeAllRanges();
-        seleccion.addRange(rango);
-      }
-    } else if (cuerpoDelKeydown && e.key === ' ') {
-      // Convierte "- "/"* " o "1. " al inicio de una línea del cuerpo en
-      // lista con viñetas/numerada — igual que Notion/Quill, pero armado a
-      // mano en vez de con document.execCommand('insertUnorderedList'):
-      // ese comando devuelve false (no hace nada) dentro de esta isla
-      // contenteditable anidada, aparentemente porque el navegador no
-      // logra resolver bien el "editing host" cuando hay contenteditable
-      // true→false→true encajados (confirmado probando ambas rutas). Una
-      // vez que existe un <ul>/<ol>/<li> real, Enter para seguir la lista o
-      // salir de ella al dar Enter en un item vacío es comportamiento
-      // nativo del navegador — no hace falta más JS para eso.
-      const seleccion = window.getSelection();
-      if (seleccion.rangeCount) {
-        const rango = seleccion.getRangeAt(0);
-        if (rango.collapsed) {
-          const nodo = rango.startContainer;
-          const textoAntes = nodo.nodeType === Node.TEXT_NODE ? nodo.textContent.slice(0, rango.startOffset) : '';
-          const esVineta = textoAntes === '-' || textoAntes === '*';
-          const numerada = textoAntes.match(/^(\d+)\.$/);
-          if (esVineta || numerada) {
-            e.preventDefault();
-            let linea = nodo.nodeType === Node.TEXT_NODE ? nodo.parentElement : nodo;
-            while (linea && linea.parentElement !== cuerpoDelKeydown) {
-              linea = linea.parentElement;
-            }
-            if (linea) {
-              rango.setStart(nodo, 0);
-              rango.deleteContents();
-              const tipoLista = numerada ? 'ol' : 'ul';
-              let lista = linea.previousElementSibling;
-              if (!lista || lista.tagName.toLowerCase() !== tipoLista) {
-                lista = document.createElement(tipoLista);
-                linea.parentNode.insertBefore(lista, linea);
-              }
-              const item = document.createElement('li');
-              item.innerHTML = '<br>';
-              lista.appendChild(item);
-              linea.remove();
-              const nuevoRango = document.createRange();
-              nuevoRango.selectNodeContents(item);
-              nuevoRango.collapse(true);
-              seleccion.removeAllRanges();
-              seleccion.addRange(nuevoRango);
-            }
-          }
-        }
-      }
-    }
-    e.stopPropagation();
-  }, true);
-
-  // Poder anidar un colapsable dentro de otro necesita saber en qué
-  // colapsable/qué punto exacto estaba el cursor justo ANTES de que el
-  // clic en el botón de la barra mueva el foco fuera (ver el mismo
-  // mecanismo, con comentario completo, en leccion_form.php).
-  let ultimoContextoColapsable = null;
-  document.getElementById('editorDescripcion').addEventListener('mouseup', actualizarContextoColapsable, true);
-  document.getElementById('editorDescripcion').addEventListener('keyup', actualizarContextoColapsable, true);
-  function actualizarContextoColapsable(e) {
-    const isla = e.target.closest && (e.target.closest('summary') || e.target.closest('.pf-colapsable-body-editable'));
-    if (!isla || !isla.closest('.pf-colapsable-embed')) {
-      ultimoContextoColapsable = null;
-      return;
-    }
-    const seleccion = window.getSelection();
-    if (!seleccion.rangeCount) return;
-    ultimoContextoColapsable = { isla: isla, rango: seleccion.getRangeAt(0).cloneRange() };
-  }
-
-  function insertarBloqueEnColapsable(elementoNuevo, contextoExplicito) {
-    const contexto = contextoExplicito || ultimoContextoColapsable;
-    if (!contexto || !contexto.isla.isConnected) return false;
-    let cuerpo = contexto.isla.closest('.pf-colapsable-body-editable');
-    if (!cuerpo && contexto.isla.tagName === 'SUMMARY') {
-      cuerpo = contexto.isla.parentElement.querySelector('.pf-colapsable-body-editable');
-    }
-    if (!cuerpo) return false;
-    let linea = contexto.rango && cuerpo.contains(contexto.rango.startContainer)
-      ? (contexto.rango.startContainer.nodeType === Node.TEXT_NODE ? contexto.rango.startContainer.parentElement : contexto.rango.startContainer)
-      : null;
-    while (linea && linea.parentElement !== cuerpo) {
-      linea = linea.parentElement;
-    }
-    if (linea) {
-      linea.parentNode.insertBefore(elementoNuevo, linea.nextSibling);
-    } else {
-      cuerpo.appendChild(elementoNuevo);
-    }
-    return true;
-  }
-
-  function focusIslaColapsable(el) {
-    // Sin collapse(): se deja el placeholder ("Título del colapsable")
-    // SELECCIONADO, no solo con el cursor detrás — así la primera tecla que
-    // el usuario escriba lo reemplaza en vez de agregarse después.
-    el.focus();
-    const seleccion = window.getSelection();
-    const rango = document.createRange();
-    rango.selectNodeContents(el);
-    seleccion.removeAllRanges();
-    seleccion.addRange(rango);
-  }
-
-  Quill.import('ui/icons')['colapsable-embed'] = '▾';
-  Quill.import('ui/icons')['undo'] = '↶';
-  Quill.import('ui/icons')['redo'] = '↷';
-
-  const quillDescripcion = new Quill('#editorDescripcion', {
-    theme: 'snow',
+  const editor = PfEditor.crear({
+    contenedor: '#editorDescripcion',
+    contexto: 'admin',
     placeholder: 'Descripción completa — puedes usar encabezados, listas, imágenes, etc.',
-    modules: {
-      toolbar: {
-        container: [
-          [{ header: [2, 3, false] }, { size: TamanoEstilo.whitelist }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          [{ align: [] }],
-          ['blockquote', 'link', 'image'],
-          ['colapsable-embed'],
-          ['undo', 'redo'],
-          ['clean'],
-        ],
-        handlers: {
-          image: subirImagenDescripcion,
-          'colapsable-embed': insertarColapsable,
-          undo: function () { quillDescripcion.history.undo(); },
-          redo: function () { quillDescripcion.history.redo(); },
-        },
-      },
-    },
+    csrfToken: <?= json_encode(csrf_token()) ?>,
+    contenidoInicialHtml: <?= json_encode((string) $item['descripcion']) ?>,
+    capacidades: { colapsables: true, tamanoAlineacion: true, undoRedo: true },
   });
-  quillDescripcion.root.innerHTML = <?= json_encode((string) $item['descripcion']) ?>;
+  const quillDescripcion = editor.quill;
 
-  // Pegar una imagen (Ctrl+V, o copiada de Word/Google Docs/captura) no pasa
-  // por subirImagenDescripcion() de abajo — Quill la pega tal cual como
-  // <img src="data:...;base64,...">, que puede pesar varios MB e inflar el
-  // POST de guardar/autoguardar hasta que el servidor lo rechace (ver mismo
-  // fix en leccion_form.php). Se intercepta, se sube por el mismo endpoint
-  // que ya usa el botón de imagen del toolbar, y se reemplaza por una URL
-  // normal en cuanto termina.
-  quillDescripcion.clipboard.addMatcher('IMG', function (node, delta) {
-    const src = node.getAttribute('src') || '';
-    if (!src.startsWith('data:')) {
-      return delta;
-    }
-    subirImagenPegadaDescripcion(src);
-    return new Delta();
-  });
-
-  async function subirImagenPegadaDescripcion(dataUrl) {
-    try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const extension = (blob.type.split('/')[1] || 'png').split('+')[0];
-      const datos = new FormData();
-      datos.append('imagen', blob, 'pegado.' + extension);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      const res = await fetch('../../backend/quill_imagen_subir.php', { method: 'POST', body: datos });
-      const data = await res.json();
-      if (data.success) {
-        const rango = quillDescripcion.getSelection(true) || { index: quillDescripcion.getLength() };
-        quillDescripcion.insertEmbed(rango.index, 'image', data.url, 'user');
-      } else {
-        $.notify(data.message || 'No se pudo subir una imagen pegada.', { className: 'error', position: 'top right' });
-      }
-    } catch (e) {
-      $.notify('Error de conexión subiendo una imagen pegada.', { className: 'error', position: 'top right' });
-    }
-  }
-
-  // Inserta un colapsable nuevo en el cursor y enfoca su título para
-  // empezar a escribir de inmediato (ver leccion_form.php, mismo patrón).
-  function insertarColapsable() {
-    const nodoAnidado = ultimoContextoColapsable ? ColapsableEmbedBlot.create({ titulo: '', cuerpo: '' }) : null;
-    if (nodoAnidado && insertarBloqueEnColapsable(nodoAnidado)) {
-      setTimeout(function () { focusIslaColapsable(nodoAnidado.querySelector('summary')); }, 0);
-      return;
-    }
-    const rango = quillDescripcion.getSelection(true);
-    if (!rango) return;
-    quillDescripcion.insertEmbed(rango.index, 'colapsable-embed', { titulo: '', cuerpo: '' }, 'user');
-    quillDescripcion.setSelection(rango.index + 1, 0, 'user');
-    setTimeout(function () {
-      const resumenes = quillDescripcion.root.querySelectorAll('.pf-colapsable-embed summary');
-      const ultimo = resumenes[resumenes.length - 1];
-      if (ultimo) focusIslaColapsable(ultimo);
-    }, 0);
-  }
-
-  function subirImagenDescripcion() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/webp,image/gif';
-    input.addEventListener('change', async function () {
-      const archivo = input.files[0];
-      if (!archivo) return;
-      const rango = quillDescripcion.getSelection(true);
-      const datos = new FormData();
-      datos.append('imagen', archivo);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      try {
-        const res = await fetch('../../backend/quill_imagen_subir.php', { method: 'POST', body: datos });
-        const data = await res.json();
-        if (data.success) {
-          quillDescripcion.insertEmbed(rango.index, 'image', data.url);
-          quillDescripcion.setSelection(rango.index + 1);
-        } else {
-          alert(data.message || 'No se pudo subir la imagen.');
-        }
-      } catch (e) {
-        alert('Error de conexión subiendo la imagen.');
-      }
-    });
-    input.click();
-  }
-
-  // Debe fijarse directo en el <form> (no delegado en document, como hace
-  // _footer.php) para garantizar que corra ANTES de que ese handler arme el
-  // FormData a partir del <textarea> — un listener en el propio elemento
-  // siempre dispara antes que uno delegado en un ancestro, sin importar el
-  // orden en que se registraron.
   function sincronizarDescripcion() {
-    document.getElementById('descripcionOculta').value = quillDescripcion.root.innerHTML;
+    document.getElementById('descripcionOculta').value = editor.sincronizar();
   }
+  // Corta el guardado (y a sincronizarDescripcion, el siguiente listener) si
+  // todavía falta una imagen pegada por subir.
+  document.querySelector('form[data-ajax-form]').addEventListener('submit', function (e) {
+    if (editor.bloquearSiHayCargasPendientes()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  });
   document.querySelector('form[data-ajax-form]').addEventListener('submit', sincronizarDescripcion);
 
   const btnCopiarCodigoEmbed = document.getElementById('btnCopiarCodigoEmbed');
@@ -821,17 +608,16 @@ include __DIR__ . '/_header.php';
     });
   }
 
-  // Igual que en leccion_form.php: pequeño retraso para dejar que la
-  // asignación inicial de innerHTML (arriba) termine de disparar su propio
+  // Pequeño retraso para dejar que la asignación inicial de
+  // contenidoInicialHtml (arriba) termine de disparar su propio
   // "text-change" antes de vigilar cambios reales. requiereIdExistente=true
   // porque este formulario no tiene concepto de borrador — el autoguardado
   // solo actualiza un curso/evento YA guardado, nunca crea uno nuevo (eso
   // podría dejarlo visible en el catálogo a medio llenar si "Publicado" ya
   // viene marcado).
   setTimeout(function () {
-    PfAutosave.iniciar({
+    PfEditor.conectarAutosaveServidor(editor, {
       formSelector: 'form[data-ajax-form]',
-      quills: [quillDescripcion],
       campoBandera: 'accion_autosave',
       valorBandera: '1',
       requiereIdExistente: true,

@@ -122,3 +122,37 @@ o cualquier página con guard de "ya tienes sesión" (`ingreso.php`,
 4. **Curso/evento con landing vinculada rebotaba a la landing incluso con
    `?auto=1`**, antes de llegar al bloque de auto-checkout. Fix: excluir
    `auto=1` (con sesión) de la condición que redirige a la landing.
+
+
+
+
+Rutas de contexto:
+    
+Visitantes 
+      Flujo:
+            Catálogo o tarjeta de producto
+                  Landing comercial
+                        crear cuenta Arjuna
+                              Adquirir
+                                    Página de consumo o confirmación de inscripción o registro en el evento
+
+Usuario autenticado sin acceso a membresía
+      `Catálogo o tarjeta → Landing comercial → Adquirir directo / opción de membresía → Página de consumo`
+        
+Usuario autenticado sin acceso a membrsía que elige solo comprar sin membresía
+            `Catálogo o tarjeta → Landing comercial → Adquirir  → Página de consumo`
+            
+Usuario autenticado sin acceso que desea mas información de la membresía
+      `Catálogo o tarjeta → Landing comercial → adquirir membresía → Adquirir producto con beneficios → Página de consumo`
+            
+Usuario autenticado con acceso
+      `Catálogo, tarjeta o Mi espacio→ Página de consumo` (No pasa por Landing comercial)
+        
+Usuario autenticado con membresía Camino Arjuna sin acceso específico
+      `Catálogo o tarjeta → Landing comercial con Beneficio de membresía → Activar o adquirir acceso → Página de acceso o consumo`
+        
+Usuario autenticado con acceso por membresía`Catálogo, tarjeta o Mi espacio → Página de acceso o consumo` (No pasa por Landing comercial)
+Usuario con acceso parcial
+`dispositivo de consumo  de prueba (restringido) → Adquirir acceso completo → Página de consumo desbloqueado`
+        
+Usuario con acceso parcial`→ Mi cuenta o Catálogo → Página de acceso con contenidos disponibles y bloqueados`

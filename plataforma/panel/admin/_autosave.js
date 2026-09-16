@@ -17,6 +17,31 @@ window.PfAutosave = (function ($) {
     let temporizador = null;
     const retraso = opciones.retrasoMs || 2500;
 
+    // Indicador junto a los botones de guardar — spinner de Bootstrap (docs:
+    // componente Spinners) desde que se detecta el cambio hasta que la
+    // petición de guardado termina, sin texto de cuenta regresiva. Opcional:
+    // si no se pasa indicadorSelector, todo esto queda como no-op silencioso.
+    const indicador = opciones.indicadorSelector ? document.querySelector(opciones.indicadorSelector) : null;
+    let intervaloCuenta = null;
+    const SPINNER_HTML = '<span class="spinner-border spinner-border-sm text-muted" role="status" aria-hidden="true"></span>';
+
+    function pintarIndicador(html) {
+      if (indicador) {
+        indicador.innerHTML = html;
+      }
+    }
+
+    function detenerCuentaRegresiva() {
+      clearTimeout(intervaloCuenta);
+      intervaloCuenta = null;
+    }
+
+    function iniciarCuentaRegresiva() {
+      detenerCuentaRegresiva();
+      pintarIndicador(SPINNER_HTML);
+      intervaloCuenta = setTimeout(detenerCuentaRegresiva, retraso);
+    }
+
     function marcarSucio() {
       if (sesionCerrada) {
         return;
@@ -24,6 +49,7 @@ window.PfAutosave = (function ($) {
       sucio = true;
       clearTimeout(temporizador);
       temporizador = setTimeout(intentarGuardar, retraso);
+      iniciarCuentaRegresiva();
     }
 
     async function verificarSesionSigueActiva() {
@@ -40,18 +66,32 @@ window.PfAutosave = (function ($) {
     }
 
     async function intentarGuardar() {
+      detenerCuentaRegresiva();
       if (!sucio || enVuelo || sesionCerrada) {
+        pintarIndicador('');
         return;
       }
       const tituloEl = form.querySelector('[name="titulo"]');
       if (tituloEl && tituloEl.value.trim() === '') {
+        pintarIndicador('');
         return; // nada útil que autoguardar todavía
       }
       if (opciones.requiereIdExistente) {
         const idEl = form.querySelector(opciones.campoId || 'input[name="id"]');
         if (!idEl || Number(idEl.value) === 0) {
+          pintarIndicador('');
           return; // este editor no crea el registro por autoguardado, solo lo actualiza una vez ya existe
         }
+      }
+      // Si se acaba de pegar una imagen, la subida real todavía puede estar
+      // en curso (el matcher quita el base64 de inmediato pero sube e
+      // inserta la URL de forma asíncrona) — autoguardar justo en ese hueco
+      // mandaría el contenido sin la imagen. Se reintenta en el siguiente
+      // "text-change" (la propia inserción de la imagen ya dispara uno).
+      if ((opciones.quills || []).some(function (q) { return q.pfSubidasPendientes > 0; })) {
+        pintarIndicador('<span class="text-muted">Esperando imagen…</span>');
+        sucio = true;
+        return;
       }
       if (opciones.antesDeGuardar) {
         opciones.antesDeGuardar();
@@ -59,6 +99,7 @@ window.PfAutosave = (function ($) {
 
       sucio = false;
       enVuelo = true;
+      pintarIndicador(SPINNER_HTML);
       const datos = new FormData(form);
       datos.set(opciones.campoBandera, opciones.valorBandera);
 
@@ -78,6 +119,7 @@ window.PfAutosave = (function ($) {
         // session_check.php antes de decidir: si sigue con sesión, no se
         // navega a ningún lado, solo se reintenta en el siguiente cambio.
         if (res.redirected) {
+          pintarIndicador('');
           avisarSesionCerrada();
           return;
         }
@@ -85,8 +127,10 @@ window.PfAutosave = (function ($) {
           const sigueConSesion = await verificarSesionSigueActiva();
           if (sigueConSesion) {
             sucio = true; // se reintenta con el próximo cambio, sin interrumpir al admin
+            pintarIndicador('');
             return;
           }
+          pintarIndicador('');
           avisarSesionCerrada();
           return;
         }
@@ -96,11 +140,16 @@ window.PfAutosave = (function ($) {
             opciones.onGuardadoOk(data);
           }
           $.notify('Borrador guardado automáticamente.', { className: 'success', position: 'top right', autoHideDelay: 2000 });
+          pintarIndicador('<span class="text-success"><i class="bi bi-check-lg"></i> Guardado</span>');
+          setTimeout(function () { pintarIndicador(''); }, 2000);
+        } else {
+          pintarIndicador('');
         }
         // Errores de validación (ej. título vacío, ya filtrado arriba) se
         // ignoran en silencio — no se interrumpe al admin mientras escribe.
       } catch (e) {
         sucio = true; // error de conexión — se reintenta en el próximo cambio detectado
+        pintarIndicador('');
       } finally {
         enVuelo = false;
       }

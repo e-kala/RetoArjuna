@@ -47,13 +47,23 @@ if ($item['es_fisico'] && $direccionEnvio === '') {
 $montoUnitario = $item['precio_final'];
 $montoFinal = $montoUnitario * $cantidad;
 
+// Pagos en ventanilla (OXXO) — ver oxxo_habilitado_para_usuario_actual() en
+// stripe_helper.php: mientras esté en construcción, solo quien tiene el
+// flag ve el Payment Element ofrecer OXXO (automatic_payment_methods deja
+// que Stripe decida qué métodos mostrar según lo habilitado en el
+// Dashboard); cualquier otro usuario sigue viendo únicamente tarjeta,
+// exactamente como hasta ahora (payment_method_types fijo a 'card').
+$camposMetodoPago = oxxo_habilitado_para_usuario_actual()
+    ? ['automatic_payment_methods' => ['enabled' => 'true']]
+    : ['payment_method_types' => ['card']];
+
 $ch = curl_init('https://api.stripe.com/v1/payment_intents');
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_USERPWD => stripe_secret_key_activa() . ':',
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 15,
-    CURLOPT_POSTFIELDS => http_build_query([
+    CURLOPT_POSTFIELDS => http_build_query(array_merge([
         'amount' => (int) round($montoFinal * 100),
         'currency' => 'mxn',
         'description' => ucfirst($item['tipo']) . ': ' . $item['titulo'],
@@ -62,7 +72,7 @@ curl_setopt_array($ch, [
             'tipo' => $item['tipo'],
             'item_id' => $item['id'],
         ],
-    ]),
+    ], $camposMetodoPago)),
 ]);
 $respuesta = curl_exec($ch);
 $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);

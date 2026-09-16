@@ -4,13 +4,12 @@
 // login nativo/Google) y tiempo de inactividad calculado. Ordenado por más
 // inactivo primero, para que sea fácil detectar cuentas dormidas.
 require_once __DIR__ . '/../../backend/auth.php';
+require_once __DIR__ . '/_filtro_tipo_usuario.php';
 require_role('admin');
 
-$tipo = $_GET['tipo'] ?? 'todos';
-if (!in_array($tipo, ['todos', 'reales', 'prueba'], true)) {
-    $tipo = 'todos';
-}
-$condicion = $tipo === 'reales' ? 'WHERE es_prueba = 0' : ($tipo === 'prueba' ? 'WHERE es_prueba = 1' : '');
+$tipo = pf_tipo_usuario_actual();
+$filtroTipoUsuarioSql = pf_filtro_tipo_usuario_sql($tipo, 'usuarios_perfil');
+$condicion = $filtroTipoUsuarioSql ? "WHERE {$filtroTipoUsuarioSql}" : '';
 
 $usuarios = $conn->query(
     "SELECT id, username_cache, email_cache, rol, es_prueba, created_at, ultimo_login
@@ -39,11 +38,7 @@ include __DIR__ . '/_header.php';
   cualquier cuenta que diga "Nunca" pudo haber usado la plataforma antes, solo que fue antes de que existiera este
   contador; a partir de ahora sí queda registrado en cada inicio de sesión.
 </p>
-<div class="btn-group mb-3" role="group">
-  <a href="?tipo=todos" class="btn btn-sm <?= $tipo === 'todos' ? 'btn-dark' : 'btn-outline-dark' ?>">Todos</a>
-  <a href="?tipo=reales" class="btn btn-sm <?= $tipo === 'reales' ? 'btn-dark' : 'btn-outline-dark' ?>">Reales</a>
-  <a href="?tipo=prueba" class="btn btn-sm <?= $tipo === 'prueba' ? 'btn-dark' : 'btn-outline-dark' ?>">Prueba</a>
-</div>
+<?= pf_filtro_tipo_usuario_botones($tipo, 'inactividad.php') ?>
 <div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Registrado</th><th>Última sesión</th><th>Inactividad</th></tr></thead>

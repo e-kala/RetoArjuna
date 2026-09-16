@@ -251,7 +251,7 @@ $productosDestacados = $conn->query(
       <div class="p-5 rounded-4 text-center text-white" style="background:#1a1a1a;">
         <h2 class="fw-bold">¿Buscas el próximo Reto Arjuna?</h2>
         <p class="mb-4" style="opacity:.75;">Entrenamiento en vivo de 10 días para sostener lo más importante enmedio del caos.</p>
-        <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="reto-arjuna.html">Ver el programa</a>
+        <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=proximo_evento">Ver el programa</a>
       </div>
     </div>
   </section>

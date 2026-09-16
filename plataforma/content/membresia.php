@@ -44,7 +44,18 @@ if (!$usuario) {
 
 $resultadoCheckout = $_GET['suscripcion'] ?? '';
 if ($resultadoCheckout === '' && isset($_GET['payment_intent'])) {
-    $resultadoCheckout = ($_GET['redirect_status'] ?? '') === 'succeeded' ? 'exito' : 'cancelada';
+    $redirectStatus = $_GET['redirect_status'] ?? '';
+    // 'processing' es el retorno normal de un voucher OXXO recién generado
+    // (todavía sin pagar) — no es un error, así que no cae a 'cancelada'.
+    // $suscripcionOxxoPendiente/$voucherOxxoPendiente (más abajo) son los
+    // que de verdad deciden qué mostrar en ese caso; aquí solo se evita el
+    // mensaje de "no se completó" que confundiría al usuario justo cuando
+    // acaba de generar su voucher correctamente.
+    $resultadoCheckout = match ($redirectStatus) {
+        'succeeded' => 'exito',
+        'processing' => 'voucher_generado',
+        default => 'cancelada',
+    };
 }
 $stripeListo = config_esta_lista(STRIPE_PUBLISHABLE_KEY) && config_esta_lista(STRIPE_SECRET_KEY);
 $publishableKeyActiva = stripe_publishable_key_activa();
@@ -119,24 +130,54 @@ if ($resultadoCheckout === 'exito' && $usuario && !$esMiembro) {
     }
 }
 
-// Solo una transferencia pendiente bloquea el flujo de compra (mensaje "ya
+// Una transferencia pendiente bloquea el flujo de compra (mensaje "ya
 // registramos tu pago, espera confirmación") — una suscripción de Stripe
 // pendiente (creada pero nunca confirmada con el Payment Element, ej. si el
 // usuario cerró la pestaña a medias) NO debe bloquear nada: simplemente deja
 // que intente de nuevo con el botón normal. Esa fila vieja se descarta sola
 // (Stripe expira la factura a las 23h) o un admin la limpia desde
 // panel/admin/membresias.php.
+// oxxo_recurrente pendiente se trata aparte (ver $suscripcionOxxoPendiente
+// más abajo) porque, a diferencia de transferencia, sí tiene un voucher
+// concreto que mostrar/pagar — no basta el mensaje genérico de "espera
+// confirmación".
 $transferenciaPendiente = null;
+$suscripcionOxxoPendiente = null;
 if ($usuario && !$esMiembro && $membresia) {
     $usuarioIdActual = (int) $usuario['id'];
     $membresiaIdActual = (int) $membresia['id'];
     $stmt = $conn->prepare(
-        "SELECT id FROM membresia_suscripciones WHERE usuario_id = ? AND membresia_id = ? AND estado = 'pendiente' AND metodo <> 'stripe' LIMIT 1"
+        "SELECT id FROM membresia_suscripciones WHERE usuario_id = ? AND membresia_id = ? AND estado = 'pendiente' AND metodo = 'transferencia' LIMIT 1"
     );
     $stmt->bind_param('ii', $usuarioIdActual, $membresiaIdActual);
     $stmt->execute();
     $transferenciaPendiente = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    $stmt = $conn->prepare(
+        "SELECT id, modo FROM membresia_suscripciones WHERE usuario_id = ? AND membresia_id = ? AND estado = 'pendiente' AND metodo = 'oxxo_recurrente' LIMIT 1"
+    );
+    $stmt->bind_param('ii', $usuarioIdActual, $membresiaIdActual);
+    $stmt->execute();
+    $suscripcionOxxoPendiente = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
+
+$membresiaOxxoVisible = membresia_oxxo_visible_para_usuario_actual();
+
+$voucherOxxoPendiente = null;
+if ($suscripcionOxxoPendiente) {
+    require_once __DIR__ . '/../backend/pagos/membresia_oxxo_helper.php';
+
+    // Al volver de confirmar el Payment Element con redirect_status=processing,
+    // Stripe ya generó next_action.oxxo_display_details pero nadie lo ha
+    // guardado todavía — se completa aquí mismo (síncrono, sin depender del
+    // webhook, que puede no estar configurado en local o tardar) usando el
+    // mismo patrón que backend/pagos/checkout.php.
+    if ($resultadoCheckout === 'voucher_generado' && isset($_GET['payment_intent'])) {
+        membresia_oxxo_completar_datos_voucher($conn, (string) $_GET['payment_intent'], $suscripcionOxxoPendiente['modo']);
+    }
+    $voucherOxxoPendiente = membresia_oxxo_voucher_pendiente($conn, (int) $suscripcionOxxoPendiente['id']);
 }
 
 // Motor de ofertas (checklist.txt OF01-OF10) — promoción pública/cupón
@@ -144,7 +185,7 @@ if ($usuario && !$esMiembro && $membresia) {
 // incluido_membresia/solo_miembros/descuento_miembro_pct no tienen sentido
 // para la membresía misma, se pasan en false/null a propósito.
 $oferta = null;
-if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
+if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscripcionOxxoPendiente) {
     $ofertaItem = [
         'id' => $membresia['id'],
         'precio' => (float) $membresia['precio'],
@@ -186,6 +227,8 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
       $.notify(<?= json_encode($mensajeToastMembresia) ?>, { className: 'success', position: 'top right', autoHideDelay: 4000 });
     });
   </script>
+<?php elseif ($resultadoCheckout === 'voucher_generado'): ?>
+  <div class="pf-container"><div class="alert alert-success">🎫 ¡Listo! Tu voucher OXXO se generó — abajo tienes el código para pagarlo en tienda.</div></div>
 <?php elseif ($resultadoCheckout === 'cancelada'): ?>
   <div class="pf-container"><div class="alert alert-warning">No se completó la suscripción. Puedes intentarlo de nuevo cuando quieras.</div></div>
 <?php endif; ?>
@@ -259,10 +302,35 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
           <p style="text-align:center;"><a class="pf-btn pf-btn-primary pf-btn-lg" href="?action=registro<?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>">Regístrate para suscribirte</a></p>
         <?php elseif ($transferenciaPendiente): ?>
           <div class="alert alert-warning mb-0">Registramos tu transferencia — en cuanto confirmemos el pago tu membresía queda activa. Si quieres, envía también tu comprobante por WhatsApp para agilizarlo.</div>
+        <?php elseif ($suscripcionOxxoPendiente): ?>
+          <?php if ($voucherOxxoPendiente): ?>
+            <div class="card p-3 text-center" style="max-width:420px;margin:0 auto;">
+              <span class="pf-eyebrow">Voucher generado</span>
+              <h3 class="h6 mt-2 mb-2">Paga en tienda para activar tu membresía</h3>
+              <p class="text-muted small">Lleva este código a cualquier OXXO y paga en efectivo. En cuanto se registre el pago, tu membresía se activa automáticamente — te avisamos por correo y en tu panel.</p>
+              <?php if ($voucherOxxoPendiente['numero']): ?>
+                <div class="pf-checkout-precio-box" style="background:rgba(247,147,30,0.14);border:1px solid rgba(247,147,30,0.4);border-radius:16px;padding:14px;">
+                  <div class="text-muted small mb-1">Número de referencia</div>
+                  <div style="font-size:16px;font-weight:800;letter-spacing:1px;word-break:break-all;color:var(--pf-accent);"><?= htmlspecialchars($voucherOxxoPendiente['numero']) ?></div>
+                </div>
+              <?php endif; ?>
+              <?php if ($voucherOxxoPendiente['vence_en']): ?>
+                <p class="text-muted small mt-2">Vence: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($voucherOxxoPendiente['vence_en']))) ?></p>
+              <?php endif; ?>
+              <?php if ($voucherOxxoPendiente['url_voucher']): ?>
+                <a href="<?= htmlspecialchars($voucherOxxoPendiente['url_voucher']) ?>" target="_blank" class="pf-btn pf-btn-primary w-100 mt-2">Ver/imprimir comprobante</a>
+              <?php endif; ?>
+            </div>
+          <?php else: ?>
+            <div class="alert alert-warning mb-0">Estamos generando tu voucher OXXO — recarga la página en unos segundos. Si el mensaje persiste, contáctanos.</div>
+          <?php endif; ?>
         <?php else: ?>
           <ul class="nav nav-tabs justify-content-center mb-3" style="border-color:rgba(255,255,255,.2);">
             <?php if ($stripeListo): ?>
               <li class="nav-item" style="background: #bcb04f;"><button class="nav-link active text-dark" data-bs-toggle="tab" data-bs-target="#tab-tarjeta" type="button">Tarjeta</button></li>
+              <?php if ($membresiaOxxoVisible): ?>
+                <li class="nav-item" style="background: #bcb04f;"><button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-oxxo" type="button">OXXO</button></li>
+              <?php endif; ?>
             <?php endif; ?>
             <li class="nav-item" style="background: #bcb04f;"><button class="nav-link <?= $stripeListo ? 'text-dark' : 'active text-dark' ?>" data-bs-toggle="tab" data-bs-target="#tab-transferencia" type="button">Transferencia</button></li>
           </ul>
@@ -287,6 +355,17 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
                 <span><i class="bi bi-x-circle" style="color:var(--pf-accent);"></i> Cancela cuando quieras</span>
               </div>
             </div>
+            <?php if ($membresiaOxxoVisible): ?>
+            <div class="tab-pane fade text-center" id="tab-oxxo">
+              <p class="small" style="color:rgba(255,255,255,.85);">
+                Paga en efectivo en cualquier OXXO. A diferencia de tarjeta, <strong>el cobro no es automático</strong> —
+                cada mes te generamos un voucher nuevo (avisándote por correo y en tu panel) que debes pagar antes de
+                que venza para mantener tu acceso.
+              </p>
+              <button id="btnSuscribirseOxxo" class="pf-btn pf-btn-primary pf-btn-lg" data-membresia-id="<?= (int) $membresia['id'] ?>">Generar voucher OXXO</button>
+              <div id="suscribirOxxoMsg" class="mt-3" style="color:#fff;"></div>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
             <div class="tab-pane fade <?= $stripeListo ? '' : 'show active' ?>" id="tab-transferencia">
               <p style="color:rgba(255,255,255,.85);">Realiza tu depósito o transferencia a:</p>
@@ -321,7 +400,7 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
   </section>
 <?php endif; ?>
 
-<?php if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente): ?>
+<?php if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscripcionOxxoPendiente): ?>
 <?php if ($stripeListo): ?><script src="https://js.stripe.com/v3/"></script><?php endif; ?>
 <script>
   function codigoCuponMembresia() {
@@ -380,6 +459,71 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente) {
       this.innerHTML = textoOriginal;
     }
   });
+
+  // Membresía por OXXO — genera el voucher del primer mes y lo muestra con
+  // el Payment Element (mismo componente que tarjeta, pero forzado a solo
+  // 'oxxo' porque esta pestaña es exclusiva para ese método). Al confirmar,
+  // Stripe redirige de vuelta a esta misma página con redirect_status=processing
+  // (ver el bloque PHP de arriba: $resultadoCheckout la trata igual que
+  // 'exito' visualmente, y $suscripcionOxxoPendiente + $voucherOxxoPendiente
+  // se encargan de mostrar el voucher en la siguiente carga).
+  const btnOxxo = document.getElementById('btnSuscribirseOxxo');
+  if (btnOxxo) {
+    btnOxxo.addEventListener('click', async function () {
+      const textoOriginal = this.innerHTML;
+      this.disabled = true;
+      this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generando voucher...';
+      const msg = document.getElementById('suscribirOxxoMsg');
+      msg.textContent = '';
+      try {
+        const res = await fetch('backend/pagos/membresia_oxxo_iniciar.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            membresia_id: this.dataset.membresiaId,
+            csrf_token: <?= json_encode(csrf_token()) ?>,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          msg.textContent = data.message || 'No se pudo generar el voucher.';
+          this.disabled = false;
+          this.innerHTML = textoOriginal;
+          return;
+        }
+        const elementosOxxo = stripe.elements({ clientSecret: data.client_secret });
+        const paymentElementOxxo = elementosOxxo.create('payment', {
+          paymentMethodOrder: ['oxxo'],
+          defaultValues: { billingDetails: { email: <?= json_encode($usuario['email'] ?? '') ?> } },
+        });
+        const contenedor = document.createElement('div');
+        contenedor.className = 'mb-3 text-start';
+        this.insertAdjacentElement('afterend', contenedor);
+        paymentElementOxxo.mount(contenedor);
+        this.classList.add('d-none');
+
+        const btnConfirmar = document.createElement('button');
+        btnConfirmar.className = 'pf-btn pf-btn-primary pf-btn-lg w-100 mt-2';
+        btnConfirmar.textContent = 'Confirmar y generar voucher';
+        contenedor.insertAdjacentElement('afterend', btnConfirmar);
+        btnConfirmar.addEventListener('click', async function () {
+          this.disabled = true;
+          const { error } = await stripe.confirmPayment({
+            elements: elementosOxxo,
+            confirmParams: { return_url: window.location.href },
+          });
+          if (error) {
+            msg.textContent = error.message;
+            this.disabled = false;
+          }
+        });
+      } catch (e) {
+        msg.textContent = 'Error de conexión. Intenta de nuevo.';
+        this.disabled = false;
+        this.innerHTML = textoOriginal;
+      }
+    });
+  }
 
   document.getElementById('btnConfirmarSuscripcion').addEventListener('click', async function () {
     if (!elements) return;

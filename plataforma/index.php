@@ -67,6 +67,9 @@ ob_start();
       case 'eventos':
         include 'content/eventos_catalogo.php';
         break;
+      case 'proximo_evento':
+        include 'content/proximo_evento.php';
+        break;
       case 'evento':
         include 'content/evento_detalle.php';
         break;

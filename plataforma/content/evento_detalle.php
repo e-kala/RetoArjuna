@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/../backend/ofertas.php';
 $slug = $_GET['slug'] ?? '';
-$stmt = $conn->prepare('SELECT * FROM eventos WHERE slug = ? AND activo = 1 LIMIT 1');
+// Sin filtrar por activo aquí — un admin necesita poder ver un evento
+// oculto (ver el guard de abajo, justo después de saber si es admin).
+$stmt = $conn->prepare('SELECT * FROM eventos WHERE slug = ? LIMIT 1');
 $stmt->bind_param('s', $slug);
 $stmt->execute();
 $evento = $stmt->get_result()->fetch_assoc();
@@ -14,6 +16,14 @@ if (!$evento) {
 
 $eventoId = (int) $evento['id'];
 $usuario = current_user();
+$esAdminEvento = $usuario && $usuario['rol'] === 'admin';
+
+// Un evento oculto (activo=0) es igual de invisible que "no existe" para
+// cualquiera que no sea admin — un admin sí lo ve, con un aviso.
+if ((int) $evento['activo'] !== 1 && !$esAdminEvento) {
+    echo '<div class="container" style="margin-top:143px;"><p>Evento no encontrado.</p></div>';
+    return;
+}
 $inscrito = $usuario ? usuario_esta_inscrito_evento($usuario['id'], $eventoId) : false;
 // Vuelta de checkout.php tras un pago con tarjeta confirmado (ver
 // destino_tras_pago()) — a diferencia de curso_detalle.php (que ya tenía su
@@ -120,7 +130,6 @@ if ($evento['cupo_maximo'] !== null) {
 // Lecciones asociadas (ver schema_lecciones_compartidas.sql) — un evento puede
 // tener contenido propio, o haberlo heredado de un curso convertido a evento.
 // Un borrador nunca se muestra a un alumno — un admin sí los ve, marcados aparte.
-$esAdminEvento = $usuario && $usuario['rol'] === 'admin';
 $stmt = $conn->prepare($esAdminEvento
     ? 'SELECT * FROM lecciones WHERE evento_id = ? ORDER BY orden'
     : 'SELECT * FROM lecciones WHERE evento_id = ? AND estado_publicacion = "publicado" ORDER BY orden');
@@ -161,12 +170,15 @@ $puedeCalificar = $usuario && usuario_puede_calificar_evento($usuario['id'], $ev
 $miCalificacion = $usuario ? obtener_calificacion_usuario($usuario['id'], null, $eventoId) : null;
 
 // Prestaciones y regalos — ver curso_detalle.php para el criterio completo.
-$regaloConfig = $inscrito ? regalo_configuracion_obtener(null, $eventoId) : null;
-$regaloEstado = $regaloConfig && $usuario ? regalo_estado_usuario($regaloConfig, $usuario['id']) : null;
+$regaloConfig = $inscrito ? regalo_configuracion_publica(null, $eventoId) : null;
+$regaloOpciones = $regaloConfig && $usuario ? regalo_opciones_usuario($regaloConfig, $usuario['id']) : [];
 $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['id'], $regaloConfig['id']) : [];
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=eventos" class="d-inline-block mb-3">&larr; Volver a eventos</a>
+  <?php if ((int) $evento['activo'] !== 1): ?>
+    <div class="alert alert-warning">Estás viendo este evento como oculto — no aparece en el catálogo ni pueden verlo los alumnos.</div>
+  <?php endif; ?>
   <div class="row">
     <div class="col-md-6 mb-3" id="eventoMedia">
       <?php if ($esPasado && $evento['video_grabado_url'] && $tieneAccesoLecciones): ?>
@@ -215,6 +227,7 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     </p>
   <?php endif; ?>
   <div class="pf-contenido-html"><?= (string) $evento['descripcion'] ?></div>
+  <?php if (!$inscrito): ?>
   <p>
     <?php if ($accesoGratisPorMembresia || $soloMiembros): ?>
       <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido en tu membresía</span>
@@ -231,48 +244,61 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
       <?php endif; ?>
     <?php endif; ?>
   </p>
+  <?php endif; ?>
 
   <?php if ($evento['foro_url']): ?>
     <a href="<?= htmlspecialchars(navbar_href($evento['foro_url'], '../')) ?>" target="_blank" class="btn btn-outline-secondary btn-sm mb-3">Discutir en el foro</a>
   <?php endif; ?>
 
-  <?php if ($regaloConfig): ?>
-    <?php
-    $regaloModalidad = (float) $regaloConfig['descuento_pct'] >= 100
-        ? 'acceso'
-        : ((float) $regaloConfig['descuento_pct']) . '% de descuento';
-    ?>
-    <div class="card p-3 mb-3" style="max-width:480px;background:#fff8ec;border-color:#f7931e;">
-      <h2 class="h6 mb-1">🎁 Regalar <?= htmlspecialchars($regaloModalidad) ?> — <?= (int) $regaloEstado['disponibles'] ?> disponible<?= (int) $regaloEstado['disponibles'] === 1 ? '' : 's' ?></h2>
-      <?php if ($regaloEstado['puede_generar']): ?>
-        <button id="btnGenerarRegalo" class="btn btn-sm mt-1" style="background:#f7931e;color:#fff;max-width:220px;">Generar enlace de regalo</button>
-        <div id="generarRegaloMsg" class="form-text mt-1"></div>
-      <?php elseif ($regaloEstado['motivo_bloqueo']): ?>
-        <p class="text-muted small mb-0"><?= htmlspecialchars($regaloEstado['motivo_bloqueo']) ?></p>
-      <?php endif; ?>
-      <?php if ($regaloMisEnlaces): ?>
-        <ul class="list-group list-group-flush mt-2" id="listaRegalos">
-          <?php foreach ($regaloMisEnlaces as $r): ?>
-            <?php
-            $regaloBadge = match ($r['estado']) {
-                'disponible' => '<span class="badge bg-secondary">Disponible</span>',
-                'reclamado' => '<span class="badge" style="background:#f7931e;">Reclamado por ' . htmlspecialchars((string) $r['recibe_username']) . '</span>',
-                'aceptado' => '<span class="badge bg-success">Aceptado por ' . htmlspecialchars((string) $r['recibe_username']) . '</span>',
-                'revocado' => '<span class="badge bg-dark">Revocado</span>',
-                default => '',
-            };
-            ?>
-            <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2">
-              <?php if ($r['estado'] === 'disponible'): ?>
-                <code class="small text-truncate"><?= htmlspecialchars(BASE_URL . '/index.php?action=regalo&codigo=' . $r['codigo']) ?></code>
-              <?php else: ?>
-                <span class="small text-muted">Código <?= htmlspecialchars($r['codigo']) ?></span>
-              <?php endif; ?>
-              <?= $regaloBadge ?>
-            </li>
-          <?php endforeach; ?>
-        </ul>
-      <?php endif; ?>
+  <?php if ($regaloConfig && $regaloOpciones): ?>
+    <button type="button" class="btn btn-sm mb-3" style="background:#fff8ec;border:1px solid #f7931e;color:#a35b00;" data-bs-toggle="modal" data-bs-target="#modalRegalarEvento">🎁 Regalar este evento</button>
+
+    <div class="modal fade" id="modalRegalarEvento" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="h6 modal-title mb-0">🎁 Regalar este evento</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <?php foreach ($regaloOpciones as $op): ?>
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                <span class="small"><?= $op['tipo'] === 'acceso' ? 'Acceso completo' : ((float) $op['descuento_pct']) . '% de descuento' ?> — <?= (int) $op['estado']['disponibles'] ?> disponible<?= (int) $op['estado']['disponibles'] === 1 ? '' : 's' ?></span>
+                <?php if ($op['estado']['puede_generar']): ?>
+                  <button type="button" class="btn btn-sm pf-btn-generar-regalo" data-tipo-descuento-id="<?= (int) ($op['tipo_descuento_id'] ?? 0) ?>" style="background:#f7931e;color:#fff;">Generar enlace</button>
+                <?php else: ?>
+                  <span class="text-muted small"><?= htmlspecialchars($op['estado']['motivo_bloqueo'] ?? 'Ya generaste el máximo de enlaces.') ?></span>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+            <div id="generarRegaloMsg" class="form-text mt-1"></div>
+            <?php if ($regaloMisEnlaces): ?>
+              <ul class="list-group list-group-flush mt-2" id="listaRegalos">
+                <?php foreach ($regaloMisEnlaces as $r): ?>
+                  <?php
+                  $regaloBadge = match ($r['estado']) {
+                      'disponible' => '<span class="badge bg-secondary">Disponible</span>',
+                      'reclamado' => '<span class="badge" style="background:#f7931e;">Reclamado por ' . htmlspecialchars((string) $r['recibe_username']) . '</span>',
+                      'aceptado' => '<span class="badge bg-success">Aceptado por ' . htmlspecialchars((string) $r['recibe_username']) . '</span>',
+                      'revocado' => '<span class="badge bg-dark">Revocado</span>',
+                      default => '',
+                  };
+                  ?>
+                  <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2">
+                    <span class="small text-muted"><?= $r['tipo_descuento_id'] === null ? 'Acceso completo' : ((float) $r['tipo_descuento_pct']) . '%' ?></span>
+                    <?php if ($r['estado'] === 'disponible'): ?>
+                      <button type="button" class="btn btn-sm btn-outline-secondary pf-btn-copiar-regalo" data-enlace="<?= htmlspecialchars(SITE_URL . '/index.php?action=regalo&codigo=' . $r['codigo'], ENT_QUOTES) ?>"><i class="bi bi-clipboard"></i> Copiar enlace</button>
+                    <?php else: ?>
+                      <span class="small text-muted">Código <?= htmlspecialchars($r['codigo']) ?></span>
+                    <?php endif; ?>
+                    <?= $regaloBadge ?>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
     </div>
   <?php endif; ?>
 
@@ -290,9 +316,14 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     </div>
   <?php endif; ?>
 
-  <div class="card p-3" style="max-width:480px;" id="eventoCTA">
+  <div<?= $inscrito ? '' : ' class="card p-3" style="max-width:480px;"' ?> id="eventoCTA">
     <?php if ($inscrito): ?>
-      <p class="mb-0 text-success">✔ Ya estás inscrito en este evento.<?= $esPasado && $evento['video_grabado_url'] ? ' Mira la grabación arriba.' : '' ?></p>
+      <?php // Ya adquirido: ni tarjeta de precio ni aviso "ya estás inscrito" —
+      // el propio video/lecciones desbloqueadas más abajo ya son la señal de
+      // que el evento está adquirido. El <div> vacío se conserva (en vez de
+      // quitarlo del todo) para que pfLiberarContenidoEvento() siga
+      // encontrando el mismo id al reemplazar este bloque tras inscribirse
+      // sin recargar la página. ?>
     <?php elseif (!$esPasado && !$cupoDisponible): ?>
       <p class="mb-0 text-muted">Ya no hay cupo disponible para este evento.</p>
     <?php elseif (!$usuario): ?>
@@ -449,31 +480,106 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
 </script>
 <?php endif; ?>
 
-<?php if ($regaloConfig && $regaloEstado && $regaloEstado['puede_generar']): ?>
+<?php if ($regaloConfig && $regaloOpciones): ?>
 <script>
-  document.getElementById('btnGenerarRegalo').addEventListener('click', async function () {
-    this.disabled = true;
-    const msg = document.getElementById('generarRegaloMsg');
-    const res = await fetch('backend/regalo_generar.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ evento_id: <?= $eventoId ?>, csrf_token: <?= json_encode(csrf_token()) ?> }),
-    }).catch(function () { return null; });
-    if (!res) {
-      msg.textContent = 'No se pudo generar el enlace, intenta de nuevo.';
-      msg.className = 'form-text text-danger mt-1';
-      this.disabled = false;
-      return;
+  (function () {
+    const listaSelector = '#listaRegalos';
+    function etiquetaOpcion(tipoDescuentoId, descuentoPct) {
+      return tipoDescuentoId === '0' || !tipoDescuentoId ? 'Acceso completo' : descuentoPct + '%';
     }
-    const data = await res.json();
-    if (data.success) {
-      window.location.reload();
-    } else {
-      msg.textContent = data.message || 'No se pudo generar el enlace.';
-      msg.className = 'form-text text-danger mt-1';
-      this.disabled = false;
+    function nuevoItemRegalo(codigo, url, etiqueta) {
+      const li = document.createElement('li');
+      li.className = 'list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2';
+      li.innerHTML = '<span class="small text-muted"></span>'
+        + '<button type="button" class="btn btn-sm btn-outline-secondary pf-btn-copiar-regalo"><i class="bi bi-clipboard"></i> Copiar enlace</button>'
+        + '<span class="badge bg-secondary">Disponible</span>';
+      li.querySelector('.small.text-muted').textContent = etiqueta;
+      const boton = li.querySelector('.pf-btn-copiar-regalo');
+      boton.dataset.enlace = url;
+      return li;
     }
-  });
+
+    // Delegado (no atado por botón individual): así el botón "Copiar enlace"
+    // de un regalo recién insertado por JS también responde, sin tener que
+    // volver a recorrer querySelectorAll tras cada generación.
+    document.addEventListener('click', async function (e) {
+      const boton = e.target.closest('.pf-btn-copiar-regalo');
+      if (!boton) return;
+      try {
+        await navigator.clipboard.writeText(boton.dataset.enlace);
+        $.notify('Enlace copiado al portapapeles.', { className: 'success', position: 'top right', autoHideDelay: 2500 });
+      } catch (err) {
+        $.notify('No se pudo copiar el enlace.', { className: 'error', position: 'top right', autoHideDelay: 3000 });
+      }
+    });
+
+    document.addEventListener('click', async function (e) {
+      const boton = e.target.closest('.pf-btn-generar-regalo');
+      if (!boton) return;
+      boton.disabled = true;
+      const msg = document.getElementById('generarRegaloMsg');
+      const filaOpcion = boton.closest('.d-flex');
+      const spanEtiqueta = filaOpcion ? filaOpcion.querySelector('.small') : null;
+
+      const res = await fetch('backend/regalo_generar.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          evento_id: <?= $eventoId ?>,
+          tipo_descuento_id: boton.dataset.tipoDescuentoId,
+          csrf_token: <?= json_encode(csrf_token()) ?>,
+        }),
+      }).catch(function () { return null; });
+
+      if (!res) {
+        msg.textContent = 'No se pudo generar el enlace, intenta de nuevo.';
+        msg.className = 'form-text text-danger mt-1';
+        boton.disabled = false;
+        return;
+      }
+      const data = await res.json();
+      if (!data.success) {
+        msg.textContent = data.message || 'No se pudo generar el enlace.';
+        msg.className = 'form-text text-danger mt-1';
+        boton.disabled = false;
+        return;
+      }
+
+      msg.textContent = '';
+
+      // Resta 1 al contador "N disponible(s)" de esta fila (leído del propio
+      // texto, sin pedirle al servidor el límite exacto) — al llegar a 0,
+      // el botón se reemplaza por el mismo aviso que ya usa el HTML inicial
+      // cuando el admin puso un tope de enlaces por usuario.
+      let etiquetaOp = '';
+      if (spanEtiqueta) {
+        const match = spanEtiqueta.textContent.match(/^(.*)—\s*(\d+)\s*disponible/);
+        etiquetaOp = match ? match[1].trim() : spanEtiqueta.textContent.trim();
+        if (match) {
+          const restantes = Math.max(0, parseInt(match[2], 10) - 1);
+          spanEtiqueta.textContent = match[1].trim() + ' — ' + restantes + ' disponible' + (restantes === 1 ? '' : 's');
+          if (restantes === 0) {
+            boton.outerHTML = '<span class="text-muted small">Ya generaste el máximo de enlaces.</span>';
+          } else {
+            boton.disabled = false;
+          }
+        } else {
+          boton.disabled = false;
+        }
+      } else {
+        boton.disabled = false;
+      }
+
+      let lista = document.querySelector(listaSelector);
+      if (!lista) {
+        lista = document.createElement('ul');
+        lista.className = 'list-group list-group-flush mt-2';
+        lista.id = 'listaRegalos';
+        msg.insertAdjacentElement('afterend', lista);
+      }
+      lista.appendChild(nuevoItemRegalo(data.codigo, data.url, etiquetaOp));
+    });
+  })();
 </script>
 <?php endif; ?>
 

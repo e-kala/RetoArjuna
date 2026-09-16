@@ -287,7 +287,10 @@ require __DIR__ . '/inc/header.php';
           <label for="editorRespuesta" class="form-label fw-bold"><i class="bi bi-reply-fill"></i> Responder</label>
           <div class="pf-forum-editor" id="editorRespuesta"></div>
         </div>
-        <button type="submit" class="btn fw-bold" style="background:var(--pf-accent);color:#fff;">Publicar respuesta</button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="submit" class="btn fw-bold" style="background:var(--pf-accent);color:#fff;">Publicar respuesta</button>
+          <button type="button" id="btnVistaPreviaRespuesta" class="btn btn-outline-secondary">Vista previa</button>
+        </div>
       </form>
     </div>
   </div>
@@ -298,7 +301,6 @@ require __DIR__ . '/inc/header.php';
 <script>
 const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
 const TEMA_ID = <?= (int) $tema['id'] ?>;
-const PF_QUILL_TOOLBAR = [['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'code-block'], ['link'], ['clean']];
 
 document.querySelectorAll('.pf-forum-like-btn').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -324,14 +326,24 @@ document.querySelectorAll('.pf-forum-like-btn').forEach(function (btn) {
 });
 
 <?php if ($usuarioActual && (!$tema['cerrado'] || $esAdmin)): ?>
-const quillRespuesta = new Quill('#editorRespuesta', {
-  theme: 'snow',
+const editorRespuesta = PfEditor.crear({
+  contenedor: '#editorRespuesta',
+  contexto: 'foro',
   placeholder: 'Escribe tu respuesta. Usa @usuario para mencionar a alguien.',
-  modules: { toolbar: PF_QUILL_TOOLBAR }
+  csrfToken: CSRF_TOKEN,
+  capacidades: { video: true, codeBlock: true },
+});
+const quillRespuesta = editorRespuesta.quill;
+const borradorRespuesta = PfEditor.conectarBorradorLocal(editorRespuesta, 'pf_borrador_respuesta_' + TEMA_ID, {});
+document.getElementById('btnVistaPreviaRespuesta').addEventListener('click', function () {
+  document.getElementById('vistaPreviaTitulo').classList.add('d-none');
+  document.getElementById('vistaPreviaContenido').innerHTML = editorRespuesta.sincronizar();
+  new bootstrap.Modal(document.getElementById('modalVistaPreviaForo')).show();
 });
 
 document.getElementById('responderForm').addEventListener('submit', function (e) {
   e.preventDefault();
+  if (editorRespuesta.bloquearSiHayCargasPendientes()) return;
   const $error = document.getElementById('responderError');
   $error.style.display = 'none';
 
@@ -340,7 +352,7 @@ document.getElementById('responderForm').addEventListener('submit', function (e)
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       tema_id: TEMA_ID,
-      contenido: quillRespuesta.root.innerHTML,
+      contenido: editorRespuesta.sincronizar(),
       csrf_token: CSRF_TOKEN
     })
   })
@@ -353,6 +365,7 @@ document.getElementById('responderForm').addEventListener('submit', function (e)
         // respeta el ancla que ya manda el backend para que la respuesta
         // recién publicada quede a la vista de inmediato, en vez de siempre
         // aterrizar arriba del todo.
+        borradorRespuesta.limpiar();
         window.location.href = data.redirect || window.location.href;
       } else {
         $error.textContent = data.message || 'No se pudo publicar la respuesta.';
@@ -387,15 +400,25 @@ function pfCancelarEdicion(prefijo) {
 <?php if ($puedeEditarTema): ?>
 // Quill no puede inicializarse correctamente dentro de un contenedor oculto
 // (display:none) — se crea la primera vez que se abre la edición, no antes.
-let quillEditarTema = null;
+let editorEditarTema = null;
+let borradorEditarTema = null;
 document.getElementById('btn-editar-tema').addEventListener('click', function () {
   pfActivarEdicion('tema');
-  if (!quillEditarTema) {
+  if (!editorEditarTema) {
     try {
-      quillEditarTema = new Quill('#editorEditarTema', { theme: 'snow', modules: { toolbar: PF_QUILL_TOOLBAR } });
-      quillEditarTema.root.innerHTML = document.getElementById('fuente-editar-tema').innerHTML;
+      editorEditarTema = PfEditor.crear({
+        contenedor: '#editorEditarTema',
+        contexto: 'foro',
+        csrfToken: CSRF_TOKEN,
+        contenidoInicialHtml: document.getElementById('fuente-editar-tema').innerHTML,
+        capacidades: { video: true, codeBlock: true },
+      });
+      borradorEditarTema = PfEditor.conectarBorradorLocal(editorEditarTema, 'pf_borrador_editar_tema_' + TEMA_ID, {
+        campoTitulo: document.getElementById('editar-tema-titulo'),
+        confirmarRestaurar: true
+      });
     } catch (e) {
-      // Antes esto fallaba en silencio: quillEditarTema se quedaba null y el
+      // Antes esto fallaba en silencio: editorEditarTema se quedaba null y el
       // error real de Quill nunca llegaba a verse — el usuario solo notaba
       // que "Guardar" tronaba después, sin pista de por qué. Ahora se avisa
       // aquí mismo, en el momento en que realmente ocurre.
@@ -407,12 +430,13 @@ document.getElementById('btn-editar-tema').addEventListener('click', function ()
 document.getElementById('cancelar-tema').addEventListener('click', function () { pfCancelarEdicion('tema'); });
 const categoriaLibreOriginal = document.getElementById('editar-tema-categoria-libre').value;
 document.getElementById('guardar-tema').addEventListener('click', function () {
-  if (!quillEditarTema) {
+  if (!editorEditarTema) {
     alert('El editor de texto no cargó correctamente. Da clic en "Cancelar" e "Editar" de nuevo antes de guardar.');
     return;
   }
+  if (editorEditarTema.bloquearSiHayCargasPendientes()) return;
   const titulo = document.getElementById('editar-tema-titulo').value;
-  const contenido = quillEditarTema.root.innerHTML;
+  const contenido = editorEditarTema.sincronizar();
   const categoriaLibreId = document.getElementById('editar-tema-categoria-libre').value;
   const categoriaLibreNueva = document.getElementById('editar-tema-categoria-libre-nueva').value;
   if (!categoriaLibreId && !categoriaLibreNueva.trim()) {
@@ -446,6 +470,7 @@ document.getElementById('guardar-tema').addEventListener('click', function () {
       // barra lateral) — más simple y confiable recargar en ese caso que
       // replicar toda esa lógica en JS; el resto de una edición normal
       // (título/contenido) sí se actualiza al instante, sin recargar.
+      if (borradorEditarTema) borradorEditarTema.limpiar();
       if (cursoEl || cambioCategoria) {
         window.location.href = 'tema.php?id=' + TEMA_ID + '&guardado=1';
         return;
@@ -463,15 +488,22 @@ document.getElementById('guardar-tema').addEventListener('click', function () {
 });
 <?php endif; ?>
 
-const quillsRespuestasEditar = {};
+const editoresRespuestasEditar = {};
+const borradoresRespuestasEditar = {};
 document.querySelectorAll('.btn-editar-respuesta').forEach(function (btn) {
   const id = btn.dataset.respuestaId;
   btn.addEventListener('click', function () {
     pfActivarEdicion('respuesta-' + id);
-    if (!quillsRespuestasEditar[id]) {
+    if (!editoresRespuestasEditar[id]) {
       try {
-        quillsRespuestasEditar[id] = new Quill('#editorEditarRespuesta-' + id, { theme: 'snow', modules: { toolbar: PF_QUILL_TOOLBAR } });
-        quillsRespuestasEditar[id].root.innerHTML = document.getElementById('fuente-editar-respuesta-' + id).innerHTML;
+        editoresRespuestasEditar[id] = PfEditor.crear({
+          contenedor: '#editorEditarRespuesta-' + id,
+          contexto: 'foro',
+          csrfToken: CSRF_TOKEN,
+          contenidoInicialHtml: document.getElementById('fuente-editar-respuesta-' + id).innerHTML,
+          capacidades: { video: true, codeBlock: true },
+        });
+        borradoresRespuestasEditar[id] = PfEditor.conectarBorradorLocal(editoresRespuestasEditar[id], 'pf_borrador_editar_respuesta_' + id, { confirmarRestaurar: true });
       } catch (e) {
         console.error('No se pudo inicializar el editor de texto:', e);
         alert('No se pudo cargar el editor de texto. Recarga la página e intenta de nuevo.');
@@ -485,11 +517,12 @@ document.querySelectorAll('.btn-cancelar-respuesta').forEach(function (btn) {
 document.querySelectorAll('.btn-guardar-respuesta').forEach(function (btn) {
   btn.addEventListener('click', function () {
     const id = btn.dataset.respuestaId;
-    if (!quillsRespuestasEditar[id]) {
+    if (!editoresRespuestasEditar[id]) {
       alert('El editor de texto no cargó correctamente. Da clic en "Cancelar" e "Editar" de nuevo antes de guardar.');
       return;
     }
-    const contenido = quillsRespuestasEditar[id].root.innerHTML;
+    if (editoresRespuestasEditar[id].bloquearSiHayCargasPendientes()) return;
+    const contenido = editoresRespuestasEditar[id].sincronizar();
     fetch('backend/editar_respuesta.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -501,6 +534,7 @@ document.querySelectorAll('.btn-guardar-respuesta').forEach(function (btn) {
           document.getElementById('cuerpo-respuesta-' + id).innerHTML = data.contenido_html;
           const btnHist = document.getElementById('btn-historial-respuesta-' + id);
           if (btnHist) btnHist.classList.remove('d-none');
+          if (borradoresRespuestasEditar[id]) borradoresRespuestasEditar[id].limpiar();
           pfCancelarEdicion('respuesta-' + id);
           pfMostrarToast('Respuesta actualizada correctamente');
         } else {
@@ -519,7 +553,7 @@ document.querySelectorAll('.btn-guardar-respuesta').forEach(function (btn) {
 // viene después en este mismo <script> (eliminar/cerrar/fijar tema, ver
 // quién dio like, eliminar respuesta — ninguno llegaba a registrar su
 // listener). Se crea de forma perezosa, mismo patrón que ya usan
-// quillEditarTema/quillsRespuestasEditar más arriba.
+// editorEditarTema/editoresRespuestasEditar más arriba.
 let historialModal = null;
 document.querySelectorAll('[data-historial-tipo]').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -676,5 +710,20 @@ document.querySelectorAll('.pf-forum-mod-actions button').forEach(function (btn)
 });
 <?php endif; ?>
 </script>
+
+<div class="modal fade" id="modalVistaPreviaForo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Vista previa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <h4 id="vistaPreviaTitulo" class="mb-3"></h4>
+        <div class="pf-forum-post-body" id="vistaPreviaContenido"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php require __DIR__ . '/inc/footer.php'; ?>

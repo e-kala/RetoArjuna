@@ -43,7 +43,54 @@ if ($modoWebhook === null) {
 }
 
 $evento = json_decode($payload, true);
-if (($evento['type'] ?? '') === 'payment_intent.succeeded') {
+if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['object']['metadata']['tipo'] ?? '') === 'membresia_oxxo') {
+    // Voucher OXXO de membresía pagado (alta inicial o renovación mensual —
+    // ver backend/pagos/membresia_oxxo_helper.php). Distinto del bloque de
+    // abajo (que es para pagos.curso/evento/producto): esta rama nunca toca
+    // la tabla `pagos`, solo membresia_vouchers_oxxo y
+    // membresia_suscripciones. Se resuelve aquí y no cae al bloque
+    // genérico de abajo (los metadata no se parecen en nada).
+    require_once __DIR__ . '/membresia_oxxo_helper.php';
+    $intentObj = $evento['data']['object'];
+    $intentId = (string) ($intentObj['id'] ?? '');
+    $suscripcionId = (int) ($intentObj['metadata']['suscripcion_id'] ?? 0);
+    $periodoFin = (string) ($intentObj['metadata']['periodo_fin'] ?? '');
+
+    $stmt = $conn->prepare("UPDATE membresia_vouchers_oxxo SET estado = 'pagado' WHERE payment_intent_id = ? AND estado <> 'pagado'");
+    $stmt->bind_param('s', $intentId);
+    $stmt->execute();
+    $afectadosVoucher = $stmt->affected_rows;
+    $stmt->close();
+
+    if ($afectadosVoucher > 0 && $suscripcionId && $periodoFin) {
+        $stmt = $conn->prepare(
+            "SELECT s.estado, s.usuario_id, u.email_cache, m.nombre AS membresia_nombre
+             FROM membresia_suscripciones s
+             JOIN usuarios_perfil u ON u.id = s.usuario_id
+             JOIN membresias m ON m.id = s.membresia_id
+             WHERE s.id = ? LIMIT 1"
+        );
+        $stmt->bind_param('i', $suscripcionId);
+        $stmt->execute();
+        $suscripcionPrevia = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($suscripcionPrevia) {
+            $eraPrimeraVez = $suscripcionPrevia['estado'] === 'pendiente';
+            $finDatetime = $periodoFin . ' 23:59:59';
+            $stmt = $conn->prepare(
+                "UPDATE membresia_suscripciones SET estado = 'activa', fecha_inicio = COALESCE(fecha_inicio, CURDATE()), periodo_actual_fin = ? WHERE id = ?"
+            );
+            $stmt->bind_param('si', $finDatetime, $suscripcionId);
+            $stmt->execute();
+            $stmt->close();
+
+            if ($eraPrimeraVez && $suscripcionPrevia['email_cache']) {
+                enviar_email_membresia_activada((int) $suscripcionPrevia['usuario_id'], $suscripcionPrevia['email_cache'], $suscripcionPrevia['membresia_nombre']);
+            }
+        }
+    }
+} elseif (($evento['type'] ?? '') === 'payment_intent.succeeded') {
     $intentId = $evento['data']['object']['id'] ?? '';
 
     $stmt = $conn->prepare(
@@ -81,6 +128,43 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded') {
             }
             enviar_email_inscripcion((int) $info['usuario_id'], $info['email'], $info['titulo'], $enlace);
         }
+    }
+} elseif (($evento['type'] ?? '') === 'payment_intent.payment_failed') {
+    // Vencimiento de un voucher OXXO sin pagarse (documentado por Stripe:
+    // payment_intent.payment_failed = "el cliente no pagó el vale OXXO antes
+    // del vencimiento" — https://docs.stripe.com/payments/oxxo). El mismo
+    // tipo de evento también existe para una tarjeta rechazada, pero ese
+    // caso el usuario ya lo ve al instante en checkout.php (el error de
+    // confirmPayment() se muestra ahí mismo) — para no confundir ambos casos
+    // sin depender de inspeccionar un código de error interno, se usa
+    // payment_method_types del propio PaymentIntent (siempre presente,
+    // documentado y estable): solo se marca 'rechazado' cuando el intento
+    // se limitó a ['oxxo'] — nunca cuando 'card' es una opción, ese caso el
+    // usuario todavía puede reintentar con otra tarjeta sobre el mismo
+    // PaymentIntent y no debe perder la fila en 'pendiente'.
+    $intentFallido = $evento['data']['object'] ?? [];
+    $intentId = (string) ($intentFallido['id'] ?? '');
+    $metodosIntento = $intentFallido['payment_method_types'] ?? [];
+    if ($intentId && $metodosIntento === ['oxxo']) {
+        $stmt = $conn->prepare(
+            "UPDATE pagos SET estado = 'rechazado'
+             WHERE transaccion_id = ? AND metodo_pago = 'stripe' AND estado = 'pendiente'"
+        );
+        $stmt->bind_param('s', $intentId);
+        $stmt->execute();
+        $stmt->close();
+
+        // Mismo evento, esta vez para un voucher de MEMBRESÍA vencido — solo
+        // se marca el voucher como 'vencido' aquí. La membresía en sí (pasar
+        // a 'gracia' y, tras 2 días más, a 'vencida') la decide el cron
+        // membresia_oxxo_generar_vouchers.php, no este webhook — así, sin
+        // importar si Stripe tarda en avisar (hasta 10 días documentados),
+        // el cron es la única fuente de verdad de cuándo se acaban los 2
+        // días de gracia, contados desde periodo_actual_fin real.
+        $stmt = $conn->prepare("UPDATE membresia_vouchers_oxxo SET estado = 'vencido' WHERE payment_intent_id = ? AND estado = 'pendiente'");
+        $stmt->bind_param('s', $intentId);
+        $stmt->execute();
+        $stmt->close();
     }
 } elseif (($evento['type'] ?? '') === 'checkout.session.completed') {
     // Colchón de transición, ya no es la vía principal: desde que

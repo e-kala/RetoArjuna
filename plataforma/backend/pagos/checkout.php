@@ -6,6 +6,7 @@ require_once __DIR__ . '/stripe_helper.php';
 require_login();
 
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
+$usuarioActual = current_user();
 
 // El cupón viaja por sesión (P03: debe sobrevivir cualquier navegación entre
 // el enlace inicial y el pago), pero un ?cupon= explícito en la URL actual
@@ -86,6 +87,30 @@ if (isset($_GET['payment_intent']) && ($_GET['redirect_status'] ?? '') === 'succ
     exit;
 }
 
+// redirect_status=processing: el usuario eligió un método asíncrono tipo
+// voucher (OXXO) — Stripe ya generó el comprobante, pero el cobro no se
+// completa hasta que lo paga en tienda (hasta unos días después, según
+// venza el voucher). A diferencia de 'succeeded', aquí NO se otorga acceso
+// ni se toca `pagos.estado` (sigue en 'pendiente', tal como quedó al
+// crear el PaymentIntent) — se muestra el comprobante para que el usuario
+// lo pueda guardar/imprimir, en vez de redirigir en silencio a una página
+// que insinuaría que ya tiene acceso. payment_intent.payment_failed
+// (stripe_webhook.php) es quien marca 'rechazado' si el voucher vence sin
+// pagarse; payment_intent.succeeded lo confirma cuando sí se paga.
+$voucherOxxo = null;
+if (isset($_GET['payment_intent']) && ($_GET['redirect_status'] ?? '') === 'processing') {
+    $intentId = (string) $_GET['payment_intent'];
+    $resIntent = stripe_api('GET', 'payment_intents/' . urlencode($intentId));
+    $detalleVoucher = $resIntent['data']['next_action']['oxxo_display_details'] ?? null;
+    if ($resIntent['ok'] && $detalleVoucher) {
+        $voucherOxxo = [
+            'numero' => $detalleVoucher['number'] ?? '',
+            'vence' => !empty($detalleVoucher['expires_after']) ? date('d/m/Y H:i', (int) $detalleVoucher['expires_after']) : null,
+            'url' => $detalleVoucher['hosted_voucher_url'] ?? null,
+        ];
+    }
+}
+
 $stripeListo = config_esta_lista(STRIPE_PUBLISHABLE_KEY) && config_esta_lista(STRIPE_SECRET_KEY);
 $paramName = $item['tipo'] . '_id';
 $publishableKeyActiva = stripe_publishable_key_activa();
@@ -99,7 +124,7 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
   <title>Comprar · <?= htmlspecialchars($item['titulo']) ?> · Reto Arjuna</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=2.8">
+  <link rel="stylesheet" href="../../assets/css/platform.css?v=2.9">
   <?php if ($stripeListo): ?><script src="https://js.stripe.com/v3/"></script><?php endif; ?>
   <style>
     body.pf-checkout-body { background: var(--pf-bg); min-height: 100vh; }
@@ -149,6 +174,33 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
 </head>
 <body class="pf-body pf-checkout-body">
   <?= stripe_modo_prueba_banner_html() ?>
+  <?php if ($voucherOxxo): ?>
+  <div class="pf-checkout-wrap">
+    <div class="pf-checkout-card">
+      <div class="pf-checkout-body-pad text-center">
+        <span class="pf-eyebrow">Voucher generado</span>
+        <h1 class="h4 mt-2 mb-3" style="font-weight:800;">Paga en tienda para completar tu compra</h1>
+        <p class="text-muted">
+          Lleva este código a cualquier OXXO y paga en efectivo. En cuanto se registre el pago, tu acceso a
+          "<?= htmlspecialchars($item['titulo']) ?>" se activa automáticamente — te avisamos por correo.
+        </p>
+        <?php if ($voucherOxxo['numero']): ?>
+          <div class="pf-checkout-precio-box">
+            <div class="text-muted small mb-1">Número de referencia</div>
+            <div class="pf-checkout-precio" style="font-size:18px;letter-spacing:1px;word-break:break-all;"><?= htmlspecialchars($voucherOxxo['numero']) ?></div>
+          </div>
+        <?php endif; ?>
+        <?php if ($voucherOxxo['vence']): ?>
+          <p class="text-muted small">Vence: <?= htmlspecialchars($voucherOxxo['vence']) ?> — si no pagas antes de esa fecha, el voucher se cancela y tendrás que generar uno nuevo.</p>
+        <?php endif; ?>
+        <?php if ($voucherOxxo['url']): ?>
+          <a href="<?= htmlspecialchars($voucherOxxo['url']) ?>" target="_blank" class="pf-btn pf-btn-primary pf-btn-lg w-100 mt-2">Ver/imprimir comprobante</a>
+        <?php endif; ?>
+        <a href="<?= htmlspecialchars(destino_tras_pago($item)) ?>" class="btn btn-outline-secondary w-100 mt-3">Entendido, continuar</a>
+      </div>
+    </div>
+  </div>
+  <?php else: ?>
   <div class="pf-checkout-wrap">
     <div class="pf-checkout-card">
       <?php if (!empty($item['imagen'])): ?>
@@ -158,7 +210,7 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
         <span class="pf-eyebrow"><?= htmlspecialchars($etiquetaTipo) ?></span>
         <h1 class="h4 mt-2 mb-2" style="font-weight:800;"><?= htmlspecialchars($item['titulo']) ?></h1>
         <?php if (!empty($item['descripcion'])): ?>
-          <p class="pf-checkout-desc"><?= nl2br(htmlspecialchars($item['descripcion'])) ?></p>
+          <div class="pf-checkout-desc pf-contenido-html"><?= (string) $item['descripcion'] ?></div>
         <?php endif; ?>
 
         <div class="pf-checkout-precio-box">
@@ -255,11 +307,13 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
       </div>
     </div>
   </div>
+  <?php endif; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"
     integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
   <script src="../../content/notify.min.js"></script>
+  <?php if (!$voucherOxxo): ?>
   <script>
     const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
     const PARAM_NAME = <?= json_encode($paramName) ?>;
@@ -385,7 +439,7 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
       }
     });
 
-    <?php if ($stripeListo && !$item['acceso_gratis_automatico']): ?>
+    <?php if (!$voucherOxxo && $stripeListo && !$item['acceso_gratis_automatico']): ?>
     const stripe = Stripe(<?= json_encode($publishableKeyActiva) ?>);
     let elements = null;
     let paymentIntentId = null;
@@ -404,15 +458,36 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
       }
       paymentIntentId = data.payment_intent_id;
       elements = stripe.elements({ clientSecret: data.client_secret });
-      elements.create('payment').mount('#payment-element');
+      elements.create('payment', {
+        // Tarjeta primero, OXXO al lado — sin esto Stripe decide el orden
+        // dinámicamente y podía mostrar OXXO como primera opción.
+        paymentMethodOrder: ['card', 'oxxo'],
+        // Precarga el correo del usuario logueado en el campo de contacto
+        // del Payment Element (se ve ya escrito, pero sigue siendo un
+        // <input> normal — el usuario puede borrarlo y poner otro antes de
+        // pagar, útil sobre todo para OXXO si quiere recibir el voucher en
+        // un correo distinto al de su cuenta).
+        defaultValues: {
+          billingDetails: { email: <?= json_encode($usuarioActual['email'] ?? '') ?> },
+        },
+      }).mount('#payment-element');
     }
     iniciarStripe();
 
     document.getElementById('btnPagarStripe').addEventListener('click', async () => {
       if (!elements) return;
+      // El correo va SOLO por defaultValues (arriba, al crear el Payment
+      // Element) — nunca aquí en confirmParams.payment_method_data: ese
+      // campo tiene prioridad sobre lo que el usuario haya escrito en el
+      // formulario y lo pisaría en silencio, dejando el campo visualmente
+      // editable pero sin efecto real. Así, lo que el Payment Element
+      // recolectó (precargado con el correo de la cuenta, pero modificable)
+      // es lo único que se envía.
       const { error } = await stripe.confirmPayment({
         elements,
-        confirmParams: { return_url: window.location.href },
+        confirmParams: {
+          return_url: window.location.href,
+        },
       });
       if (error) {
         document.getElementById('stripeMsg').textContent = error.message;
@@ -466,5 +541,6 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
     });
     <?php endif; ?>
   </script>
+  <?php endif; ?>
 </body>
 </html>

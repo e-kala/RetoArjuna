@@ -98,6 +98,28 @@ function stripe_modo_prueba_banner_html(): string
         . '</form></div>';
 }
 
+// Pagos en ventanilla (OXXO y demás vouchers que Stripe habilite vía
+// automatic_payment_methods) — oculto de nuevo a usuarios normales
+// (2026-09-15, a petición del usuario) mientras se termina de pulir el
+// flujo, sobre todo el de membresía recurrente (ver
+// membresia_oxxo_visible_para_usuario_actual() más abajo). Solo un admin o
+// una cuenta marcada es_prueba (misma condición que el modo prueba de
+// Stripe) lo ve, para poder seguir probándolo. Cuando esté listo para
+// liberarlo a todos, cambiar por `return true;` como ya estuvo antes.
+function oxxo_habilitado_para_usuario_actual(): bool
+{
+    return stripe_modo_prueba_permitido();
+}
+
+// Misma visibilidad que oxxo_habilitado_para_usuario_actual() pero para la
+// membresía recurrente simulada con OXXO (content/membresia.php,
+// panel/content/mi_membresia.php, backend/pagos/membresia_oxxo_iniciar.php)
+// — separada por si algún día se libera una antes que la otra.
+function membresia_oxxo_visible_para_usuario_actual(): bool
+{
+    return stripe_modo_prueba_permitido();
+}
+
 // $llave: por defecto usa la llave del modo activo de quien navega ahora
 // (stripe_secret_key_activa()). Pasar una llave explícita sirve para los pocos
 // casos que necesitan llamar a Stripe en un modo específico sin importar el

@@ -79,6 +79,12 @@ CREATE TABLE IF NOT EXISTS `certificados` (
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+-- Nombre a mostrar en el certificado (el usuario lo puede personalizar desde
+-- "Mis reconocimientos", ej. su nombre completo en vez del username) — si
+-- queda NULL/vacío, certificado.php cae de vuelta a username_cache.
+ALTER TABLE certificados
+  ADD COLUMN IF NOT EXISTS nombre_certificado VARCHAR(255) DEFAULT NULL AFTER tipo;
+
 --
 -- Dumping data for table `certificados`
 --
@@ -1677,6 +1683,39 @@ CREATE TABLE IF NOT EXISTS `regalo_configuracion` (
   CONSTRAINT `fk_regalo_config_evento` FOREIGN KEY (`evento_id`) REFERENCES `eventos` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Rediseño "Regalar descuento" (varios tipos de % configurables, en tabla) +
+-- "Regalar acceso" (sección propia, no un caso especial de descuento=100) —
+-- regalo_configuracion pasa a ser solo el contenedor con los interruptores y
+-- los límites de "Regalar acceso"; descuento_pct/max_usuarios_habilitados/
+-- enlaces_por_usuario/vigencia_dias de ARRIBA quedan sin uso (no se borran:
+-- filas viejas de `regalos` en producción todavía los referencian para
+-- historial) y se sustituyen por las columnas de acceso de abajo +
+-- regalo_tipos_descuento para el descuento.
+ALTER TABLE regalo_configuracion MODIFY COLUMN descuento_pct decimal(5,2) NULL COMMENT 'Obsoleto — ver regalo_tipos_descuento. Se conserva solo por compatibilidad con filas antiguas.';
+ALTER TABLE regalo_configuracion ADD COLUMN IF NOT EXISTS activo_descuento tinyint(1) NOT NULL DEFAULT 0 AFTER activo;
+ALTER TABLE regalo_configuracion ADD COLUMN IF NOT EXISTS activo_acceso tinyint(1) NOT NULL DEFAULT 0 AFTER activo_descuento;
+ALTER TABLE regalo_configuracion ADD COLUMN IF NOT EXISTS acceso_max_usuarios_habilitados int(10) unsigned DEFAULT NULL COMMENT 'NULL = sin tope de cuentas que pueden regalar acceso completo' AFTER activo_acceso;
+ALTER TABLE regalo_configuracion ADD COLUMN IF NOT EXISTS acceso_enlaces_por_usuario int(10) unsigned NOT NULL DEFAULT 1 AFTER acceso_max_usuarios_habilitados;
+ALTER TABLE regalo_configuracion ADD COLUMN IF NOT EXISTS acceso_vigencia_dias int(10) unsigned DEFAULT NULL COMMENT 'NULL = los enlaces de acceso completo no vencen' AFTER acceso_enlaces_por_usuario;
+-- `activo` (el interruptor original, previo a este rediseño) ya no se lee en
+-- código nuevo — se conserva la columna para no romper el UNIQUE KEY
+-- histórico, pero activo_descuento/activo_acceso son ahora la fuente real.
+
+CREATE TABLE IF NOT EXISTS `regalo_tipos_descuento` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `configuracion_id` int(10) unsigned NOT NULL,
+  `descuento_pct` decimal(5,2) NOT NULL COMMENT 'Descuento parcial — nunca 100 (eso es "Regalar acceso", ver regalo_configuracion.activo_acceso)',
+  `max_usuarios_habilitados` int(10) unsigned DEFAULT NULL COMMENT 'NULL = sin tope de cuentas que pueden regalar este tipo de descuento',
+  `enlaces_por_usuario` int(10) unsigned NOT NULL DEFAULT 1,
+  `vigencia_dias` int(10) unsigned DEFAULT NULL COMMENT 'NULL = los enlaces generados con este tipo no vencen',
+  `orden` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_regalo_tipos_descuento_config` (`configuracion_id`),
+  CONSTRAINT `fk_regalo_tipos_descuento_config` FOREIGN KEY (`configuracion_id`) REFERENCES `regalo_configuracion` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `regalos` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `codigo` varchar(40) NOT NULL COMMENT 'Único e irrepetible, va en el enlace público',
@@ -1696,6 +1735,42 @@ CREATE TABLE IF NOT EXISTS `regalos` (
   CONSTRAINT `fk_regalos_da` FOREIGN KEY (`usuario_da_id`) REFERENCES `usuarios_perfil` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_regalos_recibe` FOREIGN KEY (`usuario_recibe_id`) REFERENCES `usuarios_perfil` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- NULL = este regalo fue de "acceso completo" (regalo_configuracion.activo_acceso);
+-- con valor = referencia al tipo de descuento parcial usado (regalo_tipos_descuento,
+-- que puede haberse borrado desde entonces — ON DELETE SET NULL conserva el
+-- historial del regalo aunque el admin ya haya quitado ese tipo de descuento).
+ALTER TABLE regalos ADD COLUMN IF NOT EXISTS tipo_descuento_id int(10) unsigned DEFAULT NULL AFTER configuracion_id;
+ALTER TABLE regalos ADD KEY IF NOT EXISTS idx_regalos_tipo_descuento (tipo_descuento_id);
+ALTER TABLE regalos DROP FOREIGN KEY IF EXISTS fk_regalos_tipo_descuento;
+ALTER TABLE regalos ADD CONSTRAINT fk_regalos_tipo_descuento FOREIGN KEY (tipo_descuento_id) REFERENCES regalo_tipos_descuento (id) ON DELETE SET NULL;
+
+-- Migración de datos (idempotente vía NOT EXISTS): cada regalo_configuracion
+-- vieja tenía exactamente un descuento_pct — se traduce a una fila nueva de
+-- regalo_tipos_descuento (100 = "Regalar acceso", <100 = "Regalar
+-- descuento") para que ninguna configuración ya activa en producción se
+-- desactive silenciosamente con este cambio de esquema.
+UPDATE regalo_configuracion
+SET activo_acceso = 1, acceso_max_usuarios_habilitados = max_usuarios_habilitados,
+    acceso_enlaces_por_usuario = enlaces_por_usuario, acceso_vigencia_dias = vigencia_dias
+WHERE activo = 1 AND descuento_pct >= 100 AND activo_descuento = 0 AND activo_acceso = 0;
+
+INSERT INTO regalo_tipos_descuento (configuracion_id, descuento_pct, max_usuarios_habilitados, enlaces_por_usuario, vigencia_dias)
+SELECT rc.id, rc.descuento_pct, rc.max_usuarios_habilitados, rc.enlaces_por_usuario, rc.vigencia_dias
+FROM regalo_configuracion rc
+WHERE rc.activo = 1 AND rc.descuento_pct < 100 AND rc.activo_descuento = 0
+  AND NOT EXISTS (SELECT 1 FROM regalo_tipos_descuento t WHERE t.configuracion_id = rc.id);
+
+UPDATE regalo_configuracion SET activo_descuento = 1 WHERE activo = 1 AND descuento_pct < 100 AND activo_descuento = 0;
+
+-- Cada regalos.id viejo apuntaba implícitamente al único descuento de su
+-- configuración — se enlaza ahora de forma explícita al tipo recién migrado
+-- (NULL se deja tal cual para los que ya eran de acceso completo).
+UPDATE regalos r
+JOIN regalo_configuracion rc ON rc.id = r.configuracion_id
+JOIN regalo_tipos_descuento t ON t.configuracion_id = rc.id
+SET r.tipo_descuento_id = t.id
+WHERE r.tipo_descuento_id IS NULL AND rc.descuento_pct < 100;
 
 -- Las FK de curso_inscripciones.regalo_id / evento_inscripciones.regalo_id /
 -- pagos.regalo_id esperaban a que `regalos` existiera.
@@ -1745,4 +1820,135 @@ CREATE TABLE IF NOT EXISTS `password_resets` (
 
 ALTER TABLE password_resets DROP FOREIGN KEY IF EXISTS fk_password_resets_usuario;
 ALTER TABLE password_resets ADD CONSTRAINT fk_password_resets_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios_perfil (id) ON DELETE CASCADE;
+
+-- =====================================================================
+-- Lista de espera del próximo Reto Arjuna (evento) — página
+-- content/proximo_evento.php, mostrada cuando no hay ningún evento próximo
+-- agendado. A diferencia de un formulario suelto de correo, requiere cuenta
+-- real (nunca un email sin sesión): el botón "Avísenme" manda a
+-- ?action=registro&volver=<esta misma página> — al volver ya con sesión
+-- activa, la propia página inserta esta fila. Un admin, al crear/publicar un
+-- evento nuevo, revisa esta tabla a mano para avisarles (sin envío
+-- automático todavía, ver notificaciones_difusiones si algún día se agrega).
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `evento_lista_espera` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `usuario_id` int(10) unsigned NOT NULL,
+  `notificado` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_evento_lista_espera_usuario` (`usuario_id`),
+  CONSTRAINT `fk_evento_lista_espera_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios_perfil` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
+-- Campañas de correo masivo, segmentadas — panel/admin/email_campanas.php.
+-- Cada fila es un envío ya disparado (no hay borradores: se redacta y se
+-- manda en el mismo formulario) a un segmento de usuarios definido por
+-- `segmento`. El envío real usa enviar_email() de mailer.php una vez por
+-- destinatario — cada intento individual ya queda registrado en
+-- notificaciones_log (tipo = 'campana_' + id de esta tabla), así que aquí
+-- solo se guarda el resumen de la campaña, no destinatario por destinatario.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `email_campanas` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `asunto` varchar(200) NOT NULL,
+  `cuerpo_html` text NOT NULL,
+  `segmento` enum('todos','inactivos','miembros','sin_compra') NOT NULL,
+  `creado_por` int(10) unsigned DEFAULT NULL,
+  `total_destinatarios` int(10) unsigned NOT NULL DEFAULT 0,
+  `total_enviados` int(10) unsigned NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_email_campanas_creado_por` (`creado_por`),
+  CONSTRAINT `fk_email_campanas_creado_por` FOREIGN KEY (`creado_por`) REFERENCES `usuarios_perfil` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
+-- Plantillas personalizables de los correos transaccionales automáticos
+-- (bienvenida, inscripción confirmada, membresía activada, recuperar
+-- contraseña, certificado emitido) — panel/admin/email_plantillas.php.
+-- `tipo` calza 1 a 1 con el mismo string que ya usa notificaciones_log.tipo
+-- (ver mailer.php). Sin fila para un tipo (o con activo=0), mailer.php cae
+-- de vuelta al texto default hardcodeado — esta tabla nunca es la única
+-- fuente de verdad, solo un override opcional.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `email_plantillas` (
+  `tipo` enum('bienvenida','inscripcion','membresia','recuperar_contrasena','finalizacion') NOT NULL,
+  `asunto` varchar(200) NOT NULL,
+  `titulo` varchar(200) NOT NULL,
+  `mensaje_html` text NOT NULL,
+  `boton_texto` varchar(80) DEFAULT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`tipo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
+-- Vigencia de cupones (panel/admin/cupon_form.php) — reemplaza la edición
+-- manual de fecha_inicio/fecha_fin por 3 modalidades explícitas:
+--   'siempre'  — sin fecha_fin, sin límite de meses (fecha_inicio/fin en NULL).
+--   'meses'    — para membresías: el descuento se aplica como Stripe Coupon
+--                duration='repeating' + duration_in_months=vigencia_meses, a
+--                partir de la suscripción de cada usuario (no una fecha fija
+--                del cupón) — ver membresia_iniciar.php. Para pagos únicos
+--                (curso/evento/producto) no hay mensualidad que repetir, así
+--                que ahí se comporta igual que 'siempre'.
+--   'una_vez'  — usos_totales se fuerza a 1 al guardar (mismo mecanismo que
+--                ya existía, solo expuesto como opción explícita del selector).
+-- fecha_inicio/fecha_fin de `cupones` se conservan (se siguen leyendo en
+-- ofertas.php) pero ya no se editan a mano en el form — cupon_form.php las
+-- calcula a partir de esta vigencia al guardar.
+-- =====================================================================
+ALTER TABLE cupones
+  ADD COLUMN IF NOT EXISTS vigencia_tipo ENUM('siempre','meses','una_vez') NOT NULL DEFAULT 'siempre' AFTER usos_totales,
+  ADD COLUMN IF NOT EXISTS vigencia_meses INT UNSIGNED DEFAULT NULL AFTER vigencia_tipo;
+
+-- =====================================================================
+-- Membresía pagada con OXXO — Stripe no soporta OXXO (ni ningún voucher
+-- en efectivo) como método de pago para cobros recurrentes automáticos
+-- (a diferencia de tarjeta, no hay forma de "volver a cargar" un OXXO sin
+-- que el usuario vaya de nuevo a la tienda). Se simula la recurrencia a
+-- mano: cada mes, un cron genera un PaymentIntent OXXO nuevo por el precio
+-- de un mes, el usuario lo paga en tienda, y payment_intent.succeeded
+-- extiende periodo_actual_fin otro mes — ver
+-- backend/membresia_oxxo_generar_vouchers.php (cron) y
+-- backend/pagos/membresia_oxxo_iniciar.php (alta inicial).
+--
+-- 'oxxo_recurrente' en metodo distingue esta membresía de una 'transferencia'
+-- (esa es 100% manual, confirmada por un admin) o 'stripe' (tarjeta, cobro
+-- automático real de Stripe) — aquí el cobro se automatiza por nuestro propio
+-- cron, no por Stripe.
+-- 'gracia' en estado: el voucher del mes venció sin pagarse, pero el acceso
+-- se mantiene 2 días más por si alcanza a pagar tarde — pasado ese plazo el
+-- cron la pasa a 'vencida' (pierde acceso, igual que hoy hace un cobro de
+-- Stripe fallido).
+-- =====================================================================
+ALTER TABLE membresia_suscripciones
+  MODIFY COLUMN metodo ENUM('stripe','transferencia','manual','oxxo_recurrente') NOT NULL DEFAULT 'stripe',
+  MODIFY COLUMN estado ENUM('pendiente','activa','gracia','cancelada','vencida') NOT NULL DEFAULT 'activa';
+
+CREATE TABLE IF NOT EXISTS `membresia_vouchers_oxxo` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `suscripcion_id` int(10) unsigned NOT NULL,
+  `payment_intent_id` varchar(191) NOT NULL,
+  `numero` varchar(64) DEFAULT NULL,
+  `url_voucher` varchar(500) DEFAULT NULL,
+  `periodo_inicio` date NOT NULL,
+  `periodo_fin` date NOT NULL,
+  `vence_en` datetime DEFAULT NULL,
+  `estado` enum('pendiente','pagado','vencido') NOT NULL DEFAULT 'pendiente',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_membresia_voucher_intent` (`payment_intent_id`),
+  KEY `idx_membresia_voucher_suscripcion` (`suscripcion_id`, `estado`),
+  CONSTRAINT `fk_membresia_voucher_suscripcion` FOREIGN KEY (`suscripcion_id`) REFERENCES `membresia_suscripciones` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- notificaciones.tipo necesita un valor propio para "tu voucher del mes está
+-- listo" (aviso 1-a-1, distinto de los 4 tipos de difusión masiva que ya
+-- existían) — ver notificacion_crear() en backend/notificaciones.php.
+ALTER TABLE notificaciones
+  MODIFY COLUMN tipo ENUM('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','voucher_membresia') NOT NULL;
 

@@ -27,12 +27,21 @@ function ra_registrar_error($mensaje, $archivo = '', $linea = 0)
         FILE_APPEND | LOCK_EX
     );
 
-    if (!headers_sent()) {
-        http_response_code(500);
-    }
+    // Una petición AJAX (jQuery manda este header solo, siempre presente
+    // desde que ENTRA la petición) espera un body limpio con
+    // JSON.parse()/res.json() del otro lado — antes esto solo se detectaba
+    // viendo si la respuesta YA traía Content-Type: application/json, pero
+    // varios endpoints (ej. leccion_form.php) arman el JSON con
+    // json_encode()/echo sin llamar nunca a header('Content-Type: ...'), así
+    // que ese chequeo nunca detectaba nada y esta función igual forzaba 500
+    // e inyectaba un <script> en medio del JSON — rompiendo el parseo del
+    // lado del cliente por CUALQUIER aviso menor de PHP durante la petición
+    // (ej. "Undefined array key"), aunque el guardado en sí sí hubiera
+    // funcionado. Ahora también se detecta por el header de la petición.
+    $esAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-    $headers = headers_list();
-    $esJson = false;
+    $headers = headers_sent() ? array() : headers_list();
+    $esJson = $esAjax;
     foreach ($headers as $h) {
         if (stripos($h, 'Content-Type:') === 0 && stripos($h, 'application/json') !== false) {
             $esJson = true;
@@ -40,9 +49,14 @@ function ra_registrar_error($mensaje, $archivo = '', $linea = 0)
         }
     }
 
-    if (!$esJson) {
-        echo "<script>console.error(" . json_encode('[RetoArjuna] ' . $detalle) . ");</script>\n";
+    if ($esJson) {
+        return; // No tocar el status code ni el cuerpo de una respuesta JSON/AJAX.
     }
+
+    if (!headers_sent()) {
+        http_response_code(500);
+    }
+    echo "<script>console.error(" . json_encode('[RetoArjuna] ' . $detalle) . ");</script>\n";
 }
 
 set_exception_handler(function ($e) {

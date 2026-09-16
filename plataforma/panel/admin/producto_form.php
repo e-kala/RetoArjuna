@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slug = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $nombre), '-'));
     }
     $descripcion = trim($_POST['descripcion'] ?? '');
+    // El editor Quill vacío manda "<p><br></p>" en vez de una cadena vacía
+    // — se normaliza para no guardar ese HTML como si fuera una descripción real.
+    if (trim(str_replace(['<p><br></p>', '<p><br/></p>'], '', $descripcion)) === '') {
+        $descripcion = '';
+    }
     $precio = (float) ($_POST['precio'] ?? 0);
     $imagen = (string) $producto['imagen'];
     $archivoDigital = (string) $producto['archivo_digital'];
@@ -68,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($stmt->execute()) {
             if ($esNuevo && $activo) {
-                notificacion_difundir('nuevo_producto', 'Nuevo producto: ' . $nombre, $descripcion !== '' ? mb_strimwidth($descripcion, 0, 140, '…') : null, 'index.php?action=producto&slug=' . urlencode($slug));
+                notificacion_difundir('nuevo_producto', 'Nuevo producto: ' . $nombre, $descripcion !== '' ? mb_strimwidth(trim(strip_tags($descripcion)), 0, 140, '…') : null, 'index.php?action=producto&slug=' . urlencode($slug));
             }
             if ($esAjax) {
                 echo json_encode(['success' => true, 'redirect' => 'productos.php']);
@@ -104,7 +109,11 @@ include __DIR__ . '/_header.php';
   <div class="col-md-8"><label class="form-label">Nombre</label><input class="form-control" name="nombre" value="<?= htmlspecialchars($producto['nombre']) ?>" required></div>
   <div class="col-md-6"><label class="form-label">Slug (opcional)</label><input class="form-control" name="slug" value="<?= htmlspecialchars($producto['slug']) ?>"></div>
   <div class="col-md-6"><label class="form-label">Precio (MXN)</label><input type="number" step="0.01" class="form-control" name="precio" value="<?= htmlspecialchars((string) $producto['precio']) ?>"></div>
-  <div class="col-12"><label class="form-label">Descripción</label><textarea class="form-control" name="descripcion" rows="3"><?= htmlspecialchars((string) $producto['descripcion']) ?></textarea></div>
+  <div class="col-12">
+    <label class="form-label">Descripción</label>
+    <div id="editorDescripcionProducto" style="background:#fff;height:200px;"></div>
+    <textarea name="descripcion" id="descripcionProductoOculta" class="d-none"><?= htmlspecialchars((string) $producto['descripcion']) ?></textarea>
+  </div>
   <?php
   $imgPickerId = 'producto';
   $imgPickerCampo = 'imagen_file';
@@ -140,4 +149,23 @@ include __DIR__ . '/_header.php';
   </div>
   <div class="col-12"><button class="btn btn-success">Guardar</button></div>
 </form>
+<script src="../../assets/pf_editor.js?v=3"></script>
+<script>
+  const editorProducto = PfEditor.crear({
+    contenedor: '#editorDescripcionProducto',
+    contexto: 'admin',
+    placeholder: 'Descripción del producto — puedes usar imágenes y video.',
+    csrfToken: <?= json_encode(csrf_token()) ?>,
+    contenidoInicialHtml: <?= json_encode((string) $producto['descripcion']) ?>,
+    capacidades: { video: true },
+  });
+  document.querySelector('form[data-ajax-form]').addEventListener('submit', function (e) {
+    if (editorProducto.bloquearSiHayCargasPendientes()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    document.getElementById('descripcionProductoOculta').value = editorProducto.sincronizar();
+  });
+</script>
 <?php include __DIR__ . '/_footer.php'; ?>

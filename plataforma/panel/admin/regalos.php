@@ -3,6 +3,7 @@
 // cuándo y qué, tal como lo pide el checklist. Todo el estado se lee tal
 // cual de `regalos` (backend/regalos.php), nunca se recalcula aquí.
 require_once __DIR__ . '/../../backend/auth.php';
+require_once __DIR__ . '/_filtro_tipo_usuario.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -21,16 +22,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'revoc
     exit;
 }
 
+$tipoUsuario = pf_tipo_usuario_actual();
+// Filtra por quien REGALA (uda) — es el usuario "dueño" de la fila; quien
+// recibe (urec) puede o no tener cuenta todavía (el regalo puede seguir
+// "disponible", sin reclamar).
+$filtroTipoUsuarioSql = pf_filtro_tipo_usuario_sql($tipoUsuario, 'uda');
+$whereTipoUsuario = $filtroTipoUsuarioSql ? "WHERE {$filtroTipoUsuarioSql}" : '';
+
 $regalos = $conn->query(
-    "SELECT r.*, c.descuento_pct, c.curso_id, c.evento_id,
+    "SELECT r.*, t.descuento_pct AS tipo_descuento_pct, c.curso_id, c.evento_id,
             cu.titulo AS curso_titulo, cu.slug AS curso_slug, ev.titulo AS evento_titulo, ev.slug AS evento_slug,
             uda.username_cache AS da_username, urec.username_cache AS recibe_username
      FROM regalos r
      JOIN regalo_configuracion c ON c.id = r.configuracion_id
+     LEFT JOIN regalo_tipos_descuento t ON t.id = r.tipo_descuento_id
      LEFT JOIN cursos cu ON cu.id = c.curso_id
      LEFT JOIN eventos ev ON ev.id = c.evento_id
      JOIN usuarios_perfil uda ON uda.id = r.usuario_da_id
      LEFT JOIN usuarios_perfil urec ON urec.id = r.usuario_recibe_id
+     {$whereTipoUsuario}
      ORDER BY r.created_at DESC"
 )->fetch_all(MYSQLI_ASSOC);
 
@@ -49,6 +59,7 @@ include __DIR__ . '/_header.php';
   Cada fila es un enlace de regalo generado por un usuario. Configura qué cursos/eventos se pueden regalar desde
   su propio formulario de edición (sección "Prestaciones y regalos").
 </p>
+<?= pf_filtro_tipo_usuario_botones($tipoUsuario, 'regalos.php') ?>
 <div class="table-responsive">
 <table class="table table-bordered bg-white">
   <thead><tr><th>Contenido</th><th>Descuento</th><th>Quién regala</th><th>Quién recibe</th><th>Estado</th><th>Generado</th><th>Aceptado</th><th>Acciones</th></tr></thead>
@@ -62,7 +73,7 @@ include __DIR__ . '/_header.php';
             <a href="../../index.php?action=evento&slug=<?= urlencode($r['evento_slug']) ?>" target="_blank"><?= htmlspecialchars($r['evento_titulo']) ?></a>
           <?php endif; ?>
         </td>
-        <td><?= (float) $r['descuento_pct'] >= 100 ? 'Acceso completo' : ((float) $r['descuento_pct']) . '%' ?></td>
+        <td><?= $r['tipo_descuento_id'] === null ? 'Acceso completo' : ((float) $r['tipo_descuento_pct']) . '%' ?></td>
         <td><a href="../../index.php?action=perfil_publico&usuario=<?= (int) $r['usuario_da_id'] ?>" target="_blank"><?= htmlspecialchars($r['da_username']) ?></a></td>
         <td><?php if ($r['usuario_recibe_id']): ?><a href="../../index.php?action=perfil_publico&usuario=<?= (int) $r['usuario_recibe_id'] ?>" target="_blank"><?= htmlspecialchars((string) $r['recibe_username']) ?></a><?php else: ?>—<?php endif; ?></td>
         <td data-ajax-estado><?= $estadoLabel[$r['estado']] ?? htmlspecialchars($r['estado']) ?></td>

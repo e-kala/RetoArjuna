@@ -135,17 +135,27 @@ require __DIR__ . '/inc/header.php';
         </div>
       </div>
     <?php endif; ?>
-    <button type="submit" class="btn fw-bold" style="background:var(--pf-accent);color:#fff;">Publicar tema</button>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button type="submit" class="btn fw-bold" style="background:var(--pf-accent);color:#fff;">Publicar tema</button>
+      <button type="button" id="btnVistaPreviaTema" class="btn btn-outline-secondary">Vista previa</button>
+    </div>
   </div>
 </form>
 
 <script>
-const PF_QUILL_TOOLBAR = [['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'code-block'], ['link'], ['clean']];
-const quillNuevoTema = new Quill('#editorNuevoTema', {
-  theme: 'snow',
+const editorNuevoTema = PfEditor.crear({
+  contenedor: '#editorNuevoTema',
+  contexto: 'foro',
   placeholder: 'Escribe tu mensaje. Usa @usuario para mencionar a alguien.',
-  modules: { toolbar: PF_QUILL_TOOLBAR }
+  csrfToken: <?= json_encode(csrf_token()) ?>,
+  capacidades: { video: true, codeBlock: true },
 });
+const quillNuevoTema = editorNuevoTema.quill;
+const borradorNuevoTema = PfEditor.conectarBorradorLocal(
+  editorNuevoTema,
+  'pf_borrador_nuevo_tema_' + <?= (int) $cursoId ?> + '_' + <?= (int) $eventoId ?> + '_' + <?= (int) $leccionId ?>,
+  { campoTitulo: document.getElementById('titulo') }
+);
 
 <?php if ($leccionCtx): ?>
 document.querySelectorAll('input[name="visibilidad"]').forEach(function (radio) {
@@ -159,6 +169,7 @@ document.querySelectorAll('input[name="visibilidad"]').forEach(function (radio) 
 
 document.getElementById('nuevoTemaForm').addEventListener('submit', function (e) {
   e.preventDefault();
+  if (editorNuevoTema.bloquearSiHayCargasPendientes()) return;
   const $error = document.getElementById('nuevoTemaError');
   $error.style.display = 'none';
 
@@ -179,7 +190,7 @@ document.getElementById('nuevoTemaForm').addEventListener('submit', function (e)
     evento_id: document.getElementById('evento_id').value,
     leccion_id: document.getElementById('leccion_id').value,
     titulo: document.getElementById('titulo').value,
-    contenido: quillNuevoTema.root.innerHTML,
+    contenido: editorNuevoTema.sincronizar(),
     visibilidad: visibilidadEl ? visibilidadEl.value : 'publico',
     compartido_con: compartidoConEl ? compartidoConEl.value : '',
     etiqueta_nueva: document.getElementById('etiquetaNueva').value,
@@ -197,6 +208,7 @@ document.getElementById('nuevoTemaForm').addEventListener('submit', function (e)
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        borradorNuevoTema.limpiar();
         window.location.href = data.redirect;
       } else {
         $error.textContent = data.message || 'No se pudo publicar el tema.';
@@ -208,6 +220,32 @@ document.getElementById('nuevoTemaForm').addEventListener('submit', function (e)
       $error.style.display = 'block';
     });
 });
+
+// Vista previa: solo del lado del cliente, sin guardar nada — muestra el
+// contenido con el mismo estilo (.pf-forum-post-body) con el que se vería
+// ya publicado. El saneado real ocurre en el servidor al publicar; esta
+// vista previa no lo replica, pero para el formato normal de un post
+// (texto, imagen ya subida, video insertado por el botón) se ve igual.
+document.getElementById('btnVistaPreviaTema').addEventListener('click', function () {
+  document.getElementById('vistaPreviaTitulo').textContent = document.getElementById('titulo').value || '(sin título)';
+  document.getElementById('vistaPreviaContenido').innerHTML = editorNuevoTema.sincronizar();
+  new bootstrap.Modal(document.getElementById('modalVistaPreviaForo')).show();
+});
 </script>
+
+<div class="modal fade" id="modalVistaPreviaForo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Vista previa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <h4 id="vistaPreviaTitulo" class="mb-3"></h4>
+        <div class="pf-forum-post-body" id="vistaPreviaContenido"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php require __DIR__ . '/inc/footer.php'; ?>

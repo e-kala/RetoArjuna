@@ -20,7 +20,9 @@ if ($busqueda !== '') {
     $tiposBind .= 'ss';
 }
 if ($tipo === 'reales') {
-    $condiciones[] = 'u.es_prueba = 0';
+    // "Reales" excluye también admins — esa vista es solo estudiantes/
+    // clientes de verdad, un admin (de prueba o no) nunca debe aparecer ahí.
+    $condiciones[] = "u.es_prueba = 0 AND u.rol <> 'admin'";
 } elseif ($tipo === 'prueba') {
     $condiciones[] = 'u.es_prueba = 1';
 }

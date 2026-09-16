@@ -8,6 +8,27 @@
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
 require_role('admin');
+
+// Log de diagnóstico temporal — "vista previa"/"guardar borrador"/
+// autoguardado dejaron de funcionar en producción sin poder reproducirse en
+// local. Se registra ANTES de requerir_csrf_form() a propósito: si la
+// petición nunca llega a escribirse en logs/errores.log después de
+// reproducir el problema en producción, es señal de que ni siquiera está
+// llegando hasta PHP (bloqueo del servidor/WAF) — si SÍ aparece esta línea
+// pero nada después, el problema está en el CSRF o en el guardado mismo.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    ra_registrar_error(sprintf(
+        'leccion_form.php POST recibido — accion=%s accion_publicacion=%s id=%s evento_id=%s curso_id=%s content-length=%s csrf_token_presente=%s',
+        $_POST['accion'] ?? '(ninguna)',
+        $_POST['accion_publicacion'] ?? '(ninguna)',
+        $_POST['id'] ?? '?',
+        $_POST['evento_id'] ?? ($_GET['evento_id'] ?? '?'),
+        $_POST['curso_id'] ?? ($_GET['curso_id'] ?? '?'),
+        $_SERVER['CONTENT_LENGTH'] ?? '?',
+        isset($_POST['csrf_token']) ? 'si' : 'NO'
+    ));
+}
+
 requerir_csrf_form();
 
 // Una lección pertenece a un curso O a un evento, nunca ambos (ver
@@ -140,6 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
                 $conn->query('DELETE FROM leccion_audios WHERE id IN (' . implode(',', array_column($huerfanos, 'id')) . ')');
             }
 
+            ra_registrar_error(sprintf(
+                'leccion_form.php guardado OK — leccion_id=%d accion_publicacion=%s estado_publicacion=%s',
+                $leccionId,
+                $accionPublicacion,
+                $estadoPublicacion
+            ));
+
             if ($esAjax) {
                 // "Guardar borrador" y el autoguardado se quedan en el editor
                 // (sin redirect) para poder seguir editando; solo "Guardar y
@@ -154,10 +182,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
             header('Location: ' . $volverUrl);
             exit;
         }
+        // Antes se asumía a ciegas "orden repetido" — se registra el error
+        // real de MySQL para no seguir adivinando la causa.
+        ra_registrar_error('leccion_form.php: $stmt->execute() falló — ' . $stmt->error, __FILE__, __LINE__);
         $error = '¿El orden ya está usado en ' . ($esEvento ? 'este evento' : 'este curso') . '?';
         $stmt->close();
     }
     if ($esAjax && $error !== '') {
+        ra_registrar_error('leccion_form.php respondiendo error al cliente: ' . $error);
         echo json_encode(['success' => false, 'mensaje' => $error]);
         exit;
     }
@@ -232,29 +264,7 @@ include __DIR__ . '/_header.php';
      protegido (blot personalizado: sube el archivo y deja un bloque no
      editable con data-audio-id, que content/leccion.php convierte en el
      reproductor real al mostrarse). -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css">
-<style>
-  /* Vista dentro del editor del bloque de audio protegido — en la lección
-     real (content/leccion.php) este div se sustituye por el reproductor. */
-  .ql-editor .pf-audio-embed {
-    background: #fff3e0;
-    border: 1px dashed #f7931e;
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin-bottom: 10px;
-    color: #8a5a00;
-    font-size: 14px;
-  }
-  .ql-editor iframe.ql-video { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; }
-  /* El picker de tamaño de Quill solo trae texto ("Small"/"Large"/"Huge")
-     para su propia lista por defecto — con valores en px propios, sin esto
-     cae en la regla genérica de abajo y todos se ven como "Normal". */
-  .ql-picker.ql-size .ql-picker-label[data-value]:not([data-value=""])::before,
-  .ql-picker.ql-size .ql-picker-item[data-value]:not([data-value=""])::before {
-    content: attr(data-value);
-  }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="../../assets/pf_editor.js?v=3"></script>
 <script>
 // Aviso VISIBLE de cualquier error de JS sin capturar en esta página — la
 // vez pasada un bug real en el editor quedó invisible hasta que se abrió la
@@ -275,509 +285,20 @@ include __DIR__ . '/_header.php';
 })();
 
 (function () {
-  // Blot de audio protegido — un bloque no editable con data-audio-id;
-  // content/leccion.php lo hidrata al reproductor real (fetch + blob) según
-  // el mismo criterio de acceso de siempre. Aquí solo se ve como tarjeta.
-  const BlockEmbed = Quill.import('blots/block/embed');
-  class AudioEmbedBlot extends BlockEmbed {
-    static create(value) {
-      const node = super.create();
-      node.setAttribute('data-audio-id', value.id);
-      node.setAttribute('contenteditable', 'false');
-      node.textContent = '🔊 ' + value.nombre;
-      return node;
-    }
-    static value(node) {
-      return { id: node.getAttribute('data-audio-id'), nombre: node.textContent.replace('🔊 ', '') };
-    }
-  }
-  AudioEmbedBlot.blotName = 'audio-embed';
-  AudioEmbedBlot.tagName = 'div';
-  AudioEmbedBlot.className = 'pf-audio-embed';
-  Quill.register(AudioEmbedBlot);
-
-  // Bloque colapsable — un <details>/<summary> NATIVO del navegador,
-  // insertado como un embed OPACO de Quill (mismo patrón que el audio
-  // protegido de arriba: Quill lo trata como una sola "unidad" en su
-  // documento y nunca mira ni toca lo que hay adentro). El título y el
-  // cuerpo son sus propias islas contenteditable="true" DENTRO de un
-  // contenedor contenteditable="false" — typing/Enter/Backspace/listas ahí
-  // dentro son edición nativa del navegador, no del modelo de Quill. Esto
-  // reemplaza un intento anterior con formatos de línea propios que competía
-  // con el manejo de teclado interno de Quill de forma impredecible (varias
-  // rondas de bugs de "se duplica"/"se borra" que nunca se resolvieron del
-  // todo) — con un embed opaco, Quill simplemente no participa.
-  const BlockEmbedColapsable = Quill.import('blots/block/embed');
-  class ColapsableEmbedBlot extends BlockEmbedColapsable {
-    static create(value) {
-      const node = super.create();
-      node.setAttribute('contenteditable', 'false');
-      node.setAttribute('open', '');
-      const resumen = document.createElement('summary');
-      resumen.setAttribute('contenteditable', 'true');
-      resumen.innerHTML = (value && value.titulo) || 'Título del colapsable';
-      const cuerpo = document.createElement('div');
-      cuerpo.className = 'pf-colapsable-body-editable';
-      cuerpo.setAttribute('contenteditable', 'true');
-      cuerpo.innerHTML = (value && value.cuerpo) || '<p><br></p>';
-      node.appendChild(resumen);
-      node.appendChild(cuerpo);
-      return node;
-    }
-    static value(node) {
-      const resumen = node.querySelector('summary');
-      const cuerpo = node.querySelector('.pf-colapsable-body-editable');
-      return {
-        titulo: resumen ? resumen.innerHTML : '',
-        cuerpo: cuerpo ? cuerpo.innerHTML : '',
-      };
-    }
-  }
-  ColapsableEmbedBlot.blotName = 'colapsable-embed';
-  ColapsableEmbedBlot.tagName = 'details';
-  ColapsableEmbedBlot.className = 'pf-colapsable-embed';
-  Quill.register(ColapsableEmbedBlot);
-
-  // Cualquier tecla/entrada dentro del título o el cuerpo del colapsable
-  // nunca debe llegarle a Quill — se intercepta en fase de CAPTURA sobre el
-  // contenedor (un ancestro de quill.root) para garantizar que se detiene
-  // ANTES de que el evento alcance a Quill. Un solo keydown/stopPropagation
-  // no bastaba: Quill 2 reacciona a 'beforeinput' (así detecta y aplica lo
-  // que el usuario escribió) y también observa la SELECCIÓN del documento
-  // completo — al escribir dentro de una isla contenteditable anidada,
-  // Quill no sabe traducir esa posición a su propio modelo, la confunde con
-  // "todo el embed está seleccionado" y termina borrándolo con la primera
-  // tecla (confirmado con un stack trace real: Editor.deleteText llamado
-  // desde adentro de quill.js). 'copy'/'cut'/'paste' se agregaron después:
-  // Quill los intercepta con su propio módulo de portapapeles
-  // (this.quill.root.addEventListener('copy'|'cut'|'paste', ...)) para
-  // armar el contenido desde SU modelo de Delta en vez del DOM real —
-  // dentro del colapsable ese modelo no ve nada, así que Ctrl+C terminaba
-  // copiando vacío aunque la selección nativa sí tuviera el texto correcto
-  // (confirmado: getSelection().toString() traía el texto bien, pero el
-  // portapapeles llegaba vacío). 'mousedown'/'click' también están en la
-  // lista: Quill los escucha en quill.root para su propio manejo de
-  // selección/formato del toolbar, y eso interfería con el doble-click
-  // nativo del navegador para seleccionar una palabra (confirmado:
-  // funcionaba en una página aislada sin Quill, pero no aquí). Frenar
-  // TODOS estos tipos de evento aquí es lo que de verdad aísla al
-  // colapsable de Quill; edición nativa runs.
-  ['beforeinput', 'input', 'compositionstart', 'compositionupdate', 'compositionend', 'keyup', 'keypress', 'copy', 'cut', 'paste', 'mousedown', 'mouseup', 'click', 'dblclick'].forEach(function (tipo) {
-    document.getElementById('editorContenidoTexto').addEventListener(tipo, function (e) {
-      if (e.target.closest && e.target.closest('.pf-colapsable-embed')) {
-        e.stopPropagation();
-      }
-    }, true);
-  });
-  // El keydown se maneja aparte porque además necesita casos especiales
-  // dentro del <summary>: por ser un elemento nativamente "interactivo",
-  // Espacio y Enter activan su comportamiento propio de abrir/cerrar el
-  // <details> en vez de escribir texto — Espacio incluso se "come" el
-  // carácter (preventDefault bloquea también la inserción nativa, van
-  // pegados), así que se inserta a mano con execCommand. Enter no inserta
-  // salto de línea en el título (es de una sola línea) — mueve el cursor al
-  // cuerpo, para seguir la expectativa original de "Enter avanza".
-  document.getElementById('editorContenidoTexto').addEventListener('keydown', function (e) {
-    if (!(e.target.closest && e.target.closest('.pf-colapsable-embed'))) return;
-    const resumen = e.target.closest('summary');
-    const cuerpoDelKeydown = e.target.closest('.pf-colapsable-body-editable');
-    const isla = resumen || cuerpoDelKeydown;
-    if (isla && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-      // "Seleccionar todo" nativo (Ctrl/Cmd+A) no funciona en un
-      // contenteditable=true anidado dentro de uno false anidado dentro de
-      // otro true — confirmado hasta en una página aislada sin Quill de
-      // por medio, es una limitación real del navegador con este triple
-      // anidado, no un bug de este código. Se arma la selección a mano,
-      // acotada nada más a la isla enfocada (título o cuerpo).
-      e.preventDefault();
-      const rango = document.createRange();
-      rango.selectNodeContents(isla);
-      const seleccion = window.getSelection();
-      seleccion.removeAllRanges();
-      seleccion.addRange(rango);
-    } else if (resumen && e.key === ' ') {
-      e.preventDefault();
-      document.execCommand('insertText', false, ' ');
-    } else if (resumen && e.key === 'Enter') {
-      e.preventDefault();
-      const cuerpo = resumen.parentElement.querySelector('.pf-colapsable-body-editable');
-      if (cuerpo) {
-        cuerpo.focus();
-        const seleccion = window.getSelection();
-        const rango = document.createRange();
-        rango.selectNodeContents(cuerpo);
-        rango.collapse(true);
-        seleccion.removeAllRanges();
-        seleccion.addRange(rango);
-      }
-    } else if (cuerpoDelKeydown && e.key === ' ') {
-      // Convierte "- "/"* " o "1. " al inicio de una línea del cuerpo en
-      // lista con viñetas/numerada — igual que Notion/Quill, pero armado a
-      // mano en vez de con document.execCommand('insertUnorderedList'):
-      // ese comando devuelve false (no hace nada) dentro de esta isla
-      // contenteditable anidada, aparentemente porque el navegador no
-      // logra resolver bien el "editing host" cuando hay contenteditable
-      // true→false→true encajados (confirmado probando ambas rutas). Una
-      // vez que existe un <ul>/<ol>/<li> real, Enter para seguir la lista o
-      // salir de ella al dar Enter en un item vacío es comportamiento
-      // nativo del navegador — no hace falta más JS para eso.
-      const seleccion = window.getSelection();
-      if (seleccion.rangeCount) {
-        const rango = seleccion.getRangeAt(0);
-        if (rango.collapsed) {
-          const nodo = rango.startContainer;
-          const textoAntes = nodo.nodeType === Node.TEXT_NODE ? nodo.textContent.slice(0, rango.startOffset) : '';
-          const esVineta = textoAntes === '-' || textoAntes === '*';
-          const numerada = textoAntes.match(/^(\d+)\.$/);
-          if (esVineta || numerada) {
-            e.preventDefault();
-            let linea = nodo.nodeType === Node.TEXT_NODE ? nodo.parentElement : nodo;
-            while (linea && linea.parentElement !== cuerpoDelKeydown) {
-              linea = linea.parentElement;
-            }
-            if (linea) {
-              rango.setStart(nodo, 0);
-              rango.deleteContents();
-              const tipoLista = numerada ? 'ol' : 'ul';
-              let lista = linea.previousElementSibling;
-              if (!lista || lista.tagName.toLowerCase() !== tipoLista) {
-                lista = document.createElement(tipoLista);
-                linea.parentNode.insertBefore(lista, linea);
-              }
-              const item = document.createElement('li');
-              item.innerHTML = '<br>';
-              lista.appendChild(item);
-              linea.remove();
-              const nuevoRango = document.createRange();
-              nuevoRango.selectNodeContents(item);
-              nuevoRango.collapse(true);
-              seleccion.removeAllRanges();
-              seleccion.addRange(nuevoRango);
-            }
-          }
-        }
-      }
-    }
-    e.stopPropagation();
-  }, true);
-
-  // Video/audio/archivo/colapsable anidado TAMBIÉN deben poder insertarse
-  // con estos mismos botones de la barra estando el cursor DENTRO de un
-  // colapsable — pero un clic en la barra (fuera de #editorContenidoTexto)
-  // ya movió el foco antes de que el handler del botón corra, así que para
-  // entonces ya no hay forma de saber en qué colapsable/qué punto exacto
-  // estaba el cursor. Se guarda esa posición un instante antes (en cada
-  // mouseup/keyup DENTRO de un colapsable, ambos ya interceptados arriba) y
-  // se limpia en cuanto el cursor sale del colapsable — así, cuando el
-  // handler del botón corre, sabe si debe insertar en Quill (de siempre) o
-  // directo en el HTML del colapsable recordado.
-  let ultimoContextoColapsable = null;
-  document.getElementById('editorContenidoTexto').addEventListener('mouseup', actualizarContextoColapsable, true);
-  document.getElementById('editorContenidoTexto').addEventListener('keyup', actualizarContextoColapsable, true);
-  function actualizarContextoColapsable(e) {
-    const isla = e.target.closest && (e.target.closest('summary') || e.target.closest('.pf-colapsable-body-editable'));
-    if (!isla || !isla.closest('.pf-colapsable-embed')) {
-      ultimoContextoColapsable = null;
-      return;
-    }
-    const seleccion = window.getSelection();
-    if (!seleccion.rangeCount) return;
-    ultimoContextoColapsable = { isla: isla, rango: seleccion.getRangeAt(0).cloneRange() };
-  }
-
-  // Inserta un elemento de bloque (video/audio/colapsable anidado) dentro
-  // del cuerpo de un colapsable, en el punto recordado por
-  // ultimoContextoColapsable (o el contexto explícito que pase el llamador
-  // — subirAudioProtegido/subirArchivoAdjunto necesitan el que había AL
-  // HACER CLIC en el botón, no el actual, porque para cuando su fetch()
-  // resuelve el usuario ya cerró el selector de archivo y el contexto
-  // "en vivo" pudo cambiar o limpiarse mientras tanto) — si el punto
-  // recordado era el TÍTULO (<summary>), se inserta al final de su propio
-  // cuerpo en su lugar (un <summary> es de una sola línea, no tiene
-  // sentido meterle un bloque). Devuelve true si insertó ahí, false si no
-  // había contexto de colapsable (el llamador debe usar el camino normal
-  // de Quill en ese caso).
-  function insertarBloqueEnColapsable(elementoNuevo, contextoExplicito) {
-    const contexto = contextoExplicito || ultimoContextoColapsable;
-    if (!contexto || !contexto.isla.isConnected) return false;
-    let cuerpo = contexto.isla.closest('.pf-colapsable-body-editable');
-    if (!cuerpo && contexto.isla.tagName === 'SUMMARY') {
-      cuerpo = contexto.isla.parentElement.querySelector('.pf-colapsable-body-editable');
-    }
-    if (!cuerpo) return false;
-    let linea = contexto.rango && cuerpo.contains(contexto.rango.startContainer)
-      ? (contexto.rango.startContainer.nodeType === Node.TEXT_NODE ? contexto.rango.startContainer.parentElement : contexto.rango.startContainer)
-      : null;
-    while (linea && linea.parentElement !== cuerpo) {
-      linea = linea.parentElement;
-    }
-    if (linea) {
-      linea.parentNode.insertBefore(elementoNuevo, linea.nextSibling);
-    } else {
-      cuerpo.appendChild(elementoNuevo);
-    }
-    return true;
-  }
-
-  // Enfoca un elemento editable (el <summary> o un <p> del cuerpo) y coloca
-  // el cursor al final de su contenido — usado tanto al crear un colapsable
-  // nuevo (de siempre) como al insertar uno anidado dentro de otro.
-  function focusIslaColapsable(el) {
-    // Sin collapse(): se deja el placeholder ("Título del colapsable")
-    // SELECCIONADO, no solo con el cursor detrás — así la primera tecla que
-    // el usuario escriba lo reemplaza en vez de agregarse después.
-    el.focus();
-    const seleccion = window.getSelection();
-    const rango = document.createRange();
-    rango.selectNodeContents(el);
-    seleccion.removeAllRanges();
-    seleccion.addRange(rango);
-  }
-
-  const icons = Quill.import('ui/icons');
-  icons['audio-embed'] = '🔊';
-  icons['archivo-adjunto'] = '📎';
-  icons['colapsable-embed'] = '▾';
-  icons['undo'] = '↶';
-  icons['redo'] = '↷';
-
-  function normalizarUrlYoutube(url) {
-    url = url.trim();
-    if (url === '' || url.indexOf('youtube.com/embed/') !== -1) return url;
-    let m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/i);
-    if (!m) m = url.match(/youtube\.com\/(?:watch\?v=|shorts\/|live\/)([a-zA-Z0-9_-]{6,})/i);
-    return m ? 'https://www.youtube.com/embed/' + m[1] : url;
-  }
-
-  // Tamaño de fuente y alineación con estilo inline (no clases) — así el HTML
-  // guardado se ve igual en cualquier página que lo renderice
-  // (.pf-contenido-html) sin depender del CSS propio del editor.
-  const TamanoEstilo = Quill.import('attributors/style/size');
-  TamanoEstilo.whitelist = ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'];
-  Quill.register(TamanoEstilo, true);
-  Quill.register(Quill.import('attributors/style/align'), true);
-  const Delta = Quill.import('delta');
-
-  const quillContenidoTexto = new Quill('#editorContenidoTexto', {
-    theme: 'snow',
+  const editor = PfEditor.crear({
+    contenedor: '#editorContenidoTexto',
+    contexto: 'admin',
     placeholder: 'Escribe el contenido de la lección — inserta imágenes, video, audio o archivos donde los necesites.',
-    modules: {
-      toolbar: {
-        container: [
-          [{ header: [2, 3, false] }, { size: TamanoEstilo.whitelist }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          [{ align: [] }],
-          ['blockquote', 'link', 'image', 'video'],
-          ['audio-embed', 'archivo-adjunto', 'colapsable-embed'],
-          ['undo', 'redo'],
-          ['clean'],
-        ],
-        handlers: {
-          image: subirImagen,
-          video: insertarVideoYoutube,
-          'audio-embed': subirAudioProtegido,
-          'archivo-adjunto': subirArchivoAdjunto,
-          'colapsable-embed': insertarColapsable,
-          undo: function () { quillContenidoTexto.history.undo(); },
-          redo: function () { quillContenidoTexto.history.redo(); },
-        },
-      },
-    },
+    csrfToken: <?= json_encode(csrf_token()) ?>,
+    endpointAudio: '../../backend/leccion_audio_embed_subir.php',
+    endpointAdjunto: '../../backend/leccion_archivo_subir.php',
+    contenidoInicialHtml: <?= json_encode((string) $leccion['contenido_texto']) ?>,
+    capacidades: { video: true, audio: true, adjuntos: true, colapsables: true, tamanoAlineacion: true, undoRedo: true },
   });
-  quillContenidoTexto.root.innerHTML = <?= json_encode((string) $leccion['contenido_texto']) ?>;
-
-  // Pegar una imagen (Ctrl+V desde el portapapeles, o copiada de un Word/Google
-  // Docs/captura de pantalla) NO pasa por subirImagen() de abajo — Quill la
-  // pega tal cual como <img src="data:image/...;base64,...">, que puede pesar
-  // varios MB en un solo texto. Eso infla el POST de guardar/autoguardar
-  // hasta que algún límite de tamaño del lado del servidor lo rechaza con 403
-  // — visto en producción, es la causa real de "no autoguarda al pegar
-  // información". Este matcher intercepta cualquier <img> pegada con src
-  // data:, la quita del pegado (no inserta el base64) y la sube en segundo
-  // plano por el mismo endpoint que ya usa el botón de imagen del toolbar,
-  // insertando el resultado como una imagen normal (URL, no base64) en
-  // cuanto termina.
-  quillContenidoTexto.clipboard.addMatcher('IMG', function (node, delta) {
-    const src = node.getAttribute('src') || '';
-    if (!src.startsWith('data:')) {
-      return delta;
-    }
-    subirImagenPegada(src);
-    return new Delta();
-  });
-
-  async function subirImagenPegada(dataUrl) {
-    try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const extension = (blob.type.split('/')[1] || 'png').split('+')[0];
-      const datos = new FormData();
-      datos.append('imagen', blob, 'pegado.' + extension);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      const res = await fetch('../../backend/quill_imagen_subir.php', { method: 'POST', body: datos });
-      const data = await res.json();
-      if (data.success) {
-        const rango = quillContenidoTexto.getSelection(true) || { index: quillContenidoTexto.getLength() };
-        quillContenidoTexto.insertEmbed(rango.index, 'image', data.url, 'user');
-      } else {
-        $.notify(data.message || 'No se pudo subir una imagen pegada.', { className: 'error', position: 'top right' });
-      }
-    } catch (e) {
-      $.notify('Error de conexión subiendo una imagen pegada.', { className: 'error', position: 'top right' });
-    }
-  }
-
-  // Inserta un colapsable nuevo en el cursor y enfoca su título para
-  // empezar a escribir de inmediato. Ya no hace falta "alternar" nada por
-  // teclado — un embed opaco no tiene un estado de "dentro/fuera" que
-  // vigilar, así que este botón solo INSERTA (para editar el título o el
-  // cuerpo de uno ya existente, simplemente se hace clic ahí y se escribe,
-  // como en cualquier campo de texto normal).
-  function insertarColapsable() {
-    // ColapsableEmbedBlot.create() es el mismo método que usa Quill para
-    // construir el <details>/<summary>/cuerpo — se reutiliza tal cual para
-    // armar un colapsable ANIDADO (dentro de otro), ya que no es más que
-    // una función que arma un nodo DOM, nada que dependa de estar
-    // registrado en Quill para poder llamarse.
-    const nodoAnidado = ultimoContextoColapsable ? ColapsableEmbedBlot.create({ titulo: '', cuerpo: '' }) : null;
-    if (nodoAnidado && insertarBloqueEnColapsable(nodoAnidado)) {
-      setTimeout(function () { focusIslaColapsable(nodoAnidado.querySelector('summary')); }, 0);
-      return;
-    }
-    const rango = quillContenidoTexto.getSelection(true);
-    if (!rango) return;
-    quillContenidoTexto.insertEmbed(rango.index, 'colapsable-embed', { titulo: '', cuerpo: '' }, 'user');
-    quillContenidoTexto.setSelection(rango.index + 1, 0, 'user');
-    setTimeout(function () {
-      const resumenes = quillContenidoTexto.root.querySelectorAll('.pf-colapsable-embed summary');
-      const ultimo = resumenes[resumenes.length - 1];
-      if (ultimo) focusIslaColapsable(ultimo);
-    }, 0);
-  }
-
-  function subirImagen() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/webp,image/gif';
-    input.addEventListener('change', async function () {
-      const archivo = input.files[0];
-      if (!archivo) return;
-      const rango = quillContenidoTexto.getSelection(true);
-      const datos = new FormData();
-      datos.append('imagen', archivo);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      try {
-        const res = await fetch('../../backend/quill_imagen_subir.php', { method: 'POST', body: datos });
-        const data = await res.json();
-        if (data.success) {
-          quillContenidoTexto.insertEmbed(rango.index, 'image', data.url);
-          quillContenidoTexto.setSelection(rango.index + 1);
-        } else {
-          alert(data.message || 'No se pudo subir la imagen.');
-        }
-      } catch (e) {
-        alert('Error de conexión subiendo la imagen.');
-      }
-    });
-    input.click();
-  }
-
-  function insertarVideoYoutube() {
-    const url = prompt('Pega el link del video de YouTube:');
-    if (!url) return;
-    const embedUrl = normalizarUrlYoutube(url);
-    if (ultimoContextoColapsable) {
-      const iframe = document.createElement('iframe');
-      iframe.className = 'ql-video';
-      iframe.setAttribute('frameborder', '0');
-      iframe.setAttribute('allowfullscreen', 'true');
-      iframe.src = embedUrl;
-      if (insertarBloqueEnColapsable(iframe)) return;
-    }
-    const rango = quillContenidoTexto.getSelection(true);
-    quillContenidoTexto.insertEmbed(rango.index, 'video', embedUrl);
-    quillContenidoTexto.setSelection(rango.index + 1);
-  }
-
-  function subirAudioProtegido() {
-    // Se captura ANTES de abrir el selector de archivo (no adentro del
-    // 'change', que corre después de que el usuario ya cerró ese diálogo)
-    // — por simetría con quillContenidoTexto.getSelection(true) de abajo,
-    // que también asume que la selección de cuando se dio clic sigue vigente.
-    const contextoAlClick = ultimoContextoColapsable;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
-    input.addEventListener('change', async function () {
-      const archivo = input.files[0];
-      if (!archivo) return;
-      const rango = quillContenidoTexto.getSelection(true);
-      const datos = new FormData();
-      datos.append('audio', archivo);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      try {
-        const res = await fetch('../../backend/leccion_audio_embed_subir.php', { method: 'POST', body: datos });
-        const data = await res.json();
-        if (data.success) {
-          if (contextoAlClick) {
-            const nodo = document.createElement('div');
-            nodo.className = 'pf-audio-embed';
-            nodo.setAttribute('data-audio-id', data.id);
-            nodo.setAttribute('contenteditable', 'false');
-            nodo.textContent = '🔊 ' + data.nombre;
-            if (insertarBloqueEnColapsable(nodo, contextoAlClick)) return;
-          }
-          quillContenidoTexto.insertEmbed(rango.index, 'audio-embed', { id: data.id, nombre: data.nombre });
-          quillContenidoTexto.setSelection(rango.index + 1);
-        } else {
-          alert(data.message || 'No se pudo subir el audio.');
-        }
-      } catch (e) {
-        alert('Error de conexión subiendo el audio.');
-      }
-    });
-    input.click();
-  }
-
-  function subirArchivoAdjunto() {
-    const contextoAlClick = ultimoContextoColapsable;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf,.zip,.epub';
-    input.addEventListener('change', async function () {
-      const archivo = input.files[0];
-      if (!archivo) return;
-      const rango = quillContenidoTexto.getSelection(true);
-      const datos = new FormData();
-      datos.append('archivo', archivo);
-      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-      try {
-        const res = await fetch('../../backend/leccion_archivo_subir.php', { method: 'POST', body: datos });
-        const data = await res.json();
-        if (data.success) {
-          if (contextoAlClick) {
-            const parrafo = document.createElement('p');
-            const enlace = document.createElement('a');
-            enlace.href = data.url;
-            enlace.textContent = '📎 ' + data.nombre;
-            parrafo.appendChild(enlace);
-            if (insertarBloqueEnColapsable(parrafo, contextoAlClick)) return;
-          }
-          quillContenidoTexto.insertText(rango.index, '📎 ' + data.nombre, { link: data.url });
-          quillContenidoTexto.insertText(rango.index + ('📎 ' + data.nombre).length, '\n');
-          quillContenidoTexto.setSelection(rango.index + ('📎 ' + data.nombre).length + 1);
-        } else {
-          alert(data.message || 'No se pudo subir el archivo.');
-        }
-      } catch (e) {
-        alert('Error de conexión subiendo el archivo.');
-      }
-    });
-    input.click();
-  }
+  const quillContenidoTexto = editor.quill;
 
   function sincronizarContenido() {
-    document.getElementById('contenidoTextoOculta').value = quillContenidoTexto.root.innerHTML;
+    document.getElementById('contenidoTextoOculta').value = editor.sincronizar();
   }
 
   function alternarSegunTipo() {
@@ -789,6 +310,16 @@ include __DIR__ . '/_header.php';
   const form = document.getElementById('formLeccion');
   // Fijado directo en el <form> (no delegado en document) para garantizar
   // que corra ANTES de que el handler de _footer.php arme el FormData.
+  // stopImmediatePropagation() corta también a sincronizarContenido (el
+  // siguiente listener de este mismo form) y al submit delegado de
+  // _footer.php (que escucha en document, en la fase de burbujeo) — no
+  // tiene caso guardar si todavía falta una imagen por subir.
+  form.addEventListener('submit', function (e) {
+    if (editor.bloquearSiHayCargasPendientes()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  });
   form.addEventListener('submit', sincronizarContenido);
 
   document.getElementById('btnGuardarPublicar').addEventListener('click', function () {
@@ -806,11 +337,11 @@ include __DIR__ . '/_header.php';
   // Un 403 aquí puede ser una sesión de verdad cerrada (res.redirected, ya
   // que require_login() hace un 302 a ingreso.php) o puede no serlo — un
   // csrf_token desincronizado, o en producción un bloqueo del servidor por
-  // tamaño/contenido del POST (ver subirImagenPegada() arriba, pensado
-  // justo para evitar esto con imágenes pegadas). Antes cualquier 403 se
-  // trataba como sesión cerrada a ciegas; ahora se confirma con
-  // session_check.php antes de avisar, para no alarmar en falso ni
-  // interrumpir la edición cuando la sesión sigue activa.
+  // tamaño/contenido del POST (ver el paste-imagen del editor, pensado
+  // justo para evitar esto). Antes cualquier 403 se trataba como sesión
+  // cerrada a ciegas; ahora se confirma con session_check.php antes de
+  // avisar, para no alarmar en falso ni interrumpir la edición cuando la
+  // sesión sigue activa.
   async function pfSesionSigueActiva() {
     try {
       const res = await fetch('../../backend/session_check.php', { credentials: 'same-origin', cache: 'no-store' });
@@ -825,6 +356,7 @@ include __DIR__ . '/_header.php';
   // manual (mismo patrón que "Vista previa" abajo) para poder quedarse en el
   // editor sin redirigir a la lista, y así seguir editando sin interrupción.
   document.getElementById('btnGuardarBorrador').addEventListener('click', async function () {
+    if (editor.bloquearSiHayCargasPendientes()) return;
     const boton = this;
     boton.disabled = true;
     try {
@@ -869,6 +401,7 @@ include __DIR__ . '/_header.php';
 
   const btnVistaPrevia = document.getElementById('btnVistaPrevia');
   btnVistaPrevia.addEventListener('click', async function () {
+    if (editor.bloquearSiHayCargasPendientes()) return;
     sincronizarContenido();
     document.getElementById('accionPublicacion').value = 'preview';
     this.disabled = true;
@@ -891,13 +424,13 @@ include __DIR__ . '/_header.php';
   });
 
   // Se arranca con un pequeño retraso para que la asignación inicial de
-  // quillContenidoTexto.root.innerHTML (arriba) termine de disparar su propio
-  // "text-change" antes de empezar a vigilar cambios reales del admin — si no,
-  // el autoguardado se dispararía de inmediato al abrir un editor ya existente.
+  // contenidoInicialHtml (arriba) termine de disparar su propio
+  // "text-change" antes de empezar a vigilar cambios reales del admin — si
+  // no, el autoguardado se dispararía de inmediato al abrir un editor ya
+  // existente.
   setTimeout(function () {
-    PfAutosave.iniciar({
+    PfEditor.conectarAutosaveServidor(editor, {
       formSelector: '#formLeccion',
-      quills: [quillContenidoTexto],
       campoBandera: 'accion_publicacion',
       valorBandera: 'autosave',
       antesDeGuardar: sincronizarContenido,

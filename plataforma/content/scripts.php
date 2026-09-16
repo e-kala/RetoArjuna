@@ -8,6 +8,11 @@
 <script src="content/session_watch.js" data-check-url="backend/session_check.php"></script>
 <?php endif; ?>
 
+<!-- Botón "Descargar" bajo cada imagen del contenido guardado desde el
+     editor (curso/evento/lección/producto) — no-op en páginas sin
+     .pf-contenido-html, seguro cargarlo en todo el sitio. -->
+<script src="assets/pf_imagenes_descargables.js?v=2"></script>
+
 <!--Función ocultar navbar scroll IN-->
 <script>
     let lastScroll = 0;

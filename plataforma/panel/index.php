@@ -43,7 +43,10 @@ if ($esAdmin && $action === 'inicio') {
     $usuariosActivos = (int) $conn->query('SELECT COUNT(*) AS n FROM usuarios_perfil WHERE activo = 1')->fetch_assoc()['n'];
     $totalCursos = (int) $conn->query('SELECT COUNT(*) AS n FROM cursos')->fetch_assoc()['n'];
     $cursosPublicados = (int) $conn->query('SELECT COUNT(*) AS n FROM cursos WHERE activo = 1')->fetch_assoc()['n'];
-    $pagosPendientes = (int) $conn->query("SELECT COUNT(*) AS n FROM pagos WHERE estado = 'pendiente'")->fetch_assoc()['n'];
+    // Solo transferencias — un pago con tarjeta "pendiente" es un intento
+    // incompleto, no algo que espere una decisión del admin (ver pestaña
+    // "Incompletos" de pagos.php).
+    $pagosPendientes = (int) $conn->query("SELECT COUNT(*) AS n FROM pagos WHERE estado = 'pendiente' AND metodo_pago = 'transferencia'")->fetch_assoc()['n'];
     $pagosConfirmados = (int) $conn->query("SELECT COUNT(*) AS n FROM pagos WHERE estado = 'confirmado'")->fetch_assoc()['n'];
     $miembrosActivos = (int) $conn->query("SELECT COUNT(*) AS n FROM membresia_suscripciones WHERE estado = 'activa' AND (periodo_actual_fin IS NULL OR periodo_actual_fin >= NOW())")->fetch_assoc()['n'];
 
@@ -64,7 +67,7 @@ if ($esAdmin && $action === 'inicio') {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=2.8">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=2.9">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen alguna clase
        vieja de SB Admin 2 que ya no se carga — se preserva con un valor
@@ -115,7 +118,7 @@ if ($esAdmin && $action === 'inicio') {
             <div class="ra-stat-value"><?= $pagosConfirmados ?> <span class="text-muted fs-6 fw-normal">/ <?= $totalPagosResueltos ?></span></div>
             <div class="ra-stat-bar"><span style="width:<?= $pctPagosConfirmados ?>%;"></span></div>
             <?php if ($pagosPendientes > 0): ?>
-              <a href="admin/pagos.php" class="small d-block mt-2" style="color:#B8860B;"><?= $pagosPendientes ?> pendiente<?= $pagosPendientes === 1 ? '' : 's' ?> por revisar →</a>
+              <a href="admin/pagos.php?tab=pendientes" class="small d-block mt-2" style="color:#B8860B;"><?= $pagosPendientes ?> pendiente<?= $pagosPendientes === 1 ? '' : 's' ?> por revisar →</a>
             <?php endif; ?>
           </div>
         </div>
@@ -141,10 +144,12 @@ if ($esAdmin && $action === 'inicio') {
         $herramientas = [
           ['href' => 'admin/cursos.php', 'icono' => 'bi-book', 'titulo' => 'Cursos', 'texto' => 'Lecciones, materiales y quizzes'],
           ['href' => 'admin/eventos.php', 'icono' => 'bi-calendar-event', 'titulo' => 'Eventos', 'texto' => 'Encuentros en línea y presenciales'],
+          ['href' => 'admin/lista_espera_eventos.php', 'icono' => 'bi-envelope-paper', 'titulo' => 'Lista de espera', 'texto' => 'Correos suscritos a próximos eventos'],
           ['href' => 'admin/productos.php', 'icono' => 'bi-shop', 'titulo' => 'Productos', 'texto' => 'Tienda física y digital'],
           ['href' => 'admin/usuarios.php', 'icono' => 'bi-people', 'titulo' => 'Usuarios', 'texto' => 'Cuentas, roles y accesos'],
           ['href' => 'admin/inactividad.php', 'icono' => 'bi-hourglass-split', 'titulo' => 'Inactividad', 'texto' => 'Cuentas dormidas, última sesión'],
           ['href' => 'admin/pagos.php', 'icono' => 'bi-cash-coin', 'titulo' => 'Pagos', 'texto' => 'Confirmar transferencias y Stripe'],
+          ['href' => 'admin/certificados.php', 'icono' => 'bi-patch-check', 'titulo' => 'Certificados', 'texto' => 'Reconocimientos emitidos a usuarios'],
           ['href' => 'admin/foro.php', 'icono' => 'bi-chat-square-text', 'titulo' => 'Foro', 'texto' => 'Moderación, etiquetas y categorías'],
           ['href' => 'admin/actividades.php', 'icono' => 'bi-hands', 'titulo' => 'Actividades', 'texto' => 'Prácticas guiadas'],
           ['href' => 'admin/noticias.php', 'icono' => 'bi-newspaper', 'titulo' => 'Noticias', 'texto' => 'Avisos de la comunidad'],
@@ -155,6 +160,8 @@ if ($esAdmin && $action === 'inicio') {
           ['href' => 'admin/navbar_links.php', 'icono' => 'bi-list', 'titulo' => 'Navbar', 'texto' => 'Links del menú y pie de página'],
           ['href' => 'admin/landing_pages.php', 'icono' => 'bi-file-earmark-code', 'titulo' => 'Landing pages', 'texto' => 'Sube HTML de ventas ya diseñado'],
           ['href' => 'admin/notificaciones_config.php', 'icono' => 'bi-bell', 'titulo' => 'Notificaciones', 'texto' => 'Qué avisos de contenido nuevo se difunden'],
+          ['href' => 'admin/email_campanas.php', 'icono' => 'bi-envelope-paper-fill', 'titulo' => 'Campañas de correo', 'texto' => 'Correo masivo segmentado por tipo de usuario'],
+          ['href' => 'admin/email_plantillas.php', 'icono' => 'bi-file-earmark-text', 'titulo' => 'Plantillas de correo', 'texto' => 'Personaliza los correos automáticos'],
           ['href' => 'admin/reportes.php', 'icono' => 'bi-bar-chart', 'titulo' => 'Reportes', 'texto' => 'Panorama general de la plataforma'],
         ];
         ?>

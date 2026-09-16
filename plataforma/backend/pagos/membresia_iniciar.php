@@ -111,23 +111,43 @@ if (!$stripeCustomerId) {
 
 // Si el motor de ofertas ya deja un descuento (cupón/promoción, parcial o al
 // 100%), se aplica ANTES de crear la Subscription como un Coupon nativo de
-// Stripe (amount_off = descuento en centavos, duration=once — solo afecta la
-// primera factura). Tiene que ser así y no parchando el PaymentIntent
-// después de crear la Subscription: Stripe RECHAZA cambiar el "amount" de un
-// PaymentIntent que nació de una factura ("cannot be used when modifying a
-// PaymentIntent that was created by an invoice") — a diferencia del
-// PaymentIntent independiente que crea stripe_create_intent.php para pagos
-// únicos, que sí acepta el parche (ver aplicar_cupon.php/checkout.php). Con
-// el descuento aplicado a la Subscription, la factura ya nace con el monto
-// correcto — si queda en $0, Stripe la marca 'paid' sola sin pedir tarjeta.
+// Stripe (amount_off = descuento en centavos). Tiene que ser así y no
+// parchando el PaymentIntent después de crear la Subscription: Stripe
+// RECHAZA cambiar el "amount" de un PaymentIntent que nació de una factura
+// ("cannot be used when modifying a PaymentIntent that was created by an
+// invoice") — a diferencia del PaymentIntent independiente que crea
+// stripe_create_intent.php para pagos únicos, que sí acepta el parche (ver
+// aplicar_cupon.php/checkout.php). Con el descuento aplicado a la
+// Subscription, la factura ya nace con el monto correcto — si queda en $0,
+// Stripe la marca 'paid' sola sin pedir tarjeta.
+//
+// duration por default 'once' (solo la primera factura) — pero un cupón
+// interno con vigencia_tipo='meses' (panel/admin/cupon_form.php) pasa a
+// duration='repeating'+duration_in_months, para que el mismo descuento
+// siga aplicando en las siguientes N mensualidades de esta suscripción
+// específica (Stripe lo cuenta desde AHORA, no desde una fecha fija del
+// cupón — cada quien se suscribe en un momento distinto). Una promoción
+// pública, o un cupón 'combinado' con otra oferta (edge case: ambos
+// combinables a la vez), no tienen ese dato — se quedan en 'once'.
+$duracionCupon = ['duration' => 'once'];
+if ($oferta['oferta_tipo'] === 'cupon' && $oferta['oferta_id']) {
+    $stmtCupon = $conn->prepare('SELECT vigencia_tipo, vigencia_meses FROM cupones WHERE id = ?');
+    $stmtCupon->bind_param('i', $oferta['oferta_id']);
+    $stmtCupon->execute();
+    $filaCupon = $stmtCupon->get_result()->fetch_assoc();
+    $stmtCupon->close();
+    if ($filaCupon && $filaCupon['vigencia_tipo'] === 'meses' && $filaCupon['vigencia_meses']) {
+        $duracionCupon = ['duration' => 'repeating', 'duration_in_months' => (int) $filaCupon['vigencia_meses']];
+    }
+}
+
 $discounts = [];
 if ($oferta['estado'] === 'oferta' && $oferta['descuento_monto'] > 0) {
-    $resCoupon = stripe_api('POST', 'coupons', [
+    $resCoupon = stripe_api('POST', 'coupons', array_merge([
         'amount_off' => (int) round($oferta['descuento_monto'] * 100),
         'currency' => 'mxn',
-        'duration' => 'once',
         'name' => 'Cupón/promoción: ' . ($oferta['oferta_nombre'] ?? ''),
-    ]);
+    ], $duracionCupon));
     if ($resCoupon['ok']) {
         $discounts = [['coupon' => $resCoupon['data']['id']]];
     } else {

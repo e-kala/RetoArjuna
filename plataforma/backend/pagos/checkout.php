@@ -270,6 +270,13 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
     }
     .pf-checkout-confianza span { display: inline-flex; align-items: center; gap: 6px; }
     .pf-checkout-confianza i { color: var(--pf-accent); }
+    .pf-oxxo-info {
+      display: flex; gap: 10px; align-items: flex-start;
+      background: rgba(247, 147, 30, 0.08); border: 1px solid rgba(247, 147, 30, 0.25);
+      border-radius: var(--pf-radius-md); padding: 12px 14px;
+      font-size: 13px; color: var(--pf-ink); margin-bottom: 14px;
+    }
+    .pf-oxxo-info i { color: var(--pf-accent); margin-top: 1px; flex-shrink: 0; }
     .pf-checkout-card .nav-tabs { border-bottom: 1px solid var(--pf-line); }
     .pf-checkout-card .nav-tabs .nav-link { color: var(--pf-muted); font-weight: 700; border: none; border-bottom: 2px solid transparent; }
     .pf-checkout-card .nav-tabs .nav-link.active { color: var(--pf-ink); border-bottom-color: var(--pf-accent); background: transparent; }
@@ -451,6 +458,10 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
           <div class="tab-pane fade show active" id="tab-stripe">
             <?php if ($stripeListo): ?>
               <div id="payment-element" class="mb-3"></div>
+              <div id="oxxoInfo" class="pf-oxxo-info d-none">
+                <i class="bi bi-info-circle-fill"></i>
+                <span>Vas a generar un <strong>voucher para pagar en efectivo</strong> en cualquier OXXO. Tu acceso se activa automáticamente en cuanto se registre el pago — usualmente al siguiente día hábil.</span>
+              </div>
               <button class="pf-btn pf-btn-primary pf-btn-lg w-100" id="btnPagarStripe">Pagar con tarjeta</button>
               <div id="stripeMsg" class="form-text text-danger"></div>
               <div class="pf-checkout-confianza">
@@ -755,8 +766,10 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
       }
 
       document.getElementById('payment-element').innerHTML = '';
+      document.getElementById('oxxoInfo').classList.add('d-none');
+      document.getElementById('btnPagarStripe').textContent = 'Pagar con tarjeta';
       elements = stripe.elements({ clientSecret: data.client_secret });
-      elements.create('payment', {
+      const paymentElement = elements.create('payment', {
         // Tarjeta primero, OXXO al lado — sin esto Stripe decide el orden
         // dinámicamente y podía mostrar OXXO como primera opción. El combo
         // siempre requiere tarjeta (crea una Subscription recurrente real,
@@ -770,7 +783,20 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         defaultValues: {
           billingDetails: { email: <?= json_encode($usuarioActual['email'] ?? '') ?> },
         },
-      }).mount('#payment-element');
+      });
+      // El Payment Element es un solo widget con Tarjeta/OXXO como opciones
+      // internas seleccionables — no hay tab separado para OXXO. El evento
+      // "change" avisa cuál está seleccionada ahora mismo (event.value.type),
+      // así se puede avisar al usuario que va a generar un voucher en vez de
+      // cobrar directo, y cambiar el texto del botón para que no diga
+      // "Pagar con tarjeta" cuando en realidad no se está cobrando nada
+      // todavía (el cobro real ocurre hasta que paga el voucher en tienda).
+      paymentElement.on('change', function (event) {
+        const esOxxo = event.value.type === 'oxxo';
+        document.getElementById('oxxoInfo').classList.toggle('d-none', !esOxxo);
+        document.getElementById('btnPagarStripe').textContent = esOxxo ? 'Generar voucher para pagar en cajero' : 'Pagar con tarjeta';
+      });
+      paymentElement.mount('#payment-element');
     }
     montarStripeParaModoActual();
 

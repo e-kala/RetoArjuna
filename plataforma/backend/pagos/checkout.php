@@ -69,6 +69,22 @@ if (isset($_GET['payment_intent']) && ($_GET['redirect_status'] ?? '') === 'succ
         $stmt->close();
 
         if ($afectados > 0) {
+            // Ver el mismo comentario en stripe_webhook.php: sin esto el
+            // evento nunca aparece en panel/content/mis_eventos.php aunque
+            // el usuario ya tenga acceso real (usuario_esta_inscrito_evento()
+            // en auth.php acepta pagos.confirmado como fuente alterna, pero
+            // "Mis eventos" solo lee evento_inscripciones).
+            if ($item['tipo'] === 'evento') {
+                $stmtInscribe = $conn->prepare(
+                    "INSERT INTO evento_inscripciones (usuario_id, evento_id, estado) VALUES (?, ?, 'inscrito')
+                     ON DUPLICATE KEY UPDATE estado = IF(estado = 'cancelado', 'inscrito', estado)"
+                );
+                $eventoIdInscribe = (int) $item['id'];
+                $stmtInscribe->bind_param('ii', $usuarioPerfilId, $eventoIdInscribe);
+                $stmtInscribe->execute();
+                $stmtInscribe->close();
+            }
+
             $stmtU = $conn->prepare('SELECT email_cache FROM usuarios_perfil WHERE id = ? LIMIT 1');
             $stmtU->bind_param('i', $usuarioPerfilId);
             $stmtU->execute();

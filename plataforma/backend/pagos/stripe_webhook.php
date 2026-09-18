@@ -104,7 +104,7 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['
 
     if ($afectados > 0) {
         $stmt = $conn->prepare(
-            "SELECT p.usuario_id, u.email_cache AS email,
+            "SELECT p.usuario_id, p.evento_id, u.email_cache AS email,
                     COALESCE(c.titulo, e.titulo, pr.nombre) AS titulo,
                     CASE WHEN p.curso_id IS NOT NULL THEN 'curso' WHEN p.evento_id IS NOT NULL THEN 'evento' ELSE 'producto' END AS tipo,
                     COALESCE(c.slug, e.slug, pr.slug) AS slug
@@ -119,6 +119,24 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['
         $stmt->execute();
         $info = $stmt->get_result()->fetch_assoc();
         $stmt->close();
+
+        // Un evento pagado con Stripe también necesita su fila en
+        // evento_inscripciones — no solo el registro en `pagos` — porque
+        // panel/content/mis_eventos.php (y el cupo máximo del evento) leen
+        // de ahí directo, sin pasar por usuario_esta_inscrito_evento()
+        // (auth.php), que sí acepta cualquiera de las dos fuentes. Sin este
+        // INSERT, el usuario tenía acceso real al evento pero nunca aparecía
+        // en "Mis eventos" — mismo INSERT que ya usa evento_inscribir.php
+        // para el camino gratuito/incluido por membresía.
+        if ($info && $info['tipo'] === 'evento' && $info['evento_id']) {
+            $stmtInscribe = $conn->prepare(
+                "INSERT INTO evento_inscripciones (usuario_id, evento_id, estado) VALUES (?, ?, 'inscrito')
+                 ON DUPLICATE KEY UPDATE estado = IF(estado = 'cancelado', 'inscrito', estado)"
+            );
+            $stmtInscribe->bind_param('ii', $info['usuario_id'], $info['evento_id']);
+            $stmtInscribe->execute();
+            $stmtInscribe->close();
+        }
 
         if ($info && $info['email']) {
             $accion = ['curso' => 'curso', 'evento' => 'evento', 'producto' => 'producto'][$info['tipo']];

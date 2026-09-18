@@ -60,6 +60,12 @@ if (!defined('STRIPE_WEBHOOK_SECRET_PRUEBA')) define('STRIPE_WEBHOOK_SECRET_PRUE
 if (!defined('BANCO_NOMBRE')) define('BANCO_NOMBRE', 'BBVA');
 if (!defined('BANCO_CLABE')) define('BANCO_CLABE', '012 320 01513856243 2');
 if (!defined('BANCO_TITULAR')) define('BANCO_TITULAR', 'Srivas Das Cervantes Torres');
+if (!defined('BANCO_SWIFT')) define('BANCO_SWIFT', 'BCMRMXMMPYM');
+// Pagos en ventanilla o tiendas de conveniencia (depósito en efectivo, no es
+// Stripe/OXXO automático) — dos números de cuenta distintos según dónde se
+// haga el depósito, a diferencia de la transferencia (que solo usa la CLABE).
+if (!defined('BANCO_VENTANILLA')) define('BANCO_VENTANILLA', '151 385 6243');
+if (!defined('BANCO_VENTANILLA_OXXO')) define('BANCO_VENTANILLA_OXXO', '4152 3146 5079 3113');
 if (!defined('WHATSAPP_PAGOS')) define('WHATSAPP_PAGOS', '523321868372');
 
 // --- Correo saliente ---

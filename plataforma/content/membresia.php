@@ -333,6 +333,7 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
               <?php endif; ?>
             <?php endif; ?>
             <li class="nav-item" style="background: #bcb04f;"><button class="nav-link <?= $stripeListo ? 'text-dark' : 'active text-dark' ?>" data-bs-toggle="tab" data-bs-target="#tab-transferencia" type="button">Transferencia</button></li>
+            <li class="nav-item" style="background: #bcb04f;"><button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-ventanilla" type="button">Ventanilla</button></li>
           </ul>
           <div class="tab-content" style="max-width:420px;margin:0 auto;text-align:left;">
             <?php if ($stripeListo): ?>
@@ -368,11 +369,12 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
             <?php endif; ?>
             <?php endif; ?>
             <div class="tab-pane fade <?= $stripeListo ? '' : 'show active' ?>" id="tab-transferencia">
-              <p style="color:rgba(255,255,255,.85);">Realiza tu depósito o transferencia a:</p>
+              <p style="color:rgba(255,255,255,.85);">Realiza tu transferencia a:</p>
               <ul style="color:#fff;">
                 <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
-                <li><strong>CLABE:</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
                 <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+                <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
+                <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
               </ul>
               <div class="mb-3">
                 <label class="form-label" style="color:#fff;">Sube tu comprobante (opcional)</label>
@@ -392,6 +394,33 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
                 O envía tu comprobante por WhatsApp
               </a>
               <div id="transferMembresiaMsg" class="form-text mt-2"></div>
+            </div>
+            <div class="tab-pane fade" id="tab-ventanilla">
+              <p style="color:rgba(255,255,255,.85);">Paga en ventanilla o en tiendas de conveniencia (OXXO y otras) a:</p>
+              <ul style="color:#fff;">
+                <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
+                <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+                <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
+                <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
+              </ul>
+              <div class="mb-3">
+                <label class="form-label" style="color:#fff;">Sube tu comprobante (opcional)</label>
+                <div id="comprobanteVentanillaDropzone" class="pf-dropzone" tabindex="0" role="button">
+                  <i class="bi bi-cloud-arrow-up"></i>
+                  <span id="comprobanteVentanillaDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
+                </div>
+                <input type="file" id="comprobanteVentanillaFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
+                <input type="file" id="comprobanteVentanillaFileCamara" class="d-none" accept="image/*" capture="environment">
+                <button type="button" id="btnTomarFotoComprobanteVentanilla" class="btn btn-link btn-sm p-0 mt-2 d-md-none" style="color:#fff;text-decoration:underline;">
+                  <i class="bi bi-camera"></i> O toma una foto desde tu celular
+                </button>
+              </div>
+              <button id="btnYaDepositeVentanillaMembresia" class="pf-btn pf-btn-primary w-100 mb-2" data-membresia-id="<?= (int) $membresia['id'] ?>">Ya realicé mi depósito</button>
+              <a class="pf-btn pf-btn-outline w-100" target="_blank"
+                 href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de la membresía ' . $membresia['nombre']) ?>">
+                O envía tu comprobante por WhatsApp
+              </a>
+              <div id="transferVentanillaMembresiaMsg" class="form-text mt-2"></div>
             </div>
           </div>
         <?php endif; ?>
@@ -595,12 +624,18 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
   <?php endif; ?>
   <?php endif; ?>
 
-  (function () {
-    const dropzone = document.getElementById('comprobanteDropzone');
-    const dropzoneTexto = document.getElementById('comprobanteDropzoneTexto');
-    const inputArchivo = document.getElementById('comprobanteFile');
-    const inputCamara = document.getElementById('comprobanteFileCamara');
-    const btnCamara = document.getElementById('btnTomarFotoComprobante');
+  // Transferencia y Ventanilla comparten el mismo patrón de dropzone + botón
+  // "ya pagué" + endpoint membresia_transferencia.php (ambos quedan como
+  // metodo='transferencia' en membresia_suscripciones, pendiente de validar
+  // por un admin en panel/admin/membresias.php — sin distinción de submétodo,
+  // el comprobante/WhatsApp es lo que el admin usa para validar). Se
+  // parametriza por prefijo de IDs en vez de duplicar este bloque dos veces.
+  function configurarPagoManualMembresia(prefijo, idBoton, idMsg) {
+    const dropzone = document.getElementById('comprobante' + prefijo + 'Dropzone');
+    const dropzoneTexto = document.getElementById('comprobante' + prefijo + 'DropzoneTexto');
+    const inputArchivo = document.getElementById('comprobante' + prefijo + 'File');
+    const inputCamara = document.getElementById('comprobante' + prefijo + 'FileCamara');
+    const btnCamara = document.getElementById('btnTomarFotoComprobante' + prefijo);
     const textoOriginal = dropzoneTexto.textContent;
 
     function mostrarArchivoElegido(nombre) {
@@ -646,32 +681,35 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
         mostrarArchivoElegido(foto.name);
       }
     });
-  })();
 
-  document.getElementById('btnYaTransferiMembresia').addEventListener('click', async function () {
-    this.disabled = true;
-    const msg = document.getElementById('transferMembresiaMsg');
-    const archivo = document.getElementById('comprobanteFile').files[0];
-    const datos = new FormData();
-    datos.append('membresia_id', this.dataset.membresiaId);
-    datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
-    const codigoCupon = codigoCuponMembresia();
-    if (codigoCupon) datos.append('codigo_cupon', codigoCupon);
-    if (archivo) datos.append('comprobante_file', archivo);
-    try {
-      const res = await fetch('backend/pagos/membresia_transferencia.php', { method: 'POST', body: datos });
-      const data = await res.json();
-      if (data.success) {
-        window.location.reload();
-      } else {
-        msg.textContent = data.message || 'No se pudo registrar tu pago.';
-        msg.className = 'form-text text-danger mt-2';
+    document.getElementById(idBoton).addEventListener('click', async function () {
+      this.disabled = true;
+      const msg = document.getElementById(idMsg);
+      const archivo = inputArchivo.files[0];
+      const datos = new FormData();
+      datos.append('membresia_id', this.dataset.membresiaId);
+      datos.append('csrf_token', <?= json_encode(csrf_token()) ?>);
+      const codigoCupon = codigoCuponMembresia();
+      if (codigoCupon) datos.append('codigo_cupon', codigoCupon);
+      if (archivo) datos.append('comprobante_file', archivo);
+      try {
+        const res = await fetch('backend/pagos/membresia_transferencia.php', { method: 'POST', body: datos });
+        const data = await res.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          msg.textContent = data.message || 'No se pudo registrar tu pago.';
+          msg.className = 'form-text text-danger mt-2';
+          this.disabled = false;
+        }
+      } catch (e) {
+        msg.textContent = 'Error de conexión. Intenta de nuevo.';
         this.disabled = false;
       }
-    } catch (e) {
-      msg.textContent = 'Error de conexión. Intenta de nuevo.';
-      this.disabled = false;
-    }
-  });
+    });
+  }
+
+  configurarPagoManualMembresia('', 'btnYaTransferiMembresia', 'transferMembresiaMsg');
+  configurarPagoManualMembresia('Ventanilla', 'btnYaDepositeVentanillaMembresia', 'transferVentanillaMembresiaMsg');
 </script>
 <?php endif; ?>

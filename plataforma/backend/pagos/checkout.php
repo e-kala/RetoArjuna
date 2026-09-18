@@ -275,6 +275,7 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
         <ul class="nav nav-tabs justify-content-center mb-3">
           <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-stripe">Tarjeta</button></li>
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-transfer">Transferencia</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ventanilla">Ventanilla</button></li>
         </ul>
 
         <div class="tab-content">
@@ -293,11 +294,12 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
             <?php endif; ?>
           </div>
           <div class="tab-pane fade" id="tab-transfer">
-            <p>Realiza tu depósito o transferencia a:</p>
+            <p>Realiza tu transferencia a:</p>
             <ul>
               <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
-              <li><strong>CLABE:</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
               <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+              <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
+              <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
             </ul>
             <div class="mb-3">
               <label class="form-label">Sube tu comprobante (opcional)</label>
@@ -317,6 +319,33 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
               Enviar comprobante por WhatsApp
             </a>
             <div id="transferMsg" class="form-text"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-ventanilla">
+            <p>Paga en ventanilla o en tiendas de conveniencia (OXXO y otras) a:</p>
+            <ul>
+              <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
+              <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+              <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
+              <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
+            </ul>
+            <div class="mb-3">
+              <label class="form-label">Sube tu comprobante (opcional)</label>
+              <div id="comprobanteVentanillaDropzone" class="pf-dropzone" tabindex="0" role="button">
+                <i class="bi bi-cloud-arrow-up"></i>
+                <span id="comprobanteVentanillaDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
+              </div>
+              <input type="file" id="comprobanteVentanillaFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
+              <input type="file" id="comprobanteVentanillaFileCamara" class="d-none" accept="image/*" capture="environment">
+              <button type="button" id="btnTomarFotoComprobanteVentanilla" class="btn btn-link btn-sm p-0 mt-2 d-md-none">
+                <i class="bi bi-camera"></i> O toma una foto desde tu celular
+              </button>
+            </div>
+            <button class="pf-btn pf-btn-primary pf-btn-lg w-100 mb-2" id="btnYaDepositeVentanilla">Ya realicé mi depósito</button>
+            <a class="btn btn-outline-success w-100" target="_blank"
+               href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de ' . $item['titulo']) ?>">
+              Enviar comprobante por WhatsApp
+            </a>
+            <div id="transferVentanillaMsg" class="form-text"></div>
           </div>
         </div>
         <?php endif; ?>
@@ -375,12 +404,19 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
       });
     }
 
-    (function () {
-      const dropzone = document.getElementById('comprobanteDropzone');
-      const dropzoneTexto = document.getElementById('comprobanteDropzoneTexto');
-      const inputArchivo = document.getElementById('comprobanteFile');
-      const inputCamara = document.getElementById('comprobanteFileCamara');
-      const btnCamara = document.getElementById('btnTomarFotoComprobante');
+    // Transferencia y Ventanilla comparten el mismo patrón de dropzone +
+    // botón "ya pagué" + endpoint transferencia.php (ambos quedan como
+    // metodo_pago='transferencia' en `pagos`, pendiente de validar por un
+    // admin — no hay distinción de submétodo en el schema, ni falta hace: el
+    // comprobante/WhatsApp es lo que el admin usa para validar). Se
+    // parametriza por prefijo de IDs en vez de duplicar este bloque dos
+    // veces — ver los ids con sufijo "Ventanilla" en el HTML de arriba.
+    function configurarPagoManual(prefijo, idBoton, idMsg, mensajeExito) {
+      const dropzone = document.getElementById('comprobante' + prefijo + 'Dropzone');
+      const dropzoneTexto = document.getElementById('comprobante' + prefijo + 'DropzoneTexto');
+      const inputArchivo = document.getElementById('comprobante' + prefijo + 'File');
+      const inputCamara = document.getElementById('comprobante' + prefijo + 'FileCamara');
+      const btnCamara = document.getElementById('btnTomarFotoComprobante' + prefijo);
       const textoOriginal = dropzoneTexto.textContent;
 
       function mostrarArchivoElegido(nombre) {
@@ -426,34 +462,37 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
           mostrarArchivoElegido(foto.name);
         }
       });
-    })();
 
-    document.getElementById('btnYaTransferi').addEventListener('click', async function () {
-      this.disabled = true;
-      const msg = document.getElementById('transferMsg');
-      const archivo = document.getElementById('comprobanteFile').files[0];
-      const datos = new FormData();
-      const base = datosBase();
-      Object.keys(base).forEach((clave) => datos.append(clave, base[clave]));
-      if (archivo) datos.append('comprobante_file', archivo);
-      try {
-        const res = await fetch('./transferencia.php', { method: 'POST', body: datos });
-        const data = await res.json();
-        msg.textContent = data.success
-          ? 'Registrado. Confirmaremos tu acceso en cuanto validemos el depósito.'
-          : (data.message || 'No se pudo registrar tu pago.');
-        msg.className = data.success ? 'form-text text-success' : 'form-text text-danger';
-        if (data.success) {
-          $.notify('Comprobante registrado — confirmaremos tu acceso en cuanto validemos el depósito.', { className: 'success', position: 'top right', autoHideDelay: 4000 });
-        } else {
+      document.getElementById(idBoton).addEventListener('click', async function () {
+        this.disabled = true;
+        const msg = document.getElementById(idMsg);
+        const archivo = inputArchivo.files[0];
+        const datos = new FormData();
+        const base = datosBase();
+        Object.keys(base).forEach((clave) => datos.append(clave, base[clave]));
+        if (archivo) datos.append('comprobante_file', archivo);
+        try {
+          const res = await fetch('./transferencia.php', { method: 'POST', body: datos });
+          const data = await res.json();
+          msg.textContent = data.success
+            ? 'Registrado. Confirmaremos tu acceso en cuanto validemos el depósito.'
+            : (data.message || 'No se pudo registrar tu pago.');
+          msg.className = data.success ? 'form-text text-success' : 'form-text text-danger';
+          if (data.success) {
+            $.notify(mensajeExito, { className: 'success', position: 'top right', autoHideDelay: 4000 });
+          } else {
+            this.disabled = false;
+          }
+        } catch (e) {
+          msg.textContent = 'Error de conexión. Intenta de nuevo.';
+          msg.className = 'form-text text-danger';
           this.disabled = false;
         }
-      } catch (e) {
-        msg.textContent = 'Error de conexión. Intenta de nuevo.';
-        msg.className = 'form-text text-danger';
-        this.disabled = false;
-      }
-    });
+      });
+    }
+
+    configurarPagoManual('', 'btnYaTransferi', 'transferMsg', 'Comprobante registrado — confirmaremos tu acceso en cuanto validemos el depósito.');
+    configurarPagoManual('Ventanilla', 'btnYaDepositeVentanilla', 'transferVentanillaMsg', 'Comprobante registrado — confirmaremos tu acceso en cuanto validemos el depósito.');
 
     <?php if (!$voucherOxxo && $stripeListo && !$item['acceso_gratis_automatico']): ?>
     const stripe = Stripe(<?= json_encode($publishableKeyActiva) ?>);

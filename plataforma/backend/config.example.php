@@ -48,10 +48,13 @@
 // define('STRIPE_SECRET_KEY_PRUEBA', 'sk_test_...');
 // define('STRIPE_WEBHOOK_SECRET_PRUEBA', 'whsec_...'); // webhook aparte en modo TEST, o `stripe listen --forward-to` apuntando a stripe_webhook.php
 
-// --- Transferencia bancaria ---
+// --- Transferencia bancaria y pagos en ventanilla ---
 // define('BANCO_NOMBRE', '...');
 // define('BANCO_CLABE', '...');
 // define('BANCO_TITULAR', '...');
+// define('BANCO_SWIFT', '...'); // para transferencias internacionales
+// define('BANCO_VENTANILLA', '...'); // depósito en ventanilla del mismo banco
+// define('BANCO_VENTANILLA_OXXO', '...'); // depósito en OXXO y otras tiendas de conveniencia
 // define('WHATSAPP_PAGOS', '52...');
 
 // --- Correo saliente ---

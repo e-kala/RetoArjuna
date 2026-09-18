@@ -277,6 +277,12 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
       font-size: 13px; color: var(--pf-ink); margin-bottom: 14px;
     }
     .pf-oxxo-info i { color: var(--pf-accent); margin-top: 1px; flex-shrink: 0; }
+    .pf-payment-cargando {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--pf-muted); font-size: 14px; font-weight: 600;
+      padding: 24px 0; justify-content: center;
+    }
+    .pf-payment-cargando .spinner-border { color: var(--pf-accent); }
     .pf-checkout-card .nav-tabs { border-bottom: 1px solid var(--pf-line); }
     .pf-checkout-card .nav-tabs .nav-link { color: var(--pf-muted); font-weight: 700; border: none; border-bottom: 2px solid transparent; }
     .pf-checkout-card .nav-tabs .nav-link.active { color: var(--pf-ink); border-bottom-color: var(--pf-accent); background: transparent; }
@@ -457,6 +463,10 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         <div class="tab-content">
           <div class="tab-pane fade show active" id="tab-stripe">
             <?php if ($stripeListo): ?>
+              <div id="paymentElementCargando" class="pf-payment-cargando">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Cargando formulario de pago…
+              </div>
               <div id="payment-element" class="mb-3"></div>
               <div id="oxxoInfo" class="pf-oxxo-info d-none">
                 <i class="bi bi-info-circle-fill"></i>
@@ -717,6 +727,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
     const stripe = Stripe(<?= json_encode($publishableKeyActiva) ?>);
     const MOSTRAR_COMBO = <?= $mostrarCombo ? 'true' : 'false' ?>;
     let elements = null;
+    let paymentElementActual = null;
     let paymentIntentId = null;
     let modoCompraActual = 'solo';
     let comboSubscriptionId = null;
@@ -733,7 +744,14 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
     // confirmPayment() no cambian, siguen usando el `elements` activo.
     async function montarStripeParaModoActual(codigoCuponCombo) {
       const stripeMsg = document.getElementById('stripeMsg');
+      const cargando = document.getElementById('paymentElementCargando');
+      const btnPagar = document.getElementById('btnPagarStripe');
       stripeMsg.textContent = '';
+      document.getElementById('payment-element').classList.add('d-none');
+      document.getElementById('oxxoInfo').classList.add('d-none');
+      cargando.classList.remove('d-none');
+      btnPagar.disabled = true;
+
       const endpoint = modoCompraActual === 'combo' ? './checkout_combo_iniciar.php' : './stripe_create_intent.php';
       let datos;
       if (modoCompraActual === 'combo') {
@@ -746,13 +764,23 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
       } else {
         datos = datosBase();
       }
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(datos),
-      });
-      const data = await res.json();
+      let data;
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(datos),
+        });
+        data = await res.json();
+      } catch (e) {
+        cargando.classList.add('d-none');
+        btnPagar.disabled = false;
+        stripeMsg.textContent = 'Error de conexión. Intenta de nuevo.';
+        return;
+      }
       if (!data.success) {
+        cargando.classList.add('d-none');
+        btnPagar.disabled = false;
         stripeMsg.textContent = data.message || 'No se pudo iniciar el pago.';
         return;
       }
@@ -765,9 +793,16 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         document.getElementById('comboPrecioTotal').textContent = formatoMXN(data.precio_total);
       }
 
-      document.getElementById('payment-element').innerHTML = '';
+      // unmount() real antes de reemplazar — borrar el innerHTML a mano deja
+      // el Payment Element anterior en un estado interno inconsistente y el
+      // nuevo nunca dispara "ready" (confirmado: sin esto, el spinner se
+      // quedaba pegado para siempre al cambiar de modo "solo" a "combo").
+      if (paymentElementActual) {
+        paymentElementActual.unmount();
+        paymentElementActual = null;
+      }
       document.getElementById('oxxoInfo').classList.add('d-none');
-      document.getElementById('btnPagarStripe').textContent = 'Pagar con tarjeta';
+      btnPagar.textContent = 'Pagar con tarjeta';
       elements = stripe.elements({ clientSecret: data.client_secret });
       const paymentElement = elements.create('payment', {
         // Tarjeta primero, OXXO al lado — sin esto Stripe decide el orden
@@ -796,6 +831,24 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         document.getElementById('oxxoInfo').classList.toggle('d-none', !esOxxo);
         document.getElementById('btnPagarStripe').textContent = esOxxo ? 'Generar voucher para pagar en cajero' : 'Pagar con tarjeta';
       });
+      // "ready" avisa cuando el iframe terminó de renderizarse de verdad —
+      // mount() es síncrono pero el contenido tarda un momento en pintar, así
+      // que el spinner se queda visible hasta este punto en vez de
+      // desaparecer de golpe y dejar un hueco vacío mientras carga. No es
+      // 100% confiable en un remontaje (a veces no dispara si el iframe ya
+      // había cargado antes), así que se respalda con un timeout fijo que
+      // igual lo oculta — nunca se debe quedar pegado.
+      let yaQuitoCargando = false;
+      function quitarCargando() {
+        if (yaQuitoCargando) return;
+        yaQuitoCargando = true;
+        cargando.classList.add('d-none');
+        document.getElementById('payment-element').classList.remove('d-none');
+        btnPagar.disabled = false;
+      }
+      paymentElement.on('ready', quitarCargando);
+      setTimeout(quitarCargando, 1500);
+      paymentElementActual = paymentElement;
       paymentElement.mount('#payment-element');
     }
     montarStripeParaModoActual();

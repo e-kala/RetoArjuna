@@ -46,6 +46,61 @@ if ($item['ya_tiene_acceso']) {
     exit;
 }
 
+// Combo Membresía + Evento/Curso (ver checkout_combo_iniciar.php): el modo
+// combo manda su propio subscription_id en el volver (combo_sub), porque a
+// diferencia de un PaymentIntent suelto, aquí lo que hay que confirmar/
+// activar es la Subscription completa, no una fila en `pagos`. Misma idea
+// que el bloque de abajo (verificación síncrona inmediata, sin esperar al
+// webhook) pero para el objeto Subscription+Invoice en vez de PaymentIntent.
+if (isset($_GET['payment_intent'], $_GET['combo_sub']) && ($_GET['redirect_status'] ?? '') === 'succeeded') {
+    require_once __DIR__ . '/combo_helper.php';
+    $intentIdCombo = (string) $_GET['payment_intent'];
+    $subscriptionIdCombo = (string) $_GET['combo_sub'];
+    $resIntentCombo = stripe_api('GET', 'payment_intents/' . urlencode($intentIdCombo));
+    if ($resIntentCombo['ok'] && ($resIntentCombo['data']['status'] ?? '') === 'succeeded') {
+        $stmt = $conn->prepare(
+            "UPDATE membresia_suscripciones SET estado = 'activa'
+             WHERE stripe_subscription_id = ? AND usuario_id = ? AND estado <> 'activa'"
+        );
+        $stmt->bind_param('si', $subscriptionIdCombo, $usuarioPerfilId);
+        $stmt->execute();
+        $afectadosCombo = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($afectadosCombo > 0) {
+            $resInvoices = stripe_api('GET', 'invoices', ['subscription' => $subscriptionIdCombo, 'limit' => 1]);
+            $facturaCombo = $resInvoices['data']['data'][0] ?? [];
+            $comboMeta = extraer_combo_metadata_de_invoice($facturaCombo, $subscriptionIdCombo);
+            if ($comboMeta) {
+                activar_combo_inscripcion($conn, $usuarioPerfilId, $comboMeta['tipo'], $comboMeta['item_id']);
+            }
+
+            // Mismo criterio que content/membresia.php: cada cambio de radio
+            // (solo→combo→solo...) o reintento antes de pagar crea una
+            // Subscription de Stripe nueva — se descartan las que quedaron
+            // 'pendiente' sin pagarse, para que no se acumulen huérfanas en
+            // panel/admin/membresias.php.
+            $stmtLimpiaCombo = $conn->prepare(
+                "DELETE FROM membresia_suscripciones WHERE usuario_id = ? AND metodo = 'stripe' AND estado = 'pendiente' AND stripe_subscription_id <> ?"
+            );
+            $stmtLimpiaCombo->bind_param('is', $usuarioPerfilId, $subscriptionIdCombo);
+            $stmtLimpiaCombo->execute();
+            $stmtLimpiaCombo->close();
+
+            if ($usuarioActual['email'] ?? null) {
+                $stmtM = $conn->prepare('SELECT nombre FROM membresia_suscripciones s JOIN membresias m ON m.id = s.membresia_id WHERE s.stripe_subscription_id = ? LIMIT 1');
+                $stmtM->bind_param('s', $subscriptionIdCombo);
+                $stmtM->execute();
+                $nombreMembresiaCombo = $stmtM->get_result()->fetch_assoc()['nombre'] ?? 'tu membresía';
+                $stmtM->close();
+                enviar_email_membresia_activada($usuarioPerfilId, $usuarioActual['email'], $nombreMembresiaCombo);
+            }
+        }
+    }
+    header('Location: ' . destino_tras_pago($item));
+    exit;
+}
+
 // Stripe.js confirmPayment() regresa aquí (redirect por defecto es 'always') con
 // estos parámetros en la URL. redirect_status=succeeded es la propia confirmación
 // de Stripe de que el cobro se completó — no hace falta esperar pasivamente al
@@ -131,6 +186,19 @@ $stripeListo = config_esta_lista(STRIPE_PUBLISHABLE_KEY) && config_esta_lista(ST
 $paramName = $item['tipo'] . '_id';
 $publishableKeyActiva = stripe_publishable_key_activa();
 $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'][$item['tipo']] ?? 'Compra';
+
+// Combo Membresía + Evento/Curso: solo aplica a curso/evento marcados
+// incluido_membresia=1, comprados por alguien que todavía no es miembro y
+// para los que este checkout normal ya cobra precio completo/con oferta
+// (nunca a quien ya tiene acceso o está bloqueado — esos casos ya salieron
+// por el guard de arriba). Producto queda fuera: la membresía nunca aplica
+// a productos de tienda.
+$mostrarCombo = $stripeListo && $item['tipo'] !== 'producto' && $item['incluido_membresia'] === true
+    && !usuario_tiene_membresia_activa($usuarioPerfilId);
+$membresiaVisible = $mostrarCombo ? $conn->query('SELECT * FROM membresias WHERE activo = 1 ORDER BY orden ASC LIMIT 1')->fetch_assoc() : null;
+if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe_price_id'] ?? ''))) {
+    $mostrarCombo = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -145,11 +213,37 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
   <style>
     body.pf-checkout-body { background: var(--pf-bg); min-height: 100vh; }
     .pf-checkout-wrap { max-width: 560px; margin: 56px auto; padding: 0 16px; }
+    .pf-checkout-wrap.pf-checkout-wrap-grid { max-width: 1040px; }
+    .pf-checkout-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+    @media (max-width: 900px) { .pf-checkout-grid { grid-template-columns: 1fr; } }
     .pf-checkout-card {
       background: var(--pf-surface);
       border-radius: var(--pf-radius-lg);
       box-shadow: 0 16px 40px rgba(35, 38, 43, 0.10);
       overflow: hidden;
+    }
+    .pf-checkout-side {
+      background: var(--pf-surface);
+      border-radius: var(--pf-radius-lg);
+      box-shadow: 0 16px 40px rgba(35, 38, 43, 0.10);
+      padding: 26px 24px;
+      position: sticky;
+      top: 24px;
+    }
+    .pf-checkout-side h3 { font-weight: 800; font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .pf-checkout-side p.pf-checkout-side-lead { color: var(--pf-muted); font-size: 13.5px; margin-bottom: 16px; }
+    .pf-checkout-side ul { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 11px; }
+    .pf-checkout-side ul li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; color: var(--pf-ink); }
+    .pf-checkout-side ul li i { color: #198754; margin-top: 2px; flex-shrink: 0; }
+    .pf-checkout-side-nota {
+      display: flex; gap: 10px; align-items: flex-start;
+      background: rgba(35,38,43,0.03); border-radius: var(--pf-radius-md);
+      padding: 14px; font-size: 13px; color: var(--pf-muted); margin-top: 8px;
+    }
+    .pf-checkout-side-nota i { color: var(--pf-accent); margin-top: 1px; }
+    .pf-checkout-side-testimonial {
+      border-top: 1px solid var(--pf-line); margin-top: 18px; padding-top: 16px;
+      font-size: 13.5px; font-style: italic; color: var(--pf-muted); text-align: center;
     }
     .pf-checkout-img { width: 100%; height: 200px; object-fit: cover; display: block; }
     .pf-checkout-body-pad { padding: 32px 32px 28px; }
@@ -186,6 +280,51 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
     .pf-checkout-card .pf-dropzone:focus-visible { border-color: var(--pf-ink); background: rgba(35,38,43,0.03); }
     .pf-checkout-card .pf-dropzone.pf-dropzone-activo { background: rgba(247,147,30,0.08); }
     .pf-checkout-card .pf-dropzone-archivo { color: var(--pf-ink); }
+
+    /* Métodos de pago — botones con icono en vez de tabs planas. */
+    .pf-metodo-pago-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+    .pf-metodo-pago-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 14px 8px; border-radius: var(--pf-radius-md);
+      border: 2px solid var(--pf-line); background: var(--pf-surface);
+      color: var(--pf-muted); font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    .pf-metodo-pago-btn i { font-size: 21px; }
+    .pf-metodo-pago-btn.active { border-color: var(--pf-accent); color: var(--pf-ink); background: rgba(247,147,30,0.06); }
+
+    /* Cupón aplicado — chip verde. */
+    .pf-cupon-aplicado {
+      display: flex; align-items: flex-start; gap: 8px;
+      background: rgba(25, 135, 84, 0.08);
+      border: 1px solid rgba(25, 135, 84, 0.3);
+      color: #146c43;
+      border-radius: var(--pf-radius-md);
+      padding: 10px 14px;
+      font-size: 13.5px;
+    }
+    .pf-cupon-aplicado i { color: #198754; margin-top: 1px; }
+    .pf-cupon-aplicado strong { font-weight: 700; }
+
+    /* Combo Membresía + Evento/Curso. */
+    .pf-combo-toggle { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+    .pf-combo-opcion {
+      display: flex; align-items: center; gap: 10px;
+      border: 2px solid var(--pf-line); border-radius: var(--pf-radius-md);
+      padding: 12px 14px; cursor: pointer; font-weight: 600; font-size: 14.5px;
+    }
+    .pf-combo-opcion.pf-combo-opcion-activa { border-color: var(--pf-accent); background: rgba(247,147,30,0.05); }
+    .pf-combo-opcion input { flex-shrink: 0; }
+    .pf-badge-recomendado {
+      margin-left: auto; background: var(--pf-accent); color: #fff;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+      padding: 4px 8px; border-radius: 999px; white-space: nowrap;
+    }
+    .pf-combo-card {
+      background: rgba(25, 135, 84, 0.06); border: 1px solid rgba(25, 135, 84, 0.25);
+      border-radius: var(--pf-radius-md); padding: 16px 18px; font-size: 14px; margin: 14px 0 20px;
+    }
+    .pf-combo-card div { display: flex; justify-content: space-between; padding: 3px 0; }
+    .pf-combo-card .pf-combo-total { font-weight: 800; border-top: 1px solid rgba(25,135,84,0.25); margin-top: 6px; padding-top: 8px; }
   </style>
 </head>
 <body class="pf-body pf-checkout-body">
@@ -217,7 +356,8 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
     </div>
   </div>
   <?php else: ?>
-  <div class="pf-checkout-wrap">
+  <div class="pf-checkout-wrap pf-checkout-wrap-grid">
+    <div class="pf-checkout-grid">
     <div class="pf-checkout-card">
       <?php if (!empty($item['imagen'])): ?>
         <img src="<?= htmlspecialchars(BASE_URL . '/' . $item['imagen']) ?>" class="pf-checkout-img" alt="">
@@ -244,7 +384,36 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
           <?php endif; ?>
         </div>
 
-        <?php if ($item['mostrar_codigo_promocion']): ?>
+        <?php if ($mostrarCombo): ?>
+          <div class="pf-combo-toggle mb-3">
+            <label class="pf-combo-opcion pf-combo-opcion-activa">
+              <input type="radio" name="modoCompra" value="solo" checked>
+              Solo este <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>
+            </label>
+            <label class="pf-combo-opcion">
+              <input type="radio" name="modoCompra" value="combo">
+              Membresía Camino Arjuna + <?= htmlspecialchars($etiquetaTipo) ?>
+              <span class="pf-badge-recomendado">OPCIÓN RECOMENDADA</span>
+            </label>
+          </div>
+          <div id="comboDesglose" class="pf-combo-card d-none">
+            <div><span>Membresía Camino Arjuna</span> <span id="comboPrecioMembresia">—</span></div>
+            <div><span><?= htmlspecialchars($item['titulo']) ?></span> <span id="comboPrecioItem">—</span></div>
+            <div class="pf-combo-total"><span>Total primer cobro</span> <span id="comboPrecioTotal">—</span></div>
+          </div>
+        <?php endif; ?>
+
+        <?php
+        // El campo de cupón se muestra si el evento/curso lo permite (modo
+        // "solo") O si la membresía del combo lo permite (modo "combo") —
+        // son configuraciones independientes (mostrar_codigo_promocion vive
+        // en cursos/eventos Y en membresias por separado). Qué precio
+        // termina descontando el código depende del modo activo al
+        // aplicarlo (ver btnAplicarCupon más abajo: aplicar_cupon.php para
+        // "solo", checkout_combo_iniciar.php para "combo").
+        $mostrarCampoCupon = $item['mostrar_codigo_promocion'] || ($mostrarCombo && !empty($membresiaVisible['mostrar_codigo_promocion']));
+        ?>
+        <?php if ($mostrarCampoCupon): ?>
           <div class="input-group input-group-sm mb-3">
             <input type="text" id="codigoCupon" class="form-control" placeholder="Código de cupón" autocomplete="off" value="<?= htmlspecialchars((string) $codigoCupon) ?>">
             <button class="btn btn-outline-secondary" type="button" id="btnAplicarCupon">Aplicar</button>
@@ -272,11 +441,11 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
           <button class="pf-btn pf-btn-primary pf-btn-lg w-100" id="btnObtenerGratis">Obtener gratis</button>
           <div id="gratisMsg" class="form-text mt-2"></div>
         <?php else: ?>
-        <ul class="nav nav-tabs justify-content-center mb-3">
-          <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-stripe">Tarjeta</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-transfer">Transferencia</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ventanilla">Ventanilla</button></li>
-        </ul>
+        <div class="pf-metodo-pago-selector">
+          <button type="button" class="pf-metodo-pago-btn active" data-bs-toggle="tab" data-bs-target="#tab-stripe"><i class="bi bi-credit-card-2-front"></i>Tarjeta</button>
+          <button type="button" class="pf-metodo-pago-btn" data-bs-toggle="tab" data-bs-target="#tab-transfer"><i class="bi bi-bank"></i>Transferencia</button>
+          <button type="button" class="pf-metodo-pago-btn" data-bs-toggle="tab" data-bs-target="#tab-ventanilla"><i class="bi bi-shop"></i>Ventanilla</button>
+        </div>
 
         <div class="tab-content">
           <div class="tab-pane fade show active" id="tab-stripe">
@@ -350,6 +519,34 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
         </div>
         <?php endif; ?>
       </div>
+    </div>
+
+    <aside class="pf-checkout-side">
+      <?php if ($mostrarCombo): ?>
+        <h3>⭐ Más valor con la membresía</h3>
+        <p class="pf-checkout-side-lead">Además de este <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>, obtienes la membresía Camino Arjuna con acceso a encuentros semanales, descuentos y más beneficios.</p>
+        <ul>
+          <li><i class="bi bi-check-circle-fill"></i> Acceso a un encuentro regular semanal grupal de seguimiento</li>
+          <li><i class="bi bi-check-circle-fill"></i> Descuentos en cursos, eventos y productos</li>
+          <li><i class="bi bi-check-circle-fill"></i> Comunidad de práctica continua</li>
+          <li><i class="bi bi-check-circle-fill"></i> Acceso a futuras actividades exclusivas</li>
+        </ul>
+        <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=membresia" target="_blank" style="color:var(--pf-accent-ink);font-weight:700;font-size:13.5px;">Ver todos los beneficios de la membresía →</a>
+        <div class="pf-checkout-side-nota">
+          <i class="bi bi-lightbulb-fill"></i>
+          <span><strong>Tú eliges.</strong> Si por ahora solo quieres este <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>, también puedes adquirirlo de forma individual.</span>
+        </div>
+      <?php else: ?>
+        <h3>🛡️ Compra segura</h3>
+        <p class="pf-checkout-side-lead">Tu pago se procesa de forma cifrada — nunca almacenamos los datos de tu tarjeta.</p>
+        <ul>
+          <li><i class="bi bi-check-circle-fill"></i> Confirmación inmediata de tu acceso</li>
+          <li><i class="bi bi-check-circle-fill"></i> Comprobante disponible en tu panel</li>
+          <li><i class="bi bi-check-circle-fill"></i> Soporte por WhatsApp si algo falla</li>
+        </ul>
+      <?php endif; ?>
+      <p class="pf-checkout-side-testimonial">"Una comunidad para sostener lo que te importa."</p>
+    </aside>
     </div>
   </div>
   <?php endif; ?>
@@ -494,29 +691,77 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
     configurarPagoManual('', 'btnYaTransferi', 'transferMsg', 'Comprobante registrado — confirmaremos tu acceso en cuanto validemos el depósito.');
     configurarPagoManual('Ventanilla', 'btnYaDepositeVentanilla', 'transferVentanillaMsg', 'Comprobante registrado — confirmaremos tu acceso en cuanto validemos el depósito.');
 
+    // Los botones de método de pago siguen usando data-bs-toggle="tab" de
+    // Bootstrap (así el .tab-content de abajo no cambia), pero Bootstrap solo
+    // gestiona la clase .active dentro de un <ul class="nav"> — aquí no es
+    // un <li>/<a class="nav-link">, así que se mueve a mano.
+    document.querySelectorAll('.pf-metodo-pago-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.pf-metodo-pago-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      });
+    });
+
     <?php if (!$voucherOxxo && $stripeListo && !$item['acceso_gratis_automatico']): ?>
     const stripe = Stripe(<?= json_encode($publishableKeyActiva) ?>);
+    const MOSTRAR_COMBO = <?= $mostrarCombo ? 'true' : 'false' ?>;
     let elements = null;
     let paymentIntentId = null;
+    let modoCompraActual = 'solo';
+    let comboSubscriptionId = null;
 
-    async function iniciarStripe() {
-      const res = await fetch('./stripe_create_intent.php', {
+    function formatoMXN(n) {
+      return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Un solo Payment Element, remontado según la opción elegida: "solo" pide
+    // su client_secret a stripe_create_intent.php (PaymentIntent normal,
+    // igual que siempre); "combo" lo pide a checkout_combo_iniciar.php (la
+    // Subscription con la membresía + este evento/curso como cargo único en
+    // la misma factura — ver ese archivo). El botón "Pagar" y su
+    // confirmPayment() no cambian, siguen usando el `elements` activo.
+    async function montarStripeParaModoActual(codigoCuponCombo) {
+      const stripeMsg = document.getElementById('stripeMsg');
+      stripeMsg.textContent = '';
+      const endpoint = modoCompraActual === 'combo' ? './checkout_combo_iniciar.php' : './stripe_create_intent.php';
+      let datos;
+      if (modoCompraActual === 'combo') {
+        datos = {
+          tipo: <?= json_encode($item['tipo']) ?>,
+          item_id: ITEM_ID,
+          csrf_token: CSRF_TOKEN,
+        };
+        if (codigoCuponCombo) datos.codigo_cupon = codigoCuponCombo;
+      } else {
+        datos = datosBase();
+      }
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(datosBase()),
+        body: new URLSearchParams(datos),
       });
       const data = await res.json();
-      const stripeMsg = document.getElementById('stripeMsg');
       if (!data.success) {
         stripeMsg.textContent = data.message || 'No se pudo iniciar el pago.';
         return;
       }
-      paymentIntentId = data.payment_intent_id;
+      paymentIntentId = data.payment_intent_id || null;
+      comboSubscriptionId = modoCompraActual === 'combo' ? data.subscription_id : null;
+
+      if (modoCompraActual === 'combo') {
+        document.getElementById('comboPrecioMembresia').textContent = formatoMXN(data.precio_membresia_final);
+        document.getElementById('comboPrecioItem').textContent = formatoMXN(data.precio_item);
+        document.getElementById('comboPrecioTotal').textContent = formatoMXN(data.precio_total);
+      }
+
+      document.getElementById('payment-element').innerHTML = '';
       elements = stripe.elements({ clientSecret: data.client_secret });
       elements.create('payment', {
         // Tarjeta primero, OXXO al lado — sin esto Stripe decide el orden
-        // dinámicamente y podía mostrar OXXO como primera opción.
-        paymentMethodOrder: ['card', 'oxxo'],
+        // dinámicamente y podía mostrar OXXO como primera opción. El combo
+        // siempre requiere tarjeta (crea una Subscription recurrente real,
+        // que no puede depender de un voucher que tarda días en pagarse).
+        paymentMethodOrder: modoCompraActual === 'combo' ? ['card'] : ['card', 'oxxo'],
         // Precarga el correo del usuario logueado en el campo de contacto
         // del Payment Element (se ve ya escrito, pero sigue siendo un
         // <input> normal — el usuario puede borrarlo y poner otro antes de
@@ -527,7 +772,20 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
         },
       }).mount('#payment-element');
     }
-    iniciarStripe();
+    montarStripeParaModoActual();
+
+    <?php if ($mostrarCombo): ?>
+    document.querySelectorAll('input[name="modoCompra"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        modoCompraActual = radio.value;
+        document.querySelectorAll('.pf-combo-opcion').forEach(function (label) {
+          label.classList.toggle('pf-combo-opcion-activa', label.querySelector('input').checked);
+        });
+        document.getElementById('comboDesglose').classList.toggle('d-none', modoCompraActual !== 'combo');
+        montarStripeParaModoActual();
+      });
+    });
+    <?php endif; ?>
 
     document.getElementById('btnPagarStripe').addEventListener('click', async () => {
       if (!elements) return;
@@ -538,10 +796,14 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
       // editable pero sin efecto real. Así, lo que el Payment Element
       // recolectó (precargado con el correo de la cuenta, pero modificable)
       // es lo único que se envía.
+      let returnUrl = window.location.href;
+      if (modoCompraActual === 'combo' && comboSubscriptionId) {
+        returnUrl += (returnUrl.includes('?') ? '&' : '?') + 'combo_sub=' + encodeURIComponent(comboSubscriptionId);
+      }
       const { error } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: window.location.href,
+          return_url: returnUrl,
         },
       });
       if (error) {
@@ -550,17 +812,35 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
     });
     <?php endif; ?>
 
-    <?php if ($item['mostrar_codigo_promocion']): ?>
+    <?php if ($mostrarCampoCupon): ?>
     document.getElementById('btnAplicarCupon').addEventListener('click', async function () {
       const codigo = document.getElementById('codigoCupon').value.trim();
       const cuponMsg = document.getElementById('cuponMsg');
       cuponMsg.className = 'form-text mb-2';
+      cuponMsg.innerHTML = '';
       if (!codigo) {
         cuponMsg.textContent = 'Escribe un código de cupón.';
         cuponMsg.classList.add('text-danger');
         return;
       }
       this.disabled = true;
+
+      // En modo combo, el cupón es de MEMBRESÍA (aplicar_cupon.php descuenta
+      // el evento/curso, no lo que necesitamos aquí) — se re-crea la
+      // Subscription pasando el código, checkout_combo_iniciar.php resuelve
+      // el descuento contra el precio de membresía únicamente.
+      if (typeof modoCompraActual !== 'undefined' && modoCompraActual === 'combo') {
+        try {
+          await montarStripeParaModoActual(codigo);
+          cuponMsg.innerHTML = '<div class="pf-cupon-aplicado"><i class="bi bi-check-circle-fill"></i><span>Cupón <strong>' + codigo + '</strong> aplicado a tu membresía.</span></div>';
+        } catch (e) {
+          cuponMsg.textContent = 'Error de conexión. Intenta de nuevo.';
+          cuponMsg.classList.add('text-danger');
+        }
+        this.disabled = false;
+        return;
+      }
+
       const datos = datosBase();
       datos.codigo_cupon = codigo;
       if (typeof paymentIntentId !== 'undefined' && paymentIntentId) datos.payment_intent_id = paymentIntentId;
@@ -572,12 +852,10 @@ $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Produc
         });
         const data = await res.json();
         if (data.success) {
-          const formatoMXN = (n) => '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           document.getElementById('precioTachado').textContent = formatoMXN(data.monto_original);
           document.getElementById('precioTachado').classList.remove('d-none');
           document.getElementById('precioMostrado').textContent = formatoMXN(data.monto_final);
-          cuponMsg.textContent = '¡Cupón aplicado! Descuento de ' + formatoMXN(data.descuento) + '.';
-          cuponMsg.classList.add('text-success');
+          cuponMsg.innerHTML = '<div class="pf-cupon-aplicado"><i class="bi bi-check-circle-fill"></i><span>Cupón <strong>' + codigo + '</strong> aplicado — ahorras ' + formatoMXN(data.descuento) + '.</span></div>';
           document.getElementById('codigoCupon').disabled = true;
           if (typeof elements !== 'undefined' && elements && elements.fetchUpdates) {
             elements.fetchUpdates();

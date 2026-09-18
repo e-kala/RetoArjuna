@@ -238,7 +238,7 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['
         // renovación (activa/vencida -> activa) — el correo de bienvenida
         // solo se manda en la primera transición, no en cada mes.
         $stmt = $conn->prepare(
-            "SELECT s.estado, s.usuario_id, u.email_cache, m.nombre AS membresia_nombre
+            "SELECT s.id, s.estado, s.usuario_id, u.email_cache, m.nombre AS membresia_nombre
              FROM membresia_suscripciones s
              JOIN usuarios_perfil u ON u.id = s.usuario_id
              JOIN membresias m ON m.id = s.membresia_id
@@ -257,6 +257,19 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['
         $stmt->bind_param('ss', $finPeriodoFecha, $subscriptionId);
         $stmt->execute();
         $stmt->close();
+
+        // Combo Membresía + Evento/Curso (ver checkout_combo_iniciar.php):
+        // solo se molesta en buscar metadata de combo la primera vez que esta
+        // suscripción se activa ('pendiente' -> 'activa') — una renovación
+        // mensual normal (estado ya 'activa'/'gracia'/'vencida') nunca es
+        // combo, así se evita el GET de respaldo a Stripe en el caso común.
+        if ($suscripcionPrevia && $suscripcionPrevia['estado'] === 'pendiente') {
+            require_once __DIR__ . '/combo_helper.php';
+            $comboMeta = extraer_combo_metadata_de_invoice($factura, $subscriptionId);
+            if ($comboMeta) {
+                activar_combo_inscripcion($conn, (int) $suscripcionPrevia['usuario_id'], $comboMeta['tipo'], $comboMeta['item_id']);
+            }
+        }
 
         // Mismo criterio que la verificación síncrona en content/membresia.php:
         // descarta otros intentos de Stripe abandonados del mismo usuario, para

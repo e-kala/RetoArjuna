@@ -144,3 +144,72 @@ Mostrar:
         Adquirir acceso
             ↓
         Página de consumo desbloqueado
+
+
+7. Visitante sin cuenta → crear cuenta → evento (implementado y verificado 2026-09-18)
+
+Visitante (sin cuenta, no logueado)
+    ↓
+Catálogo o tarjeta de evento
+    ↓
+Landing comercial
+    ↓
+Crear Cuenta Arjuna
+    ↓
+Autologin (la cuenta se crea y la sesión queda abierta en el mismo paso,
+sin pedir verificación de correo)
+    ↓
+¿El evento es gratuito?
+    ├── SÍ
+    │    ↓
+    │  Autoinscripción al evento (sin pasar por checkout)
+    │    ↓
+    │  Página del evento, ya con acceso
+    │
+    └── NO (es de pago)
+         ↓
+       Checkout del evento
+         ↓
+       Pago confirmado
+         ↓
+       Página del evento, ya con acceso
+
+Mecanismo real: el enlace "Crear cuenta" desde la landing/evento lleva
+?volver=<url del evento>&auto=1 — registro_back.php hace login_user() en el
+mismo request (autologin) y responde con ese "volver" ya validado
+(redirect_post_login() en auth.php); al volver al evento con auto=1,
+evento_detalle.php decide solo: inscribe directo si es gratuito/incluido, o
+redirige a backend/pagos/checkout.php si es de pago — nunca hace falta un
+segundo clic en "Inscribirme".
+
+
+8. Eventos → detalle → landing → login o registro → de vuelta al evento (implementado y verificado 2026-09-18)
+
+Eventos (catálogo)
+    ↓
+Ver detalle del evento
+    ↓
+(si el evento tiene una landing comercial vinculada, se redirige ahí)
+Landing comercial
+    ↓
+¿Ya tiene cuenta?
+    ├── Sí → Iniciar sesión
+    └── No → Crear cuenta
+    ↓
+Redirección automática al evento elegido (con ?auto=1)
+    ↓
+Mismo branching gratuito/pago del flujo 7
+
+Mismo mecanismo de "volver" que el flujo 7, aplicado también a
+ingreso_back.php (login) — funciona igual si el visitante ya tenía cuenta y
+solo necesita iniciar sesión, no solo para alta nueva.
+
+Nota de contenido (no de código): en la landing de prueba "prueba1", el
+botón grande "Inscríbete ahora" tiene un enlace escrito a mano con dominio
+de producción fijo (https://arjuna.mx/...) y sin volver, así que no
+participa de este flujo automático — quien lo use termina en el login sin
+volver al evento después. El enlace que sí funciona correctamente es el que
+genera el propio sistema con el código [evento:slug] ("Ver evento completo
+→"), que si se usa con el slug correcto del evento arma el volver bien. Es
+un tema de qué enlace usa cada landing al armarse en el editor, no un
+pendiente de programación.

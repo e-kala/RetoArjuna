@@ -55,6 +55,15 @@ function enviar_email_smtp(string $destinatario, string $asunto, string $cuerpoH
     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
     try {
         $mail->isSMTP();
+        // Sin esto, un SMTP lento o inalcanzable (ej. mail.arjuna.mx desde un
+        // entorno local sin salida a ese host) deja el socket esperando el
+        // timeout por defecto del sistema — varios minutos — y con eso
+        // cuelga toda la petición HTTP que disparó el correo (registro,
+        // login, checkout...), aunque el resto de esa petición ya haya
+        // terminado su trabajo real. 10s es más que suficiente para un SMTP
+        // que sí responde.
+        $mail->Timeout = 10;
+        $mail->SMTPKeepAlive = false;
         $mail->Host = EMAIL_SMTP_HOST;
         $mail->Port = defined('EMAIL_SMTP_PORT') ? (int) EMAIL_SMTP_PORT : 587;
         $mail->SMTPAuth = true;

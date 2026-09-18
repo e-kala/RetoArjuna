@@ -441,10 +441,10 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
           <button class="pf-btn pf-btn-primary pf-btn-lg w-100" id="btnObtenerGratis">Obtener gratis</button>
           <div id="gratisMsg" class="form-text mt-2"></div>
         <?php else: ?>
-        <div class="pf-metodo-pago-selector">
-          <button type="button" class="pf-metodo-pago-btn active" data-bs-toggle="tab" data-bs-target="#tab-stripe"><i class="bi bi-credit-card-2-front"></i>Tarjeta</button>
-          <button type="button" class="pf-metodo-pago-btn" data-bs-toggle="tab" data-bs-target="#tab-transfer"><i class="bi bi-bank"></i>Transferencia</button>
-          <button type="button" class="pf-metodo-pago-btn" data-bs-toggle="tab" data-bs-target="#tab-ventanilla"><i class="bi bi-shop"></i>Ventanilla</button>
+        <div class="pf-metodo-pago-selector" role="tablist">
+          <button type="button" class="pf-metodo-pago-btn active" role="tab" data-bs-toggle="tab" data-bs-target="#tab-stripe"><i class="bi bi-credit-card-2-front"></i>Tarjeta</button>
+          <button type="button" class="pf-metodo-pago-btn" role="tab" data-bs-toggle="tab" data-bs-target="#tab-transfer"><i class="bi bi-bank"></i>Transferencia</button>
+          <button type="button" class="pf-metodo-pago-btn" role="tab" data-bs-toggle="tab" data-bs-target="#tab-ventanilla"><i class="bi bi-shop"></i>Ventanilla</button>
         </div>
 
         <div class="tab-content">

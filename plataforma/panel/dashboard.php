@@ -36,12 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'elimi
 // propias consultas en su content/*.php (mismo patrón que ya usaban
 // mis_compras.php/perfil.php). El mapeo se centraliza aquí para reusarlo
 // tanto en la carga completa como en el corte temprano de Ajax de abajo.
-// "mis_cursos" se quitó de aquí (2026-09-15): el navbar ya no tiene "Cursos"
-// como sección propia, así que esta pestaña quedaría apuntando a una
-// sección que ya no existe en la navegación — content/mis_cursos.php se
-// deja sin tocar por si algo más lo vuelve a necesitar más adelante.
+// "mis_cursos" se había quitado de aquí (2026-09-15) porque el navbar ya no
+// tenía "Cursos" como sección propia; se restaura (2026-09-18) a petición
+// del usuario, junto a "Mis eventos" — pero solo si hay al menos un curso
+// activo en el catálogo (si no hay nada que comprar, la pestaña no aporta
+// nada y solo confundiría).
+$hayCursosActivos = (bool) $conn->query('SELECT 1 FROM cursos WHERE activo = 1 LIMIT 1')->fetch_row();
 $mapaContenidoPestanas = [
     'mis_eventos' => 'content/mis_eventos.php',
+];
+if ($hayCursosActivos) {
+    $mapaContenidoPestanas['mis_cursos'] = 'content/mis_cursos.php';
+}
+$mapaContenidoPestanas += [
     'mis_compras' => 'content/mis_compras.php',
     'reconocimientos' => 'content/reconocimientos.php',
     'mi_membresia' => 'content/mi_membresia.php',
@@ -106,7 +113,7 @@ if (es_peticion_ajax()) {
       ?>
         <li class="nav-item">
           <a class="btn btn-sm pf-tab-link <?= $action === $accionPestana ? 'pf-tab-activa' : 'btn-outline-secondary' ?>" data-accion="<?= $accionPestana ?>" href="?action=<?= $accionPestana ?>">
-            <?= ['mis_eventos' => 'Mis eventos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
+            <?= ['mis_eventos' => 'Mis eventos', 'mis_cursos' => 'Mis cursos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
           </a>
         </li>
       <?php endforeach; ?>

@@ -1,6 +1,172 @@
   </div>
+
+  <!-- Modal de zoom para comprobantes de pago (transferencia/ventanilla/membresía).
+       Un solo modal compartido por toda página de panel/admin/ — cualquier
+       <a data-comprobante-zoom href="ruta/a/la/imagen"> lo abre en vez de
+       navegar (ver listener al final del script de abajo). El href normal se
+       conserva como respaldo (abrir en pestaña nueva, copiar enlace, etc.) —
+       el modal es solo progressive enhancement sobre el link que ya existía. -->
+  <div class="modal fade" id="comprobanteZoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title text-white">Comprobante</h5>
+          <div class="d-flex gap-2 ms-auto me-2">
+            <button type="button" class="btn btn-sm btn-outline-light" id="comprobanteZoomOut" title="Alejar"><i class="bi bi-zoom-out"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-light" id="comprobanteZoomReset" title="Restablecer">100%</button>
+            <button type="button" class="btn btn-sm btn-outline-light" id="comprobanteZoomIn" title="Acercar"><i class="bi bi-zoom-in"></i></button>
+            <a href="#" target="_blank" class="btn btn-sm btn-outline-light" id="comprobanteZoomAbrir" title="Abrir en pestaña nueva"><i class="bi bi-box-arrow-up-right"></i></a>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body p-0 pf-comprobante-zoom-viewport" id="comprobanteZoomViewport">
+          <img id="comprobanteZoomImg" src="" alt="Comprobante de pago" draggable="false">
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>
+    .pf-comprobante-zoom-viewport {
+      overflow: hidden;
+      height: 78vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+    }
+    .pf-comprobante-zoom-viewport.pf-arrastrando { cursor: grabbing; }
+    #comprobanteZoomImg {
+      max-width: 100%;
+      max-height: 100%;
+      user-select: none;
+      transition: transform 0.08s ease-out;
+      will-change: transform;
+    }
+  </style>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+  <script>
+  // --- Zoom de comprobante (ver modal arriba) ---
+  (function () {
+    var modalEl = document.getElementById('comprobanteZoomModal');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var viewport = document.getElementById('comprobanteZoomViewport');
+    var img = document.getElementById('comprobanteZoomImg');
+    var btnIn = document.getElementById('comprobanteZoomIn');
+    var btnOut = document.getElementById('comprobanteZoomOut');
+    var btnReset = document.getElementById('comprobanteZoomReset');
+    var linkAbrir = document.getElementById('comprobanteZoomAbrir');
+
+    var escala = 1, offsetX = 0, offsetY = 0;
+    var arrastrando = false, ultimoX = 0, ultimoY = 0;
+
+    function aplicarTransform() {
+      img.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + escala + ')';
+      btnReset.textContent = Math.round(escala * 100) + '%';
+    }
+
+    function fijarEscala(nueva) {
+      escala = Math.min(6, Math.max(1, nueva));
+      if (escala === 1) { offsetX = 0; offsetY = 0; } // vuelve a centrar al llegar al mínimo
+      aplicarTransform();
+    }
+
+    // Solo las imágenes con [data-comprobante-zoom] abren el modal — los
+    // demás enlaces de la fila (usuario, artículo, etc.) siguen navegando
+    // normal. Delegado en document porque las filas se repintan por Ajax
+    // (ver data-ajax="accion" en _footer.php) y unos <a> nuevos no tendrían
+    // el listener si se atara directo al elemento.
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('[data-comprobante-zoom]');
+      if (!link) return;
+      var href = link.getAttribute('href');
+      // Un comprobante puede ser PDF (procesar_subida_comprobante() acepta
+      // JPG/PNG/WEBP/PDF) — el visor de zoom es solo para imágenes, un PDF
+      // sigue su comportamiento normal (abrir en pestaña nueva).
+      if (/\.pdf($|\?)/i.test(href)) return;
+      e.preventDefault();
+      escala = 1; offsetX = 0; offsetY = 0;
+      img.src = href;
+      linkAbrir.setAttribute('href', href);
+      aplicarTransform();
+      modal.show();
+    });
+
+    btnIn.addEventListener('click', function () { fijarEscala(escala + 0.5); });
+    btnOut.addEventListener('click', function () { fijarEscala(escala - 0.5); });
+    btnReset.addEventListener('click', function () { fijarEscala(1); });
+
+    viewport.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      fijarEscala(escala + (e.deltaY < 0 ? 0.25 : -0.25));
+    }, { passive: false });
+
+    // Doble click/tap: alterna entre 100% y 2.5x, como cualquier visor de imágenes.
+    viewport.addEventListener('dblclick', function () {
+      fijarEscala(escala > 1 ? 1 : 2.5);
+    });
+
+    viewport.addEventListener('mousedown', function (e) {
+      if (escala <= 1) return;
+      arrastrando = true;
+      ultimoX = e.clientX; ultimoY = e.clientY;
+      viewport.classList.add('pf-arrastrando');
+    });
+    window.addEventListener('mousemove', function (e) {
+      if (!arrastrando) return;
+      offsetX += e.clientX - ultimoX;
+      offsetY += e.clientY - ultimoY;
+      ultimoX = e.clientX; ultimoY = e.clientY;
+      aplicarTransform();
+    });
+    window.addEventListener('mouseup', function () {
+      arrastrando = false;
+      viewport.classList.remove('pf-arrastrando');
+    });
+
+    // Pellizcar para zoom / arrastrar con un dedo en móvil.
+    var distanciaPellizco = null;
+    viewport.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) {
+        distanciaPellizco = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      } else if (e.touches.length === 1 && escala > 1) {
+        arrastrando = true;
+        ultimoX = e.touches[0].clientX; ultimoY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', function (e) {
+      if (e.touches.length === 2 && distanciaPellizco !== null) {
+        e.preventDefault();
+        var actual = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        fijarEscala(escala * (actual / distanciaPellizco));
+        distanciaPellizco = actual;
+      } else if (arrastrando && e.touches.length === 1) {
+        e.preventDefault();
+        offsetX += e.touches[0].clientX - ultimoX;
+        offsetY += e.touches[0].clientY - ultimoY;
+        ultimoX = e.touches[0].clientX; ultimoY = e.touches[0].clientY;
+        aplicarTransform();
+      }
+    }, { passive: false });
+    viewport.addEventListener('touchend', function (e) {
+      if (e.touches.length < 2) distanciaPellizco = null;
+      if (e.touches.length === 0) arrastrando = false;
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      img.src = '';
+    });
+  })();
+  </script>
   <script>
   // Envía por Ajax cualquier <form data-ajax> del admin (fijar/publicar/
   // aprobar/eliminar/confirmar pago, etc.) en vez de recargar la página

@@ -142,7 +142,7 @@ include __DIR__ . '/_header.php';
           <?php if ($p['metodo'] === 'stripe'): ?>
             <span class="text-muted">—</span>
           <?php else: ?>
-            <?= $p['comprobante_url'] ? '<a href="../../' . htmlspecialchars($p['comprobante_url']) . '" target="_blank">Ver</a>' : '<span class="text-muted">— (revisa WhatsApp)</span>' ?>
+            <?= $p['comprobante_url'] ? '<a href="../../' . htmlspecialchars($p['comprobante_url']) . '" target="_blank" data-comprobante-zoom>Ver</a>' : '<span class="text-muted">— (revisa WhatsApp)</span>' ?>
           <?php endif; ?>
         </td>
         <td><?= htmlspecialchars(date('d/m/Y', strtotime($p['created_at']))) ?></td>

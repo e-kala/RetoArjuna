@@ -32,7 +32,7 @@ function pf_pintar_fila_pago(array $p, array $estadoBadge, string $volverQs = ''
         <?php if (($p['modo'] ?? 'live') === 'prueba'): ?><span class="badge bg-dark" title="Pago hecho en modo prueba de Stripe — no es dinero real">🧪 prueba</span><?php endif; ?>
       </td>
       <td>
-        <?php if ($p['comprobante_url']): ?><a href="../../<?= htmlspecialchars($p['comprobante_url']) ?>" target="_blank">Comprobante</a><?php endif; ?>
+        <?php if ($p['comprobante_url']): ?><a href="../../<?= htmlspecialchars($p['comprobante_url']) ?>" target="_blank" data-comprobante-zoom>Comprobante</a><?php endif; ?>
         <?php if ($p['direccion_envio']): ?><div class="small text-muted"><?= nl2br(htmlspecialchars($p['direccion_envio'])) ?></div><?php endif; ?>
       </td>
       <td class="d-flex gap-2">

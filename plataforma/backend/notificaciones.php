@@ -143,6 +143,7 @@ function notificacion_icono(string $tipo): string
         'nueva_noticia' => 'bi-newspaper',
         'aviso_admin' => 'bi-megaphone-fill',
         'voucher_membresia' => 'bi-cash-coin',
+        'pago_confirmado' => 'bi-check-circle-fill',
     ];
     return $iconos[$tipo] ?? 'bi-bell';
 }

@@ -1952,3 +1952,10 @@ CREATE TABLE IF NOT EXISTS `membresia_vouchers_oxxo` (
 ALTER TABLE notificaciones
   MODIFY COLUMN tipo ENUM('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','voucher_membresia') NOT NULL;
 
+-- Aviso 1-a-1 de "tu comprobante de transferencia/ventanilla fue confirmado"
+-- (panel/admin/_pagos_acciones.php, junto al correo que ya se mandaba) —
+-- mismo motivo que voucher_membresia arriba: un ENUM nuevo por cada tipo de
+-- notificación 1-a-1 que se agregue, la difusión masiva no aplica aquí.
+ALTER TABLE notificaciones
+  MODIFY COLUMN tipo ENUM('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','voucher_membresia','pago_confirmado') NOT NULL;
+

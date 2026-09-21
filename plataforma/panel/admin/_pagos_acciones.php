@@ -44,6 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'valid
                     $enlace .= '&bienvenida=1';
                 }
                 enviar_email_inscripcion((int) $info['usuario_id'], $info['email'], $info['titulo'], $enlace);
+                // Aviso dentro de la plataforma (campanita) — mismo momento que
+                // el correo de arriba, para quien no revise su bandeja de
+                // entrada pronto. Enlace relativo (BASE_URL, no SITE_URL) para
+                // seguir el mismo patrón que el resto de notificacion_crear().
+                notificacion_crear(
+                    (int) $info['usuario_id'],
+                    'pago_confirmado',
+                    'Tu comprobante fue confirmado',
+                    'Tu pago de "' . $info['titulo'] . '" ya fue validado — tu acceso está activo.',
+                    BASE_URL . '/index.php?action=' . $info['tipo'] . '&slug=' . urlencode($info['slug'])
+                );
             }
             // Si es un evento de pago, la confirmación también cuenta como inscripción.
             if ($info && $info['tipo'] === 'evento' && $info['evento_id']) {

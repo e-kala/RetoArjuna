@@ -34,6 +34,11 @@ function pf_pintar_fila_pago(array $p, array $estadoBadge, string $volverQs = ''
       <td>
         <?php if ($p['comprobante_url']): ?><a href="../../<?= htmlspecialchars($p['comprobante_url']) ?>" target="_blank" data-comprobante-zoom>Comprobante</a><?php endif; ?>
         <?php if ($p['direccion_envio']): ?><div class="small text-muted"><?= nl2br(htmlspecialchars($p['direccion_envio'])) ?></div><?php endif; ?>
+        <?php if (!empty($p['whatsapp_telefono'])): ?>
+          <div class="small text-muted" title="Puede no ser el WhatsApp del titular de la cuenta — lo escribió quien mandó el comprobante, verifica antes de confirmar si algo se ve raro.">
+            <i class="bi bi-whatsapp"></i> <?= htmlspecialchars($p['whatsapp_telefono']) ?>
+          </div>
+        <?php endif; ?>
       </td>
       <td class="d-flex gap-2">
         <?php if ($p['origen'] === 'membresia'): ?>

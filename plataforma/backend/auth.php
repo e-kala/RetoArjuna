@@ -232,16 +232,23 @@ function require_role(string $rolRequerido): void
 }
 
 /**
- * Correo de la única cuenta con acceso a funciones "super admin" — hoy solo
+ * ID fijo de la única cuenta con acceso a funciones "super admin" — hoy solo
  * el envío de notificaciones por WhatsApp (en pruebas, no lista para
- * cualquier admin todavía). Fijo en código (no en config.local.php) a
- * propósito: si un entorno nuevo se olvida de definir una constante, el
- * default nunca debe ser "cualquiera puede" — mismo entorno en local y
- * producción (pidieron explícitamente que se oculte en ambos).
+ * cualquier admin todavía). Se ancla al id (67, caiman.mistico@gmail.com en
+ * este entorno), NUNCA solo al correo: cualquier admin puede eliminar
+ * cuentas desde usuarios.php sin protección especial (ver
+ * panel/admin/usuarios.php), así que si solo se comparara el correo, borrar
+ * esa cuenta y volver a registrarse con el mismo correo heredaría el
+ * privilegio — el id de AUTO_INCREMENT nunca se reutiliza en operación
+ * normal, así que anclarse ahí cierra esa vía. El correo se revisa además
+ * (no en vez de) como defensa en profundidad, por si ese id cambiara de
+ * dueño por algún otro medio (ej. un admin lo reasigna a mano en la BD).
  */
 function es_super_admin(): bool
 {
-    return is_logged_in() && strtolower((string) ($_SESSION['email'] ?? '')) === 'caiman.mistico@gmail.com';
+    return is_logged_in()
+        && (int) ($_SESSION['usuario_perfil_id'] ?? 0) === 67
+        && strtolower((string) ($_SESSION['email'] ?? '')) === 'caiman.mistico@gmail.com';
 }
 
 /**

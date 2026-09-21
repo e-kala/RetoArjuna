@@ -17,8 +17,16 @@ $direccionEnvio = trim($_POST['direccion_envio'] ?? '');
 // Teléfono de WhatsApp capturado junto al comprobante — a dónde llegará el
 // aviso de "tu comprobante fue confirmado" (ver notificacion_crear() en
 // _pagos_acciones.php). Opcional: si se deja vacío, ese aviso simplemente
-// no se manda por WhatsApp (sigue yendo por correo + campana).
+// no se manda por WhatsApp (sigue yendo por correo + campana). Se valida el
+// formato (solo dígitos/espacios/+/guiones, 7-20 caracteres) — no para
+// impedir que alguien compre a nombre de un tercero (caso de uso legítimo,
+// ej. un regalo), sino para que este campo nunca meta basura al payload
+// real de Graph API ni se use para colar algo que no sea un teléfono.
 $whatsappTelefono = trim($_POST['whatsapp_telefono'] ?? '') ?: null;
+if ($whatsappTelefono !== null && !preg_match('/^[\d\s+\-()]{7,20}$/', $whatsappTelefono)) {
+    echo json_encode(['success' => false, 'message' => 'El número de WhatsApp no es válido.']);
+    exit;
+}
 
 $codigoCupon = trim((string) ($_POST['codigo_cupon'] ?? '')) ?: null;
 $item = resolver_item_pago($conn, $_POST, $usuarioPerfilId, $codigoCupon);

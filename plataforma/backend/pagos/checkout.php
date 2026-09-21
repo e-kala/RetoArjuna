@@ -490,6 +490,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
               <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
               <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
+              <li><strong>WhatsApp de avisos:</strong> <?= htmlspecialchars(whatsapp_pagos_legible()) ?></li>
             </ul>
             <div class="mb-3">
               <label class="form-label">Sube tu comprobante (opcional)</label>
@@ -517,6 +518,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
               <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
               <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
+              <li><strong>WhatsApp de avisos:</strong> <?= htmlspecialchars(whatsapp_pagos_legible()) ?></li>
             </ul>
             <div class="mb-3">
               <label class="form-label">Sube tu comprobante (opcional)</label>

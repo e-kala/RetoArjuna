@@ -68,6 +68,23 @@ if (!defined('BANCO_VENTANILLA')) define('BANCO_VENTANILLA', '151 385 6243');
 if (!defined('BANCO_VENTANILLA_OXXO')) define('BANCO_VENTANILLA_OXXO', '4152 3146 5079 3113');
 if (!defined('WHATSAPP_PAGOS')) define('WHATSAPP_PAGOS', '523321868372');
 
+/**
+ * WHATSAPP_PAGOS legible para mostrar como dato de contacto (ej. junto a
+ * Banco/CLABE en el formulario de transferencia) — la constante en sí es
+ * solo dígitos (formato que necesita el link wa.me/), esto es puramente
+ * cosmético. Asume código de país de 2 dígitos + 10 dígitos de número (caso
+ * de México, "52" + 10) — si algún día el número tiene otro largo, esta
+ * función simplemente no reformatea y devuelve el original tal cual.
+ */
+function whatsapp_pagos_legible(): string
+{
+    $digitos = preg_replace('/\D+/', '', WHATSAPP_PAGOS);
+    if (strlen($digitos) !== 12) {
+        return WHATSAPP_PAGOS;
+    }
+    return '+' . substr($digitos, 0, 2) . ' ' . substr($digitos, 2, 2) . ' ' . substr($digitos, 4, 4) . ' ' . substr($digitos, 8, 4);
+}
+
 // --- WhatsApp Cloud API (envío saliente automático, distinto de WHATSAPP_PAGOS
 // de arriba) — experimental, ver backend/whatsapp.php y es_super_admin() en
 // auth.php. Sin estas dos, whatsapp_esta_listo() da false y no se manda nada. ---

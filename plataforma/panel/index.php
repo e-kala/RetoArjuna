@@ -131,12 +131,12 @@ if ($esAdmin && $action === 'inicio') {
         </div>
       </div>
 
-      <div class="d-flex flex-wrap-reverse align-items-center justify-content-between gap-3 mb-3">
+      <div class="mb-3">
+        <h2 class="h5 fw-bold mb-2">Herramientas</h2>
         <div class="position-relative" style="max-width:280px;width:100%;">
           <i class="bi bi-search position-absolute top-50 translate-middle-y text-muted" style="left:12px;"></i>
           <input type="search" id="buscadorHerramientas" class="form-control ps-5" placeholder="Buscar herramienta..." autocomplete="off">
         </div>
-        <h2 class="h5 fw-bold mb-0">Herramientas</h2>
       </div>
       <p class="text-muted small d-none" id="herramientasSinResultados">Ninguna herramienta coincide con la búsqueda.</p>
       <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3" id="listaHerramientas">

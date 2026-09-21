@@ -21,6 +21,14 @@ function notificacion_crear(int $usuarioId, string $tipo, string $titulo, ?strin
     $stmt->bind_param('issssi', $usuarioId, $tipo, $titulo, $mensaje, $enlace, $actorUsuarioId);
     $stmt->execute();
     $stmt->close();
+
+    // Canal extra opcional (experimental, ver backend/whatsapp.php) — no hace
+    // nada salvo que el tipo tenga una plantilla activa configurada en
+    // whatsapp_plantillas. {{1}}/{{2}} de la plantilla en Meta deben
+    // corresponder a título/mensaje, en ese orden.
+    if (function_exists('whatsapp_notificar_tipo')) {
+        whatsapp_notificar_tipo($usuarioId, $tipo, [$titulo, (string) $mensaje]);
+    }
 }
 
 /**

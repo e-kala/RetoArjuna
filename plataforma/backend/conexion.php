@@ -68,6 +68,16 @@ if (!defined('BANCO_VENTANILLA')) define('BANCO_VENTANILLA', '151 385 6243');
 if (!defined('BANCO_VENTANILLA_OXXO')) define('BANCO_VENTANILLA_OXXO', '4152 3146 5079 3113');
 if (!defined('WHATSAPP_PAGOS')) define('WHATSAPP_PAGOS', '523321868372');
 
+// --- WhatsApp Cloud API (envío saliente automático, distinto de WHATSAPP_PAGOS
+// de arriba) — experimental, ver backend/whatsapp.php y es_super_admin() en
+// auth.php. Sin estas dos, whatsapp_esta_listo() da false y no se manda nada. ---
+if (!defined('WHATSAPP_TOKEN')) define('WHATSAPP_TOKEN', 'reemplazar_whatsapp_token');
+if (!defined('WHATSAPP_PHONE_ID')) define('WHATSAPP_PHONE_ID', 'reemplazar_whatsapp_phone_id');
+// Código de país que se antepone a un teléfono guardado a 10 dígitos (ver
+// whatsapp_normalizar_telefono()) — 52 (México) por default porque hoy toda
+// la base de usuarios es de ahí; solo hace falta tocarlo si eso cambia.
+if (!defined('WHATSAPP_LADA_DEFECTO')) define('WHATSAPP_LADA_DEFECTO', '52');
+
 // --- Correo saliente ---
 if (!defined('EMAIL_REMITENTE')) define('EMAIL_REMITENTE', 'noreply@retoarjuna.local');
 if (!defined('EMAIL_REMITENTE_NOMBRE')) define('EMAIL_REMITENTE_NOMBRE', 'Reto Arjuna');

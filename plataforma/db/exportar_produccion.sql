@@ -1959,3 +1959,22 @@ ALTER TABLE notificaciones
 ALTER TABLE notificaciones
   MODIFY COLUMN tipo ENUM('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','voucher_membresia','pago_confirmado') NOT NULL;
 
+-- Mapeo tipo de notificación -> plantilla de WhatsApp Cloud API (ver
+-- backend/whatsapp.php) — el NOMBRE de una plantilla solo existe una vez
+-- dada de alta y aprobada en Meta Business Manager, así que no puede vivir
+-- hardcodeado en PHP; se edita desde el panel (notificaciones_config.php,
+-- sección visible solo para es_super_admin()). Sin fila para un tipo, o con
+-- activo=0, ese tipo simplemente no manda WhatsApp (sigue mandando correo +
+-- notificación en plataforma normal).
+CREATE TABLE IF NOT EXISTS `whatsapp_plantillas` (
+  `tipo` varchar(40) NOT NULL,
+  `nombre_plantilla` varchar(100) NOT NULL DEFAULT '',
+  `idioma` varchar(10) NOT NULL DEFAULT 'es_MX',
+  `activo` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`tipo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `whatsapp_plantillas` (`tipo`, `nombre_plantilla`, `idioma`, `activo`) VALUES
+  ('pago_confirmado', '', 'es_MX', 0),
+  ('voucher_membresia', '', 'es_MX', 0);
+

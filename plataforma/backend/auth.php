@@ -17,6 +17,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/conexion.php';
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/whatsapp.php';
 require_once __DIR__ . '/notificaciones.php';
 require_once __DIR__ . '/perfiles.php';
 require_once __DIR__ . '/calificaciones.php';
@@ -224,6 +225,34 @@ function require_role(string $rolRequerido): void
     $actual = $niveles[$_SESSION['rol'] ?? 'estudiante'] ?? 1;
     $requerido = $niveles[$rolRequerido] ?? 99;
     if ($actual < $requerido) {
+        http_response_code(403);
+        echo 'No tienes permiso para acceder a esta sección.';
+        exit;
+    }
+}
+
+/**
+ * Correo de la única cuenta con acceso a funciones "super admin" — hoy solo
+ * el envío de notificaciones por WhatsApp (en pruebas, no lista para
+ * cualquier admin todavía). Fijo en código (no en config.local.php) a
+ * propósito: si un entorno nuevo se olvida de definir una constante, el
+ * default nunca debe ser "cualquiera puede" — mismo entorno en local y
+ * producción (pidieron explícitamente que se oculte en ambos).
+ */
+function es_super_admin(): bool
+{
+    return is_logged_in() && strtolower((string) ($_SESSION['email'] ?? '')) === 'caiman.mistico@gmail.com';
+}
+
+/**
+ * Igual que require_role('admin') pero además exige es_super_admin() — usar
+ * solo para funciones deliberadamente restringidas a una sola cuenta, no
+ * como reemplazo general de require_role('admin').
+ */
+function require_super_admin(): void
+{
+    require_role('admin');
+    if (!es_super_admin()) {
         http_response_code(403);
         echo 'No tienes permiso para acceder a esta sección.';
         exit;

@@ -57,6 +57,16 @@
 // define('BANCO_VENTANILLA_OXXO', '...'); // depósito en OXXO y otras tiendas de conveniencia
 // define('WHATSAPP_PAGOS', '52...');
 
+// --- WhatsApp Cloud API (envío SALIENTE automático — distinto de WHATSAPP_PAGOS
+// de arriba, que es solo un link wa.me para que el usuario escriba a mano).
+// Experimental, restringido a caiman.mistico@gmail.com (ver es_super_admin()
+// en auth.php) — token y phone_id salen de Meta Business Manager > WhatsApp
+// Manager > Configuración de la API. Requiere plantillas de mensaje
+// pre-aprobadas por Meta; ver backend/whatsapp.php para el detalle. ---
+// define('WHATSAPP_TOKEN', '...');
+// define('WHATSAPP_PHONE_ID', '...');
+// define('WHATSAPP_LADA_DEFECTO', '52'); // código de país para teléfonos guardados a 10 dígitos
+
 // --- Correo saliente ---
 // define('EMAIL_REMITENTE', 'noreply@...');
 // define('EMAIL_REMITENTE_NOMBRE', 'Reto Arjuna');

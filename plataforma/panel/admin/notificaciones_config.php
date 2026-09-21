@@ -46,6 +46,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'elimi
     exit;
 }
 
+// Sección de WhatsApp — deliberadamente restringida a es_super_admin(), no a
+// cualquier admin (ver auth.php). Un admin normal ni siquiera puede mandar
+// este POST: el guard de abajo corta antes de tocar la tabla.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'guardar_plantilla_whatsapp') {
+    require_super_admin();
+    $esAjax = es_peticion_ajax();
+    $tipo = (string) ($_POST['tipo'] ?? '');
+    $nombrePlantilla = trim((string) ($_POST['nombre_plantilla'] ?? ''));
+    $idioma = trim((string) ($_POST['idioma'] ?? 'es_MX')) ?: 'es_MX';
+    $activo = !empty($_POST['activo']) ? 1 : 0;
+    if (!in_array($tipo, ['pago_confirmado', 'voucher_membresia'], true)) {
+        echo json_encode(['success' => false, 'mensaje' => 'Tipo no reconocido.']);
+        exit;
+    }
+    $stmt = $conn->prepare(
+        'INSERT INTO whatsapp_plantillas (tipo, nombre_plantilla, idioma, activo) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE nombre_plantilla = VALUES(nombre_plantilla), idioma = VALUES(idioma), activo = VALUES(activo)'
+    );
+    $stmt->bind_param('sssi', $tipo, $nombrePlantilla, $idioma, $activo);
+    $stmt->execute();
+    $stmt->close();
+    if ($esAjax) {
+        echo json_encode(['success' => true, 'mensaje' => 'Plantilla guardada.']);
+        exit;
+    }
+    header('Location: notificaciones_config.php');
+    exit;
+}
+
 $tiposLabel = [
     'nuevo_curso' => ['icono' => 'bi-book', 'texto' => 'Curso nuevo publicado'],
     'nuevo_evento' => ['icono' => 'bi-calendar-event', 'texto' => 'Evento nuevo publicado'],
@@ -56,6 +85,18 @@ $config = $conn->query('SELECT * FROM notificacion_config')->fetch_all(MYSQLI_AS
 $configPorTipo = array_column($config, null, 'tipo');
 $difusiones = notificaciones_difusiones_recientes(50);
 $tiposLabelDifusion = $tiposLabel + ['aviso_admin' => ['icono' => 'bi-megaphone-fill', 'texto' => 'Aviso personalizado']];
+
+// Sección WhatsApp: solo se consulta/pinta si es_super_admin() — nadie más
+// ve ni el bloque ni sabe que esta tabla existe.
+$whatsappTiposLabel = [
+    'pago_confirmado' => ['icono' => 'bi-check-circle-fill', 'texto' => 'Comprobante de pago confirmado'],
+    'voucher_membresia' => ['icono' => 'bi-cash-coin', 'texto' => 'Voucher OXXO de membresía listo'],
+];
+$whatsappPlantillas = [];
+if (es_super_admin()) {
+    $filas = $conn->query('SELECT * FROM whatsapp_plantillas')->fetch_all(MYSQLI_ASSOC);
+    $whatsappPlantillas = array_column($filas, null, 'tipo');
+}
 
 $pageTitle = 'Notificaciones';
 include __DIR__ . '/_header.php';
@@ -134,4 +175,52 @@ include __DIR__ . '/_header.php';
   </tbody>
 </table>
 </div>
+
+<?php if (es_super_admin()): ?>
+<div class="mt-5">
+  <h2 class="h5 mb-2">📱 WhatsApp (experimental)</h2>
+  <p class="text-muted small">
+    Canal extra sobre correo + campana — solo se manda si <code>WHATSAPP_TOKEN</code>/<code>WHATSAPP_PHONE_ID</code>
+    están configurados (<code>config.local.php</code>) y el tipo tiene una plantilla <strong>ya aprobada por Meta</strong> capturada
+    aquí abajo. Meta exige que cualquier mensaje que iniciemos nosotros (el usuario no nos escribió primero) use una
+    plantilla pre-aprobada — no se puede mandar texto libre. Da de alta y aprueba la plantilla en
+    <em>Meta Business Manager → WhatsApp Manager → Plantillas de mensajes</em> antes de activarla aquí; el cuerpo debe
+    tener dos variables <code>{{1}}</code> (título) y <code>{{2}}</code> (mensaje), en ese orden — son los mismos textos
+    que ya se mandan por correo y en la campana de la plataforma. Solo llega a usuarios que tengan un teléfono
+    capturado en su perfil.
+    <?php if (!whatsapp_esta_listo()): ?>
+      <br><span class="text-danger">⚠️ WHATSAPP_TOKEN/WHATSAPP_PHONE_ID no están configurados todavía en este entorno — nada se enviará aunque actives una plantilla aquí.</span>
+    <?php endif; ?>
+  </p>
+  <div class="table-responsive">
+  <table class="table table-bordered bg-white" style="max-width:760px;">
+    <thead><tr><th>Evento</th><th>Nombre de la plantilla en Meta</th><th>Idioma</th><th>Activa</th><th></th></tr></thead>
+    <tbody>
+      <?php foreach ($whatsappTiposLabel as $tipo => $info): ?>
+        <?php $fila = $whatsappPlantillas[$tipo] ?? ['nombre_plantilla' => '', 'idioma' => 'es_MX', 'activo' => 0]; ?>
+        <tr>
+          <td><i class="bi <?= $info['icono'] ?>"></i> <?= htmlspecialchars($info['texto']) ?></td>
+          <td colspan="4">
+            <form method="post" data-ajax-form class="d-flex gap-2 align-items-center flex-wrap">
+              <?= csrf_field() ?>
+              <input type="hidden" name="accion" value="guardar_plantilla_whatsapp">
+              <input type="hidden" name="tipo" value="<?= htmlspecialchars($tipo) ?>">
+              <input type="text" name="nombre_plantilla" class="form-control form-control-sm" style="max-width:220px;"
+                     placeholder="nombre_exacto_de_la_plantilla" value="<?= htmlspecialchars($fila['nombre_plantilla']) ?>">
+              <input type="text" name="idioma" class="form-control form-control-sm" style="max-width:100px;"
+                     value="<?= htmlspecialchars($fila['idioma']) ?>">
+              <div class="form-check form-switch mb-0">
+                <input type="checkbox" name="activo" class="form-check-input" role="switch" <?= ((int) $fila['activo'] === 1) ? 'checked' : '' ?>>
+                <label class="form-check-label small">Activa</label>
+              </div>
+              <button class="btn btn-sm btn-outline-primary">Guardar</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+</div>
+<?php endif; ?>
 <?php include __DIR__ . '/_footer.php'; ?>

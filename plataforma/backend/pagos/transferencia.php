@@ -14,6 +14,11 @@ if (!is_logged_in()) {
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 $cantidad = max(1, (int) ($_POST['cantidad'] ?? 1));
 $direccionEnvio = trim($_POST['direccion_envio'] ?? '');
+// Teléfono de WhatsApp capturado junto al comprobante — a dónde llegará el
+// aviso de "tu comprobante fue confirmado" (ver notificacion_crear() en
+// _pagos_acciones.php). Opcional: si se deja vacío, ese aviso simplemente
+// no se manda por WhatsApp (sigue yendo por correo + campana).
+$whatsappTelefono = trim($_POST['whatsapp_telefono'] ?? '') ?: null;
 
 $codigoCupon = trim((string) ($_POST['codigo_cupon'] ?? '')) ?: null;
 $item = resolver_item_pago($conn, $_POST, $usuarioPerfilId, $codigoCupon);
@@ -52,9 +57,11 @@ $existente = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if ($existente) {
-    if ($comprobante !== null) {
-        $stmt = $conn->prepare('UPDATE pagos SET comprobante_url = ? WHERE id = ?');
-        $stmt->bind_param('si', $comprobante, $existente['id']);
+    if ($comprobante !== null || $whatsappTelefono !== null) {
+        $stmt = $conn->prepare(
+            'UPDATE pagos SET comprobante_url = COALESCE(?, comprobante_url), whatsapp_telefono = COALESCE(?, whatsapp_telefono) WHERE id = ?'
+        );
+        $stmt->bind_param('ssi', $comprobante, $whatsappTelefono, $existente['id']);
         $stmt->execute();
         $stmt->close();
     }
@@ -69,10 +76,10 @@ $promocionId = $item['oferta_tipo'] === 'promocion' ? $item['oferta_id'] : null;
 $regaloId = $item['oferta_tipo'] === 'regalo' ? $item['oferta_id'] : null;
 
 $stmt = $conn->prepare(
-    "INSERT INTO pagos (usuario_id, {$columna}, cupon_id, promocion_id, regalo_id, monto, metodo_pago, estado, cantidad, direccion_envio, comprobante_url)
-     VALUES (?, ?, ?, ?, ?, ?, 'transferencia', 'pendiente', ?, ?, ?)"
+    "INSERT INTO pagos (usuario_id, {$columna}, cupon_id, promocion_id, regalo_id, monto, metodo_pago, estado, cantidad, direccion_envio, comprobante_url, whatsapp_telefono)
+     VALUES (?, ?, ?, ?, ?, ?, 'transferencia', 'pendiente', ?, ?, ?, ?)"
 );
-$stmt->bind_param('iiiiidiss', $usuarioPerfilId, $itemId, $cuponId, $promocionId, $regaloId, $montoFinal, $cantidad, $direccionEnvio, $comprobante);
+$stmt->bind_param('iiiiidisss', $usuarioPerfilId, $itemId, $cuponId, $promocionId, $regaloId, $montoFinal, $cantidad, $direccionEnvio, $comprobante, $whatsappTelefono);
 $stmt->execute();
 $pagoId = $stmt->insert_id;
 $stmt->close();

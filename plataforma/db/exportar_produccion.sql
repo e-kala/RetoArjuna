@@ -1978,3 +1978,11 @@ INSERT IGNORE INTO `whatsapp_plantillas` (`tipo`, `nombre_plantilla`, `idioma`, 
   ('pago_confirmado', '', 'es_MX', 0),
   ('voucher_membresia', '', 'es_MX', 0);
 
+-- Teléfono capturado junto al comprobante de transferencia/ventanilla (ver
+-- checkout.php) — puede no coincidir con usuarios_perfil.telefono, así que
+-- vive aparte, no reemplaza esa columna. Al confirmar el pago (ver
+-- panel/admin/_pagos_acciones.php), este número tiene prioridad sobre el
+-- del perfil para el aviso de WhatsApp de "tu comprobante fue confirmado".
+ALTER TABLE pagos
+  ADD COLUMN IF NOT EXISTS `whatsapp_telefono` varchar(20) DEFAULT NULL AFTER `comprobante_url`;
+

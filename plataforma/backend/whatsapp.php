@@ -171,11 +171,16 @@ function whatsapp_plantilla_para_tipo(string $tipo): ?array
  * — intenta mandar WhatsApp para una notificación que ya se creó en
  * plataforma+correo, sin duplicar ahí la lógica de "¿está todo listo?". No
  * hace nada (silenciosamente) si falta cualquier requisito: Cloud API sin
- * configurar, tipo sin plantilla activa, o el usuario no capturó teléfono —
- * WhatsApp es un canal extra, nunca debe poder tumbar el flujo principal de
- * notificación (por eso nunca lanza, solo devuelve bool).
+ * configurar, tipo sin plantilla activa, o no hay ningún teléfono a dónde
+ * mandarlo — WhatsApp es un canal extra, nunca debe poder tumbar el flujo
+ * principal de notificación (por eso nunca lanza, solo devuelve bool).
+ *
+ * $telefonoOverride (opcional) tiene prioridad sobre usuarios_perfil.telefono
+ * — usado cuando el teléfono viene de otro lado más específico que el
+ * perfil (ej. pagos.whatsapp_telefono, capturado junto al comprobante de
+ * transferencia).
  */
-function whatsapp_notificar_tipo(int $usuarioId, string $tipo, array $variables): bool
+function whatsapp_notificar_tipo(int $usuarioId, string $tipo, array $variables, ?string $telefonoOverride = null): bool
 {
     global $conn;
     if (!whatsapp_esta_listo()) {
@@ -185,11 +190,14 @@ function whatsapp_notificar_tipo(int $usuarioId, string $tipo, array $variables)
     if (!$plantilla) {
         return false;
     }
-    $stmt = $conn->prepare('SELECT telefono FROM usuarios_perfil WHERE id = ?');
-    $stmt->bind_param('i', $usuarioId);
-    $stmt->execute();
-    $telefono = trim((string) ($stmt->get_result()->fetch_assoc()['telefono'] ?? ''));
-    $stmt->close();
+    $telefono = trim((string) $telefonoOverride);
+    if ($telefono === '') {
+        $stmt = $conn->prepare('SELECT telefono FROM usuarios_perfil WHERE id = ?');
+        $stmt->bind_param('i', $usuarioId);
+        $stmt->execute();
+        $telefono = trim((string) ($stmt->get_result()->fetch_assoc()['telefono'] ?? ''));
+        $stmt->close();
+    }
     if ($telefono === '') {
         return false;
     }

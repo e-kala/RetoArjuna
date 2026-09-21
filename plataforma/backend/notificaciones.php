@@ -7,8 +7,14 @@
  * Crea una notificación individual para un usuario. No hace nada si el
  * destinatario es quien mismo la generó (nadie se notifica a sí mismo —
  * mismo criterio que ya usaba foro_crear_notificacion()).
+ *
+ * $telefonoWhatsapp (opcional) manda el canal de WhatsApp a ESE número en
+ * vez del guardado en usuarios_perfil.telefono — para el caso de
+ * pagos.whatsapp_telefono, capturado por el usuario junto a su comprobante
+ * de transferencia/ventanilla (ver checkout.php), que puede no coincidir
+ * con el de su perfil.
  */
-function notificacion_crear(int $usuarioId, string $tipo, string $titulo, ?string $mensaje, string $enlace, ?int $actorUsuarioId = null): void
+function notificacion_crear(int $usuarioId, string $tipo, string $titulo, ?string $mensaje, string $enlace, ?int $actorUsuarioId = null, ?string $telefonoWhatsapp = null): void
 {
     global $conn;
     if ($actorUsuarioId !== null && $usuarioId === $actorUsuarioId) {
@@ -27,7 +33,7 @@ function notificacion_crear(int $usuarioId, string $tipo, string $titulo, ?strin
     // whatsapp_plantillas. {{1}}/{{2}} de la plantilla en Meta deben
     // corresponder a título/mensaje, en ese orden.
     if (function_exists('whatsapp_notificar_tipo')) {
-        whatsapp_notificar_tipo($usuarioId, $tipo, [$titulo, (string) $mensaje]);
+        whatsapp_notificar_tipo($usuarioId, $tipo, [$titulo, (string) $mensaje], $telefonoWhatsapp);
     }
 }
 

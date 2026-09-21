@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'valid
 
         if ($afectados > 0 && $nuevoEstado === 'confirmado') {
             $stmt = $conn->prepare(
-                "SELECT p.usuario_id, p.evento_id, u.email_cache AS email,
+                "SELECT p.usuario_id, p.evento_id, p.whatsapp_telefono, u.email_cache AS email,
                         COALESCE(c.titulo, e.titulo, pr.nombre) AS titulo,
                         CASE WHEN p.curso_id IS NOT NULL THEN 'curso' WHEN p.evento_id IS NOT NULL THEN 'evento' ELSE 'producto' END AS tipo,
                         COALESCE(c.slug, e.slug, pr.slug) AS slug
@@ -48,12 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'valid
                 // el correo de arriba, para quien no revise su bandeja de
                 // entrada pronto. Enlace relativo (BASE_URL, no SITE_URL) para
                 // seguir el mismo patrón que el resto de notificacion_crear().
+                // whatsapp_telefono (capturado junto al comprobante, ver
+                // checkout.php) tiene prioridad sobre el del perfil — es el
+                // número que el usuario dijo explícitamente para ESTE pago.
                 notificacion_crear(
                     (int) $info['usuario_id'],
                     'pago_confirmado',
                     'Tu comprobante fue confirmado',
                     'Tu pago de "' . $info['titulo'] . '" ya fue validado — tu acceso está activo.',
-                    BASE_URL . '/index.php?action=' . $info['tipo'] . '&slug=' . urlencode($info['slug'])
+                    BASE_URL . '/index.php?action=' . $info['tipo'] . '&slug=' . urlencode($info['slug']),
+                    null,
+                    $info['whatsapp_telefono'] ?: null
                 );
             }
             // Si es un evento de pago, la confirmación también cuenta como inscripción.

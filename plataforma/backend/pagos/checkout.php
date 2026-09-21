@@ -8,6 +8,16 @@ require_login();
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 $usuarioActual = current_user();
 
+// current_user() no trae telefono (solo vive en sesión lo que login_user()
+// guarda ahí) — se consulta directo para prellenar el campo de WhatsApp del
+// formulario de transferencia/ventanilla, así quien ya lo capturó en su
+// perfil no tiene que volver a escribirlo.
+$stmtTel = $conn->prepare('SELECT telefono FROM usuarios_perfil WHERE id = ?');
+$stmtTel->bind_param('i', $usuarioPerfilId);
+$stmtTel->execute();
+$telefonoPerfil = (string) ($stmtTel->get_result()->fetch_assoc()['telefono'] ?? '');
+$stmtTel->close();
+
 // El cupón viaja por sesión (P03: debe sobrevivir cualquier navegación entre
 // el enlace inicial y el pago), pero un ?cupon= explícito en la URL actual
 // siempre pisa el guardado antes (un enlace nuevo gana sobre uno viejo).
@@ -490,7 +500,6 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
               <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
               <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
-              <li><strong>WhatsApp de avisos:</strong> <?= htmlspecialchars(whatsapp_pagos_legible()) ?></li>
             </ul>
             <div class="mb-3">
               <label class="form-label">Sube tu comprobante (opcional)</label>
@@ -503,6 +512,12 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <button type="button" id="btnTomarFotoComprobante" class="btn btn-link btn-sm p-0 mt-2 d-md-none">
                 <i class="bi bi-camera"></i> O toma una foto desde tu celular
               </button>
+            </div>
+            <div class="mb-3">
+              <label for="whatsappTelefono" class="form-label">Tu WhatsApp <span class="text-muted fw-normal">(opcional)</span></label>
+              <input type="tel" id="whatsappTelefono" class="form-control" placeholder="Ej. 33 1234 5678"
+                     value="<?= htmlspecialchars($telefonoPerfil) ?>">
+              <div class="form-text">Te avisamos por aquí en cuanto confirmemos tu pago.</div>
             </div>
             <button class="pf-btn pf-btn-primary pf-btn-lg w-100 mb-2" id="btnYaTransferi">Ya realicé la transferencia</button>
             <a class="btn btn-outline-success w-100" target="_blank"
@@ -518,7 +533,6 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
               <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
               <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
-              <li><strong>WhatsApp de avisos:</strong> <?= htmlspecialchars(whatsapp_pagos_legible()) ?></li>
             </ul>
             <div class="mb-3">
               <label class="form-label">Sube tu comprobante (opcional)</label>
@@ -531,6 +545,12 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
               <button type="button" id="btnTomarFotoComprobanteVentanilla" class="btn btn-link btn-sm p-0 mt-2 d-md-none">
                 <i class="bi bi-camera"></i> O toma una foto desde tu celular
               </button>
+            </div>
+            <div class="mb-3">
+              <label for="whatsappTelefonoVentanilla" class="form-label">Tu WhatsApp <span class="text-muted fw-normal">(opcional)</span></label>
+              <input type="tel" id="whatsappTelefonoVentanilla" class="form-control" placeholder="Ej. 33 1234 5678"
+                     value="<?= htmlspecialchars($telefonoPerfil) ?>">
+              <div class="form-text">Te avisamos por aquí en cuanto confirmemos tu pago.</div>
             </div>
             <button class="pf-btn pf-btn-primary pf-btn-lg w-100 mb-2" id="btnYaDepositeVentanilla">Ya realicé mi depósito</button>
             <a class="btn btn-outline-success w-100" target="_blank"
@@ -683,6 +703,8 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         }
       });
 
+      const inputWhatsapp = document.getElementById('whatsappTelefono' + prefijo);
+
       document.getElementById(idBoton).addEventListener('click', async function () {
         this.disabled = true;
         const msg = document.getElementById(idMsg);
@@ -691,6 +713,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         const base = datosBase();
         Object.keys(base).forEach((clave) => datos.append(clave, base[clave]));
         if (archivo) datos.append('comprobante_file', archivo);
+        if (inputWhatsapp && inputWhatsapp.value.trim()) datos.append('whatsapp_telefono', inputWhatsapp.value.trim());
         try {
           const res = await fetch('./transferencia.php', { method: 'POST', body: datos });
           const data = await res.json();

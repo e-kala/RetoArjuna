@@ -48,6 +48,18 @@ try {
     exit;
 }
 
+// El teléfono capturado aquí también se guarda en el perfil del usuario —
+// así queda disponible para cualquier otro aviso de WhatsApp (no solo el de
+// este pago) sin que tenga que volver a escribirlo la próxima vez. Mismo
+// campo que edita perfil_actualizar.php, incondicional (sin validar
+// formato), mismo criterio que ese archivo.
+if ($whatsappTelefono !== null) {
+    $stmt = $conn->prepare('UPDATE usuarios_perfil SET telefono = ? WHERE id = ?');
+    $stmt->bind_param('si', $whatsappTelefono, $usuarioPerfilId);
+    $stmt->execute();
+    $stmt->close();
+}
+
 $stmt = $conn->prepare(
     "SELECT id FROM pagos WHERE usuario_id = ? AND {$columna} = ? AND metodo_pago = 'transferencia' AND estado = 'pendiente' LIMIT 1"
 );

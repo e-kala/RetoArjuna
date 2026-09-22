@@ -1986,3 +1986,13 @@ INSERT IGNORE INTO `whatsapp_plantillas` (`tipo`, `nombre_plantilla`, `idioma`, 
 ALTER TABLE pagos
   ADD COLUMN IF NOT EXISTS `whatsapp_telefono` varchar(20) DEFAULT NULL AFTER `comprobante_url`;
 
+-- Un evento que ya pasó y tiene grabación (video_grabado_url) se consume
+-- igual que un curso — bajo demanda, sin fecha fija. Este flag lo hace
+-- aparecer TAMBIÉN en el catálogo de Cursos (content/cursos_catalogo.php,
+-- vía UNION con eventos marcados) sin dejar de ser un evento real: sigue
+-- viviendo en `eventos`, con su propia inscripción/acceso — no se duplica
+-- ni se migra nada a `cursos`. Deliberadamente NO existe el checkbox
+-- inverso (curso→evento): un curso no tiene fecha, no encaja como evento.
+ALTER TABLE eventos
+  ADD COLUMN IF NOT EXISTS `mostrar_en_cursos` tinyint(1) NOT NULL DEFAULT 0 AFTER `video_grabado_url`;
+

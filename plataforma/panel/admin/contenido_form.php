@@ -19,7 +19,7 @@ $curso = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'nivel' => 'princip
           'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
 $evento = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'tipo' => 'online', 'ubicacion' => '',
            'fecha_inicio' => '', 'fecha_fin' => '', 'cupo_maximo' => '', 'precio' => 0,
-           'imagen_portada' => '', 'foro_url' => '', 'video_grabado_url' => '', 'gratuito' => 0,
+           'imagen_portada' => '', 'foro_url' => '', 'video_grabado_url' => '', 'mostrar_en_cursos' => 0, 'gratuito' => 0,
            'solo_miembros' => 0, 'incluido_membresia' => 0, 'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
 
 if ($id && $tipo === 'curso') {
@@ -240,6 +240,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // mostrarlo (esa página manda X-Frame-Options: sameorigin, /embed/ no).
         $videoGrabado = normalizar_url_youtube(trim($_POST['video_grabado_url'] ?? ''));
         $soloMiembros = isset($_POST['solo_miembros']) ? 1 : 0;
+        // Solo tiene efecto real si además hay video_grabado_url — un evento
+        // sin grabación no encaja en el catálogo de cursos (se consumiría
+        // "bajo demanda" algo que en realidad no existe todavía). No se
+        // fuerza aquí a 0 si falta el video (el admin puede subir el video
+        // después sin perder la marca), content/cursos_catalogo.php es quien
+        // aplica ese filtro al leer.
+        $mostrarEnCursos = isset($_POST['mostrar_en_cursos']) ? 1 : 0;
 
         try {
             $imagen = procesar_imagen_form('imagen_portada_file', 'eventos', $imagen);
@@ -254,11 +261,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error === '') {
             $esNuevo = !$id;
             if ($id) {
-                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=? WHERE id=?');
-                $stmt->bind_param('sssssssidsssiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $id);
+                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
+                $stmt->bind_param('sssssssidsssiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
             } else {
-                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, video_grabado_url, gratuito, solo_miembros, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->bind_param('sssssssidsssiiidiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId);
+                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, video_grabado_url, gratuito, solo_miembros, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->bind_param('sssssssidsssiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
@@ -432,7 +439,15 @@ include __DIR__ . '/_header.php';
     $foroFieldValor = (string) $evento['foro_url'];
     include __DIR__ . '/_foro_link_field.php';
     ?>
-    <div class="col-md-6"><label class="form-label">Video grabado (para "pasados/grabados")</label><input class="form-control" name="video_grabado_url" value="<?= htmlspecialchars((string) $evento['video_grabado_url']) ?>" placeholder="https://www.youtube.com/embed/..."></div>
+    <div class="col-md-6">
+      <label class="form-label">Video grabado (para "pasados/grabados")</label>
+      <input class="form-control" name="video_grabado_url" id="video_grabado_url" value="<?= htmlspecialchars((string) $evento['video_grabado_url']) ?>" placeholder="https://www.youtube.com/embed/...">
+    </div>
+    <div class="col-md-6 form-check form-switch mt-4">
+      <input type="checkbox" class="form-check-input" role="switch" name="mostrar_en_cursos" id="mostrar_en_cursos" <?= (int) $evento['mostrar_en_cursos'] === 1 ? 'checked' : '' ?> <?= $evento['video_grabado_url'] ? '' : 'disabled' ?>>
+      <label class="form-check-label" for="mostrar_en_cursos"> También mostrar en el catálogo de Cursos</label>
+      <div class="form-text" id="mostrarEnCursosAyuda"><?= $evento['video_grabado_url'] ? 'Aparecerá también junto a los cursos, enlazando a este mismo evento.' : 'Agrega un video grabado arriba para poder activarlo — solo tiene sentido una vez que se consume bajo demanda.' ?></div>
+    </div>
     <div class="col-md-6 form-check form-switch mt-4">
       <input type="checkbox" class="form-check-input" role="switch" name="solo_miembros" id="solo_miembros" <?= (int) $evento['solo_miembros'] === 1 ? 'checked' : '' ?>>
       <label class="form-check-label" for="solo_miembros"> Exclusivo para miembros (masterclass)</label>
@@ -628,6 +643,27 @@ include __DIR__ . '/_header.php';
       verificarSesionUrl: '../../backend/session_check.php',
     });
   }, 300);
+
+  // El switch "También mostrar en el catálogo de Cursos" solo tiene sentido
+  // con un video grabado capturado — se habilita/deshabilita en vivo según
+  // el campo de video, sin necesitar recargar. Si se deshabilita, el
+  // checkbox no se envía en el POST (comportamiento nativo del navegador),
+  // así que el flag se pierde solo si de verdad se quitó el video — no
+  // queda un estado inconsistente marcado sin video real que lo respalde.
+  (function () {
+    const campoVideo = document.getElementById('video_grabado_url');
+    const switchMostrarEnCursos = document.getElementById('mostrar_en_cursos');
+    const ayuda = document.getElementById('mostrarEnCursosAyuda');
+    if (!campoVideo || !switchMostrarEnCursos) return;
+    campoVideo.addEventListener('input', function () {
+      const hayVideo = campoVideo.value.trim() !== '';
+      switchMostrarEnCursos.disabled = !hayVideo;
+      if (!hayVideo) switchMostrarEnCursos.checked = false;
+      ayuda.textContent = hayVideo
+        ? 'Aparecerá también junto a los cursos, enlazando a este mismo evento.'
+        : 'Agrega un video grabado arriba para poder activarlo — solo tiene sentido una vez que se consume bajo demanda.';
+    });
+  })();
 </script>
 <script src="_autosave.js"></script>
 <?php include __DIR__ . '/_footer.php'; ?>

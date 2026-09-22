@@ -11,6 +11,7 @@ if (!is_logged_in()) {
 $usuario = current_user();
 $temaId = (int) ($_POST['tema_id'] ?? 0);
 $contenido = trim($_POST['contenido'] ?? '');
+$respuestaPadreId = (int) ($_POST['respuesta_padre_id'] ?? 0) ?: null;
 
 if ($temaId <= 0 || $contenido === '') {
     echo json_encode(['success' => false, 'message' => 'Escribe una respuesta.']);
@@ -32,14 +33,29 @@ if ((int) $tema['cerrado'] === 1 && $usuario['rol'] !== 'admin') {
     exit;
 }
 
+// La respuesta padre (si viene) debe pertenecer al MISMO tema — nunca
+// confiar en que el cliente mandó una combinación real. Si no coincide, se
+// ignora en vez de rechazar la petición completa: degrada a respuesta de
+// primer nivel en vez de bloquear al usuario por un id desincronizado
+// (p.ej. alguien más borró/movió esa respuesta mientras escribía).
+if ($respuestaPadreId) {
+    $stmt = $conn->prepare('SELECT id FROM foro_respuestas WHERE id = ? AND tema_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $respuestaPadreId, $temaId);
+    $stmt->execute();
+    if (!$stmt->get_result()->fetch_assoc()) {
+        $respuestaPadreId = null;
+    }
+    $stmt->close();
+}
+
 $contenidoHtml = foro_sanitizar_html_editor($contenido);
 if (foro_contenido_html_vacio($contenidoHtml)) {
     echo json_encode(['success' => false, 'message' => 'Escribe una respuesta.']);
     exit;
 }
 
-$stmt = $conn->prepare('INSERT INTO foro_respuestas (tema_id, usuario_id, contenido) VALUES (?, ?, ?)');
-$stmt->bind_param('iis', $temaId, $usuario['id'], $contenidoHtml);
+$stmt = $conn->prepare('INSERT INTO foro_respuestas (tema_id, respuesta_padre_id, usuario_id, contenido) VALUES (?, ?, ?, ?)');
+$stmt->bind_param('iiis', $temaId, $respuestaPadreId, $usuario['id'], $contenidoHtml);
 $stmt->execute();
 $respuestaId = $stmt->insert_id;
 $stmt->close();

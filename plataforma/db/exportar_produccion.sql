@@ -518,6 +518,19 @@ ALTER TABLE foro_respuestas
 ALTER TABLE foro_respuestas DROP FOREIGN KEY IF EXISTS fk_foro_respuestas_eliminado_por;
 ALTER TABLE foro_respuestas ADD CONSTRAINT fk_foro_respuestas_eliminado_por FOREIGN KEY (eliminado_por) REFERENCES usuarios_perfil (id) ON DELETE SET NULL;
 
+-- Jerarquía real padre→hijo entre respuestas (ver tema.php: indentación +
+-- conector visual + "Citar") — antes de esto foro_respuestas era plana, sin
+-- ninguna columna que dijera "esta respuesta contesta a esta otra". NULL =
+-- respuesta de primer nivel (directa al tema). ON DELETE SET NULL, no
+-- CASCADE: si se borra la respuesta padre, la hija no debe desaparecer en
+-- cascada, solo pierde la referencia visual y pasa a verse como de primer
+-- nivel (mismo criterio que editado_por/eliminado_por de esta misma tabla).
+ALTER TABLE foro_respuestas
+  ADD COLUMN IF NOT EXISTS respuesta_padre_id INT UNSIGNED NULL AFTER tema_id;
+
+ALTER TABLE foro_respuestas DROP FOREIGN KEY IF EXISTS fk_foro_respuestas_padre;
+ALTER TABLE foro_respuestas ADD CONSTRAINT fk_foro_respuestas_padre FOREIGN KEY (respuesta_padre_id) REFERENCES foro_respuestas (id) ON DELETE SET NULL;
+
 -- Sin datos aquí — ver nota junto a `cursos`.
 
 --

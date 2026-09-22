@@ -281,6 +281,22 @@ function foro_contenido_html_vacio(string $html): bool
     return trim(strip_tags($html)) === '' && stripos($html, '<img') === false && stripos($html, '<iframe') === false;
 }
 
+/**
+ * Texto plano truncado de un contenido HTML ya saneado — usado para el
+ * bloque de cita ("Citar", ver tema.php) tanto al renderizar la respuesta
+ * ya guardada como al precargar el editor antes de publicar. Citar un post
+ * completo (con imágenes/formato) dentro de otro degradaría la legibilidad
+ * en vez de ayudarla — solo se cita el texto, resumido.
+ */
+function foro_extracto_texto(string $html, int $limite = 220): string
+{
+    $texto = trim(preg_replace('/\s+/', ' ', strip_tags($html)));
+    if ($texto === '') {
+        return '(contenido sin texto — imagen o video)';
+    }
+    return mb_strimwidth($texto, 0, $limite, '…');
+}
+
 function foro_categorias(): array
 {
     global $conn;

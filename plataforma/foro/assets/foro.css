@@ -103,10 +103,64 @@
 .pf-forum-editor .pf-editor-wrap { border: none; }
 .pf-forum-editor .pf-editor-superficie { font-family: inherit; font-size: 14.5px; min-height: 120px; }
 
+/* Jerarquía padre→hijo entre respuestas (tema.php) — indentación +
+   conector visual sutil, mismo lenguaje que el resto del foro (--pf-line),
+   nunca un árbol genealógico literal. Nivel 2 es tope visual: una cadena
+   más profunda en los datos se ve igual de indentada que el nivel 2, para
+   no comerse el ancho disponible en pantallas angostas. */
+.pf-respuesta-envoltura { display: flex; align-items: flex-start; }
+.pf-respuesta-nivel-1 { margin-left: 28px; }
+.pf-respuesta-nivel-2 { margin-left: 52px; }
+.pf-respuesta-conector {
+  flex-shrink: 0;
+  width: 20px;
+  height: 34px;
+  margin-top: 24px;
+  border-left: 2px solid var(--pf-line);
+  border-bottom: 2px solid var(--pf-line);
+  border-radius: 0 0 0 10px;
+}
+
+/* Cita de la respuesta a la que se responde ("Citar") — reusa el mismo
+   look de .pf-forum-post-body blockquote, con tipografía un poco menor
+   para diferenciarla del cuerpo real de la respuesta. */
+.pf-respuesta-cita {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-left: 3px solid var(--pf-accent);
+  background: var(--pf-bg);
+  color: var(--pf-muted);
+  font-size: 13.5px;
+  border-radius: 0 var(--pf-radius-md) var(--pf-radius-md) 0;
+}
+.pf-respuesta-cita p { margin: 0 0 4px; }
+.pf-respuesta-cita p:last-child { margin-bottom: 0; }
+.pf-respuesta-cita-autor { font-weight: 700; font-size: 12px; }
+.pf-respuesta-cita-autor a { color: inherit; }
+
+/* Indicador "Respondiendo a @usuario" sobre el editor al final de la
+   página (ver tema.php JS: btn-responder-a/btn-citar-respuesta). */
+.pf-respondiendo-a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--pf-bg);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-md);
+  font-size: 13.5px;
+  color: var(--pf-muted);
+}
+.pf-respondiendo-a strong { color: var(--pf-ink); }
+
 @media (max-width: 860px) {
   .pf-forum-search-nav { display: none; }
 }
 
 @media (max-width: 600px) {
   .pf-forum-post-body { font-size: 14px; }
+  .pf-respuesta-nivel-1 { margin-left: 12px; }
+  .pf-respuesta-nivel-2 { margin-left: 22px; }
+  .pf-respuesta-conector { width: 12px; margin-top: 20px; }
 }

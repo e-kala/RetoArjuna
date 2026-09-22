@@ -48,6 +48,38 @@ $stmt->execute();
 $respuestas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// Jerarquía visual padre→hijo (ver respuesta_padre_id en foro_respuestas) —
+// mismo patrón de árbol que foro_categorias_arbol() en foro_helpers.php:
+// agrupar por padre, aplanar recorriendo en orden cronológico dentro de
+// cada nivel (así una respuesta y sus hijas quedan juntas visualmente, en
+// vez de solo ordenadas por fecha global). $nivel tope en 2 — límite visual
+// para no indentar sin fin en pantallas angostas; la relación real en BD no
+// tiene límite de profundidad, esto es solo para el render.
+$respuestasPorId = [];
+foreach ($respuestas as $r) {
+    $respuestasPorId[(int) $r['id']] = $r;
+}
+$respuestasPorPadre = [];
+foreach ($respuestas as $r) {
+    $padreId = $r['respuesta_padre_id'] !== null ? (int) $r['respuesta_padre_id'] : 0;
+    // Un padre eliminado/inexistente (no debería pasar por el FK ON DELETE
+    // SET NULL, pero por si acaso) también cae a nivel 0 en vez de perderse.
+    if ($padreId && !isset($respuestasPorId[$padreId])) {
+        $padreId = 0;
+    }
+    $respuestasPorPadre[$padreId][] = $r;
+}
+$respuestasAplanadas = [];
+$aplanar = function (int $padreId, int $nivel) use (&$aplanar, &$respuestasAplanadas, $respuestasPorPadre): void {
+    foreach ($respuestasPorPadre[$padreId] ?? [] as $r) {
+        $r['nivel'] = min($nivel, 2);
+        $respuestasAplanadas[] = $r;
+        $aplanar((int) $r['id'], $nivel + 1);
+    }
+};
+$aplanar(0, 0);
+$respuestas = $respuestasAplanadas;
+
 $esAdmin = $usuarioActual && $usuarioActual['rol'] === 'admin';
 $page_title = $tema['titulo'];
 $usaEditorEnriquecido = (bool) $usuarioActual;
@@ -211,42 +243,59 @@ require __DIR__ . '/inc/header.php';
 </div>
 
 <?php foreach ($respuestas as $r): ?>
-  <?php $puedeEditarResp = $usuarioActual && ((int) $usuarioActual['id'] === (int) $r['usuario_id'] || $esAdmin); ?>
-  <div class="card shadow-sm mb-3" id="respuesta-<?= (int) $r['id'] ?>">
-    <div class="card-body">
-      <div class="d-flex align-items-center gap-2 mb-3 text-muted small">
-        <span class="pf-user-avatar"><?= htmlspecialchars(strtoupper(substr((string) $r['username_cache'], 0, 1))) ?></span>
-        <div>
-          <strong class="text-dark"><?= perfil_link((int) $r['usuario_id'], (string) $r['username_cache']) ?></strong> · <?= foro_tiempo_relativo($r['created_at']) ?>
-          <button type="button" class="btn btn-link btn-sm p-0 text-muted text-decoration-underline align-baseline <?= $r['editado_en'] ? '' : 'd-none' ?>" id="btn-historial-respuesta-<?= (int) $r['id'] ?>" data-historial-tipo="respuesta" data-historial-id="<?= (int) $r['id'] ?>">(editado)</button>
-        </div>
-      </div>
-      <div class="pf-forum-post-body" id="cuerpo-respuesta-<?= (int) $r['id'] ?>"><?= $r['contenido'] ?></div>
-      <?php if ($puedeEditarResp): ?>
-        <div class="d-flex flex-column gap-2 mt-3 d-none" id="editar-respuesta-<?= (int) $r['id'] ?>">
-          <div class="pf-forum-editor" id="editorEditarRespuesta-<?= (int) $r['id'] ?>"></div>
-          <div class="d-none" id="fuente-editar-respuesta-<?= (int) $r['id'] ?>"><?= $r['contenido'] ?></div>
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-sm fw-bold btn-guardar-respuesta" style="background:var(--pf-accent);color:#fff;" data-respuesta-id="<?= (int) $r['id'] ?>">Guardar</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary btn-cancelar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>">Cancelar</button>
+  <?php
+  $puedeEditarResp = $usuarioActual && ((int) $usuarioActual['id'] === (int) $r['usuario_id'] || $esAdmin);
+  $nivel = $r['nivel'];
+  $respuestaPadre = $r['respuesta_padre_id'] !== null ? ($respuestasPorId[(int) $r['respuesta_padre_id']] ?? null) : null;
+  ?>
+  <div class="pf-respuesta-envoltura pf-respuesta-nivel-<?= $nivel ?>">
+    <?php if ($nivel > 0): ?><div class="pf-respuesta-conector" aria-hidden="true"></div><?php endif; ?>
+    <div class="card shadow-sm mb-3 flex-grow-1" id="respuesta-<?= (int) $r['id'] ?>">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-3 text-muted small">
+          <span class="pf-user-avatar"><?= htmlspecialchars(strtoupper(substr((string) $r['username_cache'], 0, 1))) ?></span>
+          <div>
+            <strong class="text-dark"><?= perfil_link((int) $r['usuario_id'], (string) $r['username_cache']) ?></strong> · <?= foro_tiempo_relativo($r['created_at']) ?>
+            <button type="button" class="btn btn-link btn-sm p-0 text-muted text-decoration-underline align-baseline <?= $r['editado_en'] ? '' : 'd-none' ?>" id="btn-historial-respuesta-<?= (int) $r['id'] ?>" data-historial-tipo="respuesta" data-historial-id="<?= (int) $r['id'] ?>">(editado)</button>
           </div>
         </div>
-      <?php endif; ?>
-      <div class="d-flex align-items-center gap-2 mt-3 pt-3 border-top flex-wrap">
-        <?php
-          $likesResp = foro_contar_likes(null, $r['id']);
-          $meGustaResp = $usuarioActual && foro_usuario_dio_like($usuarioActual['id'], null, $r['id']);
-        ?>
-        <button class="btn btn-sm <?= $meGustaResp ? '' : 'btn-outline-secondary' ?> pf-forum-like-btn <?= $meGustaResp ? 'activo' : '' ?>" style="<?= $meGustaResp ? 'background:var(--pf-accent);color:#fff;border-color:var(--pf-accent);' : '' ?>" data-respuesta-id="<?= (int) $r['id'] ?>" <?= $usuarioActual ? '' : 'disabled' ?>>
-          <i class="bi bi-hand-thumbs-up<?= $meGustaResp ? '-fill' : '' ?>"></i> <span class="likes-count"><?= $likesResp ?></span>
-        </button>
-        <?php if ($likesResp > 0): ?>
-          <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-likes-tipo="respuesta" data-likes-id="<?= (int) $r['id'] ?>">ver quién dio like</button>
+        <?php if ($respuestaPadre): ?>
+          <blockquote class="pf-respuesta-cita">
+            <p class="pf-respuesta-cita-autor"><?= perfil_link((int) $respuestaPadre['usuario_id'], (string) $respuestaPadre['username_cache']) ?> escribió:</p>
+            <p><?= foro_extracto_texto((string) $respuestaPadre['contenido']) ?></p>
+          </blockquote>
         <?php endif; ?>
+        <div class="pf-forum-post-body" id="cuerpo-respuesta-<?= (int) $r['id'] ?>"><?= $r['contenido'] ?></div>
         <?php if ($puedeEditarResp): ?>
-          <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>"><i class="bi bi-pencil"></i> Editar</button>
-          <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>"><i class="bi bi-trash"></i> Eliminar</button>
+          <div class="d-flex flex-column gap-2 mt-3 d-none" id="editar-respuesta-<?= (int) $r['id'] ?>">
+            <div class="pf-forum-editor" id="editorEditarRespuesta-<?= (int) $r['id'] ?>"></div>
+            <div class="d-none" id="fuente-editar-respuesta-<?= (int) $r['id'] ?>"><?= $r['contenido'] ?></div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm fw-bold btn-guardar-respuesta" style="background:var(--pf-accent);color:#fff;" data-respuesta-id="<?= (int) $r['id'] ?>">Guardar</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary btn-cancelar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>">Cancelar</button>
+            </div>
+          </div>
         <?php endif; ?>
+        <div class="d-flex align-items-center gap-2 mt-3 pt-3 border-top flex-wrap">
+          <?php
+            $likesResp = foro_contar_likes(null, $r['id']);
+            $meGustaResp = $usuarioActual && foro_usuario_dio_like($usuarioActual['id'], null, $r['id']);
+          ?>
+          <button class="btn btn-sm <?= $meGustaResp ? '' : 'btn-outline-secondary' ?> pf-forum-like-btn <?= $meGustaResp ? 'activo' : '' ?>" style="<?= $meGustaResp ? 'background:var(--pf-accent);color:#fff;border-color:var(--pf-accent);' : '' ?>" data-respuesta-id="<?= (int) $r['id'] ?>" <?= $usuarioActual ? '' : 'disabled' ?>>
+            <i class="bi bi-hand-thumbs-up<?= $meGustaResp ? '-fill' : '' ?>"></i> <span class="likes-count"><?= $likesResp ?></span>
+          </button>
+          <?php if ($likesResp > 0): ?>
+            <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-likes-tipo="respuesta" data-likes-id="<?= (int) $r['id'] ?>">ver quién dio like</button>
+          <?php endif; ?>
+          <?php if ($usuarioActual && (!$tema['cerrado'] || $esAdmin)): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-responder-a" data-respuesta-id="<?= (int) $r['id'] ?>" data-username="<?= htmlspecialchars($r['username_cache'], ENT_QUOTES) ?>"><i class="bi bi-reply"></i> Responder</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-citar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>" data-username="<?= htmlspecialchars($r['username_cache'], ENT_QUOTES) ?>"><i class="bi bi-quote"></i> Citar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditarResp): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>"><i class="bi bi-pencil"></i> Editar</button>
+            <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-respuesta" data-respuesta-id="<?= (int) $r['id'] ?>"><i class="bi bi-trash"></i> Eliminar</button>
+          <?php endif; ?>
+        </div>
       </div>
     </div>
   </div>
@@ -279,12 +328,16 @@ require __DIR__ . '/inc/header.php';
 <?php if ($tema['cerrado'] && !$esAdmin): ?>
   <div class="text-center text-muted py-4"><i class="bi bi-lock-fill"></i> Este tema está cerrado y ya no acepta respuestas.</div>
 <?php elseif ($usuarioActual): ?>
-  <div class="card shadow-sm mt-4">
+  <div class="card shadow-sm mt-4" id="tarjetaResponder">
     <div class="card-body">
       <div id="responderError" class="alert alert-danger d-none"></div>
       <form id="responderForm">
         <div class="mb-3">
           <label for="editorRespuesta" class="form-label fw-bold"><i class="bi bi-reply-fill"></i> Responder</label>
+          <div class="pf-respondiendo-a d-none" id="respondiendoAIndicador">
+            <span>Respondiendo a <strong id="respondiendoANombre"></strong></span>
+            <button type="button" class="btn btn-sm btn-link p-0 ms-auto" id="btnCancelarResponderA">Cancelar</button>
+          </div>
           <div class="pf-forum-editor" id="editorRespuesta"></div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -341,6 +394,53 @@ document.getElementById('btnVistaPreviaRespuesta').addEventListener('click', fun
   new bootstrap.Modal(document.getElementById('modalVistaPreviaForo')).show();
 });
 
+// "Responder" (a una respuesta puntual, no al tema) y "Citar" — ambos
+// enfocan el mismo editor de abajo en vez de abrir uno nuevo por tarjeta;
+// la diferencia es que "Citar" además antepone el contenido citado. El id
+// guardado aquí es lo único que distingue una respuesta de primer nivel de
+// una respuesta-a-respuesta al momento de publicar (ver el submit, abajo).
+let respuestaPadreIdActual = null;
+const indicadorRespondiendoA = document.getElementById('respondiendoAIndicador');
+const nombreRespondiendoA = document.getElementById('respondiendoANombre');
+
+function pfIniciarRespuestaA(id, username) {
+  respuestaPadreIdActual = id;
+  nombreRespondiendoA.textContent = '@' + username;
+  indicadorRespondiendoA.classList.remove('d-none');
+  document.getElementById('tarjetaResponder').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // quillRespuesta.root es un objeto getter/setter de innerHTML (ver
+  // pf_editor.js crearQuillCompat), no el elemento DOM real — el
+  // contentEditable de verdad es .pf-editor-superficie dentro del contenedor.
+  const superficie = document.querySelector('#editorRespuesta .pf-editor-superficie');
+  if (superficie) superficie.focus();
+}
+
+document.getElementById('btnCancelarResponderA').addEventListener('click', function () {
+  respuestaPadreIdActual = null;
+  indicadorRespondiendoA.classList.add('d-none');
+});
+
+document.querySelectorAll('.btn-responder-a').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    pfIniciarRespuestaA(btn.dataset.respuestaId, btn.dataset.username);
+  });
+});
+
+document.querySelectorAll('.btn-citar-respuesta').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const cuerpo = document.getElementById('cuerpo-respuesta-' + btn.dataset.respuestaId);
+    const textoPlano = (cuerpo ? cuerpo.textContent : '').trim().replace(/\s+/g, ' ');
+    const extracto = textoPlano.length > 220 ? textoPlano.slice(0, 220) + '…' : textoPlano;
+    // p, no cite/div — foro_sanitizar_html_editor() no incluye esos tags en
+    // su lista blanca y los "desenvuelve" (quita la etiqueta, conserva el
+    // texto), lo que mezclaba el autor citado y el texto propio en un solo
+    // bloque sin separación. <p> sí está permitido.
+    const citaHtml = '<blockquote><p><strong>@' + btn.dataset.username + ' escribió:</strong></p><p>' + extracto.replace(/</g, '&lt;') + '</p></blockquote><p><br></p>';
+    quillRespuesta.root.innerHTML = citaHtml + quillRespuesta.root.innerHTML;
+    pfIniciarRespuestaA(btn.dataset.respuestaId, btn.dataset.username);
+  });
+});
+
 document.getElementById('responderForm').addEventListener('submit', function (e) {
   e.preventDefault();
   if (editorRespuesta.bloquearSiHayCargasPendientes()) return;
@@ -352,6 +452,7 @@ document.getElementById('responderForm').addEventListener('submit', function (e)
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       tema_id: TEMA_ID,
+      respuesta_padre_id: respuestaPadreIdActual || '',
       contenido: editorRespuesta.sincronizar(),
       csrf_token: CSRF_TOKEN
     })

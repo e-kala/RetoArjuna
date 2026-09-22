@@ -70,8 +70,15 @@ $puedeAccederGratis = $oferta['estado'] === 'gratuito' || $oferta['estado'] === 
 // completar la inscripción" debe llegar hasta el auto-checkout/auto-inscripción
 // de abajo — sin esta excepción, un evento con landing vinculada rebotaba de
 // vuelta a la landing justo en ese momento y el flujo nunca se completaba.
+// Tampoco con ?ver=1 — enlace directo deliberado para ver el contenido sin
+// pasar por la landing de venta (ver panel/admin/eventos.php, botón "Enlace
+// directo"); NO se agrega a la lista de estados de exclusivo_bloqueado de
+// arriba a propósito — ?ver=1 nunca debe poder saltarse esa protección, un
+// evento exclusivo de miembros sigue oculto a quien no lo sea aunque use
+// este enlace.
 $esAdminParaLanding = $usuario && $usuario['rol'] === 'admin';
-if (!$esAdminParaLanding && $evento['landing_page_id'] && !in_array($oferta['estado'], ['acceso', 'incluido_membresia', 'exclusivo_bloqueado'], true) && !($usuario && ($_GET['auto'] ?? '') === '1')) {
+if (!$esAdminParaLanding && $evento['landing_page_id'] && !in_array($oferta['estado'], ['acceso', 'incluido_membresia', 'exclusivo_bloqueado'], true)
+    && !($usuario && ($_GET['auto'] ?? '') === '1') && ($_GET['ver'] ?? '') !== '1') {
     $stmtLanding = $conn->prepare('SELECT slug FROM landing_pages WHERE id = ? AND activo = 1');
     $stmtLanding->bind_param('i', $evento['landing_page_id']);
     $stmtLanding->execute();

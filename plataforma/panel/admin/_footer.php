@@ -168,6 +168,25 @@
   })();
   </script>
   <script>
+  // "Enlace directo" de cursos.php/eventos.php (ver _cursos_filas.php/
+  // _eventos_filas.php) — copia al portapapeles la URL con ?ver=1, que salta
+  // la landing de venta y va directo al detalle. Delegado en document
+  // (mismo motivo que el zoom de comprobantes arriba): las filas se
+  // repintan por Ajax al buscar, un listener atado directo al botón no
+  // sobreviviría ese repintado.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-copiar-enlace-directo');
+    if (!btn) return;
+    var enlace = btn.dataset.enlace;
+    navigator.clipboard.writeText(enlace).then(function () {
+      if (window.jQuery && jQuery.notify) {
+        jQuery.notify('Enlace copiado.', { className: 'success', position: 'top right', autoHideDelay: 2000 });
+      }
+    }).catch(function () {
+      window.prompt('Copia el enlace manualmente:', enlace);
+    });
+  });
+
   // Envía por Ajax cualquier <form data-ajax> del admin (fijar/publicar/
   // aprobar/eliminar/confirmar pago, etc.) en vez de recargar la página
   // completa — el backend detecta la petición Ajax (es_peticion_ajax() en

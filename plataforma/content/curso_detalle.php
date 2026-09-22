@@ -65,8 +65,13 @@ $oferta = resolver_oferta($conn, 'curso', $ofertaItem, $usuario, $codigoCupon);
 // señal explícita de "vengo de dar clic en Inscribirme/Comprar y ya me
 // autentiqué, completa la acción" — sin esta excepción, cualquier curso con
 // landing vinculada rebotaba de vuelta a la landing en ese momento exacto y
-// el auto-checkout nunca se alcanzaba a ejecutar.
-if (!$esAdminCurso && $curso['landing_page_id'] && !in_array($oferta['estado'], ['acceso', 'incluido_membresia'], true) && !($usuario && ($_GET['auto'] ?? '') === '1')) {
+// el auto-checkout nunca se alcanzaba a ejecutar. Tampoco con ?ver=1 —
+// enlace directo deliberado para ver el contenido/dispositivo de consumo
+// sin pasar por la landing de venta (ej. el cliente revisando cómo se ve
+// antes de aprobar la landing, o compartiendo el detalle real en vez del
+// discurso de ventas) — ver panel/admin/cursos.php, botón "Enlace directo".
+if (!$esAdminCurso && $curso['landing_page_id'] && !in_array($oferta['estado'], ['acceso', 'incluido_membresia'], true)
+    && !($usuario && ($_GET['auto'] ?? '') === '1') && ($_GET['ver'] ?? '') !== '1') {
     $stmtLanding = $conn->prepare('SELECT slug FROM landing_pages WHERE id = ? AND activo = 1');
     $stmtLanding->bind_param('i', $curso['landing_page_id']);
     $stmtLanding->execute();

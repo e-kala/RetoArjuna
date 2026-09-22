@@ -11,6 +11,11 @@ foreach ($cursos as $c): ?>
     <td data-ajax-estado><?= (int) $c['activo'] === 1 ? 'Publicado' : 'Oculto' ?></td>
     <td class="d-flex gap-2 flex-wrap">
       <a href="contenido_form.php?tipo=curso&id=<?= (int) $c['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
+      <?php if ($c['landing_page_id']): ?>
+        <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar-enlace-directo"
+                data-enlace="<?= htmlspecialchars(SITE_URL . '/index.php?action=curso&slug=' . urlencode($c['slug']) . '&ver=1') ?>"
+                title="Salta la landing de venta — va directo al curso, para revisar el contenido o el dispositivo de consumo.">🔗 Enlace directo</button>
+      <?php endif; ?>
       <form method="post" class="d-inline-flex align-items-center" data-ajax="toggle">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">

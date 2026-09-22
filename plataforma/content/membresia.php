@@ -198,6 +198,72 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
     $oferta = resolver_oferta($conn, 'membresia', $ofertaItem, $usuario, $codigoCupon);
 }
 ?>
+<style>
+  /* Mismo sistema visual que backend/pagos/checkout.php (checkout de
+     eventos/cursos/productos) — se repite aquí en vez de moverlo a
+     platform.css porque ninguna otra página lo usa todavía; si un tercer
+     lugar lo necesita, ese es el momento de centralizarlo ahí. */
+  .pf-checkout-wrap { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+  .pf-checkout-wrap.pf-checkout-wrap-grid { max-width: 1040px; }
+  .pf-checkout-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .pf-checkout-grid { grid-template-columns: 1fr; } }
+  .pf-checkout-card {
+    background: var(--pf-surface);
+    border-radius: var(--pf-radius-lg);
+    box-shadow: 0 16px 40px rgba(35, 38, 43, 0.10);
+    overflow: hidden;
+  }
+  .pf-checkout-side {
+    background: var(--pf-surface);
+    border-radius: var(--pf-radius-lg);
+    box-shadow: 0 16px 40px rgba(35, 38, 43, 0.10);
+    padding: 26px 24px;
+    position: sticky;
+    top: 24px;
+  }
+  .pf-checkout-side h3 { font-weight: 800; font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .pf-checkout-side p.pf-checkout-side-lead { color: var(--pf-muted); font-size: 13.5px; margin-bottom: 16px; }
+  .pf-checkout-side ul { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 11px; }
+  .pf-checkout-side ul li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; color: var(--pf-ink); }
+  .pf-checkout-side ul li i { color: #198754; margin-top: 2px; flex-shrink: 0; }
+  .pf-checkout-side-testimonial {
+    border-top: 1px solid var(--pf-line); margin-top: 18px; padding-top: 16px;
+    font-size: 13.5px; font-style: italic; color: var(--pf-muted); text-align: center;
+  }
+  .pf-checkout-body-pad { padding: 32px 32px 28px; }
+  .pf-checkout-desc { color: var(--pf-muted); font-size: 15px; margin-bottom: 24px; }
+  .pf-checkout-precio-box {
+    background: rgba(247, 147, 30, 0.08);
+    border: 1px solid rgba(247, 147, 30, 0.25);
+    border-radius: var(--pf-radius-md);
+    padding: 16px 20px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .pf-checkout-precio-tachado { color: var(--pf-muted); text-decoration: line-through; font-size: 16px; margin-right: 8px; }
+  .pf-checkout-precio { color: var(--pf-accent-ink); font-size: 32px; font-weight: 800; }
+  .pf-checkout-precio-sufijo { font-size: 14px; font-weight: 600; color: var(--pf-muted); }
+  .pf-checkout-confianza {
+    display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+    color: var(--pf-muted); font-size: 12.5px; margin: 20px 0 4px;
+  }
+  .pf-checkout-confianza span { display: inline-flex; align-items: center; gap: 6px; }
+  .pf-checkout-confianza i { color: var(--pf-accent); }
+  .pf-checkout-card .pf-dropzone { border-color: var(--pf-line); color: var(--pf-muted); }
+  .pf-checkout-card .pf-dropzone:hover,
+  .pf-checkout-card .pf-dropzone:focus-visible { border-color: var(--pf-ink); background: rgba(35,38,43,0.03); }
+  .pf-checkout-card .pf-dropzone.pf-dropzone-activo { background: rgba(247,147,30,0.08); }
+  .pf-checkout-card .pf-dropzone-archivo { color: var(--pf-ink); }
+  .pf-metodo-pago-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+  .pf-metodo-pago-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 8px; border-radius: var(--pf-radius-md);
+    border: 2px solid var(--pf-line); background: var(--pf-surface);
+    color: var(--pf-muted); font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .pf-metodo-pago-btn i { font-size: 21px; }
+  .pf-metodo-pago-btn.active { border-color: var(--pf-accent); color: var(--pf-ink); background: rgba(247,147,30,0.06); }
+</style>
 <section class="pf-hero">
   <div class="pf-container">
     <span class="pf-eyebrow">Membresía Camino Arjuna</span>
@@ -274,170 +340,188 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
           <p>Todo lo que ya construiste — cursos, foro, reconocimientos — conectado a un mismo hilo de práctica.</p>
         </div>
       </div>
-      <?php // muestra el pago con tarjeta y transferencia ?>
-      <div class="pf-callout" style="margin-top:48px;text-align:center; background: #a0895e;">
-        <h2 style="text-align:center;"><?= htmlspecialchars($membresia['nombre']) ?></h2>
-        <p style="text-align:center;"><?= nl2br(htmlspecialchars((string) $membresia['descripcion'])) ?></p>
-        <div style="display:inline-block;background:rgba(247,147,30,0.14);border:1px solid rgba(247,147,30,0.4);border-radius:16px;padding:14px 28px;margin-bottom:24px;">
-          <?php if ($oferta && $oferta['estado'] === 'oferta'): ?>
-            <span id="precioTachado" style="font-size:16px;font-weight:600;color:rgba(255,255,255,.6);text-decoration:line-through;margin-right:8px;">$<?= number_format($oferta['precio_regular'], 2) ?></span>
-            <span id="precioMostrado" style="font-size:34px;font-weight:800;color:var(--pf-accent);">$<?= number_format($oferta['precio_final'], 2) ?></span>
-            <span style="font-size:15px;font-weight:600;color:rgba(255,255,255,.8);"> MXN / <?= $membresia['intervalo'] === 'anual' ? 'año' : 'mes' ?></span>
-            <div id="pf-desglose" class="small mt-2" style="color:rgba(255,255,255,.7);">
-              <div>Precio regular: $<?= number_format($oferta['precio_regular'], 2) ?></div>
-              <div><span id="descNombreOferta"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>: −$<?= number_format($oferta['descuento_monto'], 2) ?></div>
-              <div class="fw-bold">Total: $<?= number_format($oferta['precio_final'], 2) ?></div>
-            </div>
-          <?php else: ?>
-            <span id="precioTachado" class="d-none"></span>
-            <span id="precioMostrado" style="font-size:34px;font-weight:800;color:var(--pf-accent);">$<?= number_format((float) $membresia['precio'], 2) ?></span>
-            <span style="font-size:15px;font-weight:600;color:rgba(255,255,255,.8);"> MXN / <?= $membresia['intervalo'] === 'anual' ? 'año' : 'mes' ?></span>
-          <?php endif; ?>
-        </div>
+      <div class="pf-checkout-wrap pf-checkout-wrap-grid" style="margin-top:48px;">
+        <div class="pf-checkout-grid">
+          <div class="pf-checkout-card">
+            <div class="pf-checkout-body-pad">
+              <span class="pf-eyebrow"><?= htmlspecialchars($membresia['nombre']) ?></span>
+              <h2 class="h4 fw-bold mt-2 mb-2"><?= htmlspecialchars($membresia['nombre']) ?></h2>
+              <p class="pf-checkout-desc"><?= nl2br(htmlspecialchars((string) $membresia['descripcion'])) ?></p>
 
-        <?php if ($esMiembro): ?>
-          <p style="margin-bottom:16px;text-align:center;">✔ <img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Ya eres miembro de Camino Arjuna.</p>
-          <p style="text-align:center;"><a class="pf-btn pf-btn-primary pf-btn-lg" href="backend/pagos/membresia_portal.php">Gestionar mi membresía</a></p>
-        <?php elseif (!$usuario): ?>
-          <p style="text-align:center;"><a class="pf-btn pf-btn-primary pf-btn-lg" href="?action=registro<?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>">Regístrate para suscribirte</a></p>
-        <?php elseif ($transferenciaPendiente): ?>
-          <div class="alert alert-warning mb-0">Registramos tu transferencia — en cuanto confirmemos el pago tu membresía queda activa. Si quieres, envía también tu comprobante por WhatsApp para agilizarlo.</div>
-        <?php elseif ($suscripcionOxxoPendiente): ?>
-          <?php if ($voucherOxxoPendiente && $voucherOxxoPendiente['numero']): ?>
-            <div class="card p-3 text-center" style="max-width:420px;margin:0 auto;">
-              <span class="pf-eyebrow">Voucher generado</span>
-              <h3 class="h6 mt-2 mb-2">Paga en tienda para activar tu membresía</h3>
-              <p class="text-muted small">Lleva este código a cualquier OXXO y paga en efectivo. En cuanto se registre el pago, tu membresía se activa automáticamente — te avisamos por correo y en tu panel.</p>
-              <div class="pf-checkout-precio-box" style="background:rgba(247,147,30,0.14);border:1px solid rgba(247,147,30,0.4);border-radius:16px;padding:14px;">
-                <div class="text-muted small mb-1">Número de referencia</div>
-                <div style="font-size:16px;font-weight:800;letter-spacing:1px;word-break:break-all;color:var(--pf-accent);"><?= htmlspecialchars($voucherOxxoPendiente['numero']) ?></div>
+              <div class="pf-checkout-precio-box">
+                <?php if ($oferta && $oferta['estado'] === 'oferta'): ?>
+                  <span id="precioTachado" class="pf-checkout-precio-tachado">$<?= number_format($oferta['precio_regular'], 2) ?></span>
+                  <span id="precioMostrado" class="pf-checkout-precio">$<?= number_format($oferta['precio_final'], 2) ?></span>
+                  <span class="pf-checkout-precio-sufijo"> MXN / <?= $membresia['intervalo'] === 'anual' ? 'año' : 'mes' ?></span>
+                  <div id="pf-desglose" class="small text-muted mt-2">
+                    <div>Precio regular: $<?= number_format($oferta['precio_regular'], 2) ?></div>
+                    <div><span id="descNombreOferta"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>: −$<?= number_format($oferta['descuento_monto'], 2) ?></div>
+                    <div class="fw-bold">Total: $<?= number_format($oferta['precio_final'], 2) ?></div>
+                  </div>
+                <?php else: ?>
+                  <span id="precioTachado" class="pf-checkout-precio-tachado d-none"></span>
+                  <span id="precioMostrado" class="pf-checkout-precio">$<?= number_format((float) $membresia['precio'], 2) ?></span>
+                  <span class="pf-checkout-precio-sufijo"> MXN / <?= $membresia['intervalo'] === 'anual' ? 'año' : 'mes' ?></span>
+                <?php endif; ?>
               </div>
-              <?php if ($voucherOxxoPendiente['vence_en']): ?>
-                <p class="text-muted small mt-2">Vence: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($voucherOxxoPendiente['vence_en']))) ?></p>
-              <?php endif; ?>
-              <?php if ($voucherOxxoPendiente['url_voucher']): ?>
-                <a href="<?= htmlspecialchars($voucherOxxoPendiente['url_voucher']) ?>" target="_blank" class="pf-btn pf-btn-primary w-100 mt-2">Ver/imprimir comprobante</a>
-              <?php endif; ?>
-            </div>
-          <?php else: ?>
-            <!-- Voucher creado en Stripe pero nunca confirmado en el navegador
-                 (se cerró la pestaña, falló el confirmPayment(), etc.) —
-                 numero/url_voucher solo se llenan DESPUÉS de que el cliente
-                 confirma, así que este estado es normal, no un error. Antes
-                 esto se mostraba como si el voucher ya estuviera listo ("Paga
-                 en tienda") sin ningún código real, dejando al usuario sin
-                 forma de continuar — ahora se retoma la confirmación con el
-                 mismo client_secret (membresia_oxxo_obtener_secreto.php, ya
-                 usado igual en mi_membresia.php para la renovación mensual). -->
-            <div class="card p-3 text-center" style="max-width:420px;margin:0 auto;">
-              <span class="pf-eyebrow">Voucher pendiente de confirmar</span>
-              <h3 class="h6 mt-2 mb-2">Falta un paso para generar tu código de pago</h3>
-              <p class="text-muted small">Iniciaste el pago por OXXO pero no llegaste a confirmarlo — retómalo aquí para obtener tu código.</p>
-              <div id="membresia-oxxo-retomar-element" class="mb-2 text-start d-none"></div>
-              <button type="button" id="btnRetomarVoucherOxxo" class="pf-btn pf-btn-primary w-100" data-suscripcion-id="<?= (int) $suscripcionOxxoPendiente['id'] ?>">Continuar y generar código</button>
-              <div id="retomarVoucherMsg" class="form-text text-danger mt-2"></div>
-            </div>
-          <?php endif; ?>
-        <?php else: ?>
-          <ul class="nav nav-tabs justify-content-center mb-3" style="border-color:rgba(255,255,255,.2);">
-            <?php if ($stripeListo): ?>
-              <li class="nav-item" style="background: #bcb04f;"><button class="nav-link active text-dark" data-bs-toggle="tab" data-bs-target="#tab-tarjeta" type="button">Tarjeta</button></li>
-              <?php if ($membresiaOxxoVisible): ?>
-                <li class="nav-item" style="background: #bcb04f;"><button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-oxxo" type="button">OXXO</button></li>
-              <?php endif; ?>
-            <?php endif; ?>
-            <li class="nav-item" style="background: #bcb04f;"><button class="nav-link <?= $stripeListo ? 'text-dark' : 'active text-dark' ?>" data-bs-toggle="tab" data-bs-target="#tab-transferencia" type="button">Transferencia</button></li>
-            <li class="nav-item" style="background: #bcb04f;"><button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-ventanilla" type="button">Ventanilla</button></li>
-          </ul>
-          <div class="tab-content" style="max-width:420px;margin:0 auto;text-align:left;">
-            <?php if ($stripeListo): ?>
-            <div class="tab-pane fade show active text-center" id="tab-tarjeta">
-              <div id="membresia-payment-element" class="mb-3 text-start d-none"></div>
-              <?php if ($membresia['mostrar_codigo_promocion']): ?>
-                <div class="input-group input-group-sm mb-3">
-                  <input type="text" id="codigoCupon" class="form-control" placeholder="Código de cupón" autocomplete="off" value="<?= htmlspecialchars((string) $codigoCupon) ?>">
-                  <button class="btn btn-outline-secondary" type="button" id="btnAplicarCupon">Aplicar</button>
+
+              <?php if ($esMiembro): ?>
+                <p class="text-center mb-3">✔ <img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Ya eres miembro de Camino Arjuna.</p>
+                <a class="pf-btn pf-btn-primary pf-btn-lg w-100" href="backend/pagos/membresia_portal.php">Gestionar mi membresía</a>
+              <?php elseif (!$usuario): ?>
+                <a class="pf-btn pf-btn-primary pf-btn-lg w-100" href="?action=registro<?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>">Regístrate para suscribirte</a>
+              <?php elseif ($transferenciaPendiente): ?>
+                <div class="alert alert-warning mb-0">Registramos tu transferencia — en cuanto confirmemos el pago tu membresía queda activa. Si quieres, envía también tu comprobante por WhatsApp para agilizarlo.</div>
+              <?php elseif ($suscripcionOxxoPendiente): ?>
+                <?php if ($voucherOxxoPendiente && $voucherOxxoPendiente['numero']): ?>
+                  <div class="card border-0 p-3 text-center">
+                    <span class="pf-eyebrow">Voucher generado</span>
+                    <h3 class="h6 mt-2 mb-2">Paga en tienda para activar tu membresía</h3>
+                    <p class="text-muted small">Lleva este código a cualquier OXXO y paga en efectivo. En cuanto se registre el pago, tu membresía se activa automáticamente — te avisamos por correo y en tu panel.</p>
+                    <div class="pf-checkout-precio-box" style="margin-bottom:0;">
+                      <div class="text-muted small mb-1">Número de referencia</div>
+                      <div style="font-size:16px;font-weight:800;letter-spacing:1px;word-break:break-all;color:var(--pf-accent-ink);"><?= htmlspecialchars($voucherOxxoPendiente['numero']) ?></div>
+                    </div>
+                    <?php if ($voucherOxxoPendiente['vence_en']): ?>
+                      <p class="text-muted small mt-2">Vence: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($voucherOxxoPendiente['vence_en']))) ?></p>
+                    <?php endif; ?>
+                    <?php if ($voucherOxxoPendiente['url_voucher']): ?>
+                      <a href="<?= htmlspecialchars($voucherOxxoPendiente['url_voucher']) ?>" target="_blank" class="pf-btn pf-btn-primary w-100 mt-2">Ver/imprimir comprobante</a>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <!-- Voucher creado en Stripe pero nunca confirmado en el navegador
+                       (se cerró la pestaña, falló el confirmPayment(), etc.) —
+                       numero/url_voucher solo se llenan DESPUÉS de que el cliente
+                       confirma, así que este estado es normal, no un error. Antes
+                       esto se mostraba como si el voucher ya estuviera listo ("Paga
+                       en tienda") sin ningún código real, dejando al usuario sin
+                       forma de continuar — ahora se retoma la confirmación con el
+                       mismo client_secret (membresia_oxxo_obtener_secreto.php, ya
+                       usado igual en mi_membresia.php para la renovación mensual). -->
+                  <div class="card border-0 p-3 text-center">
+                    <span class="pf-eyebrow">Voucher pendiente de confirmar</span>
+                    <h3 class="h6 mt-2 mb-2">Falta un paso para generar tu código de pago</h3>
+                    <p class="text-muted small">Iniciaste el pago por OXXO pero no llegaste a confirmarlo — retómalo aquí para obtener tu código.</p>
+                    <div id="membresia-oxxo-retomar-element" class="mb-2 text-start d-none"></div>
+                    <button type="button" id="btnRetomarVoucherOxxo" class="pf-btn pf-btn-primary w-100" data-suscripcion-id="<?= (int) $suscripcionOxxoPendiente['id'] ?>">Continuar y generar código</button>
+                    <div id="retomarVoucherMsg" class="form-text text-danger mt-2"></div>
+                  </div>
+                <?php endif; ?>
+              <?php else: ?>
+                <div class="pf-metodo-pago-selector" role="tablist">
+                  <?php if ($stripeListo): ?>
+                    <button type="button" class="pf-metodo-pago-btn active" role="tab" data-bs-toggle="tab" data-bs-target="#tab-tarjeta"><i class="bi bi-credit-card-2-front"></i>Tarjeta</button>
+                    <?php if ($membresiaOxxoVisible): ?>
+                      <button type="button" class="pf-metodo-pago-btn" role="tab" data-bs-toggle="tab" data-bs-target="#tab-oxxo"><i class="bi bi-shop"></i>OXXO</button>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                  <button type="button" class="pf-metodo-pago-btn<?= $stripeListo ? '' : ' active' ?>" role="tab" data-bs-toggle="tab" data-bs-target="#tab-transferencia"><i class="bi bi-bank"></i>Transferencia</button>
+                  <button type="button" class="pf-metodo-pago-btn" role="tab" data-bs-toggle="tab" data-bs-target="#tab-ventanilla"><i class="bi bi-shop-window"></i>Ventanilla</button>
                 </div>
-                <div id="cuponMsg" class="form-text mb-2<?= $oferta && $oferta['cupon_error'] ? ' text-danger' : '' ?>"><?= htmlspecialchars((string) ($oferta['cupon_error'] ?? '')) ?></div>
+                <div class="tab-content">
+                  <?php if ($stripeListo): ?>
+                  <div class="tab-pane fade show active" id="tab-tarjeta">
+                    <div id="membresia-payment-element" class="mb-3 d-none"></div>
+                    <?php if ($membresia['mostrar_codigo_promocion']): ?>
+                      <div class="input-group input-group-sm mb-3">
+                        <input type="text" id="codigoCupon" class="form-control" placeholder="Código de cupón" autocomplete="off" value="<?= htmlspecialchars((string) $codigoCupon) ?>">
+                        <button class="btn btn-outline-secondary" type="button" id="btnAplicarCupon">Aplicar</button>
+                      </div>
+                      <div id="cuponMsg" class="form-text mb-2<?= $oferta && $oferta['cupon_error'] ? ' text-danger' : '' ?>"><?= htmlspecialchars((string) ($oferta['cupon_error'] ?? '')) ?></div>
+                    <?php endif; ?>
+                    <button id="btnSuscribirse" class="pf-btn pf-btn-primary pf-btn-lg w-100" data-membresia-id="<?= (int) $membresia['id'] ?>">Suscribirme con tarjeta</button>
+                    <button id="btnConfirmarSuscripcion" class="pf-btn pf-btn-primary pf-btn-lg w-100 d-none">Confirmar suscripción</button>
+                    <div id="suscribirMsg" class="form-text text-danger mt-2"></div>
+                    <div class="pf-checkout-confianza">
+                      <span><i class="bi bi-shield-check"></i> Pago seguro</span>
+                      <span><i class="bi bi-lock-fill"></i> Datos cifrados</span>
+                      <span><i class="bi bi-credit-card-2-front"></i> Visa · Mastercard · Amex</span>
+                      <span><i class="bi bi-x-circle"></i> Cancela cuando quieras</span>
+                    </div>
+                  </div>
+                  <?php if ($membresiaOxxoVisible): ?>
+                  <div class="tab-pane fade" id="tab-oxxo">
+                    <p class="text-muted small">
+                      Paga en efectivo en cualquier OXXO. A diferencia de tarjeta, <strong>el cobro no es automático</strong> —
+                      cada mes te generamos un voucher nuevo (avisándote por correo y en tu panel) que debes pagar antes de
+                      que venza para mantener tu acceso.
+                    </p>
+                    <button id="btnSuscribirseOxxo" class="pf-btn pf-btn-primary pf-btn-lg w-100" data-membresia-id="<?= (int) $membresia['id'] ?>">Generar voucher OXXO</button>
+                    <div id="suscribirOxxoMsg" class="form-text text-danger mt-2"></div>
+                  </div>
+                  <?php endif; ?>
+                  <?php endif; ?>
+                  <div class="tab-pane fade<?= $stripeListo ? '' : ' show active' ?>" id="tab-transferencia">
+                    <p>Realiza tu transferencia a:</p>
+                    <ul>
+                      <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
+                      <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+                      <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
+                      <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
+                    </ul>
+                    <div class="mb-3">
+                      <label class="form-label">Sube tu comprobante (opcional)</label>
+                      <div id="comprobanteDropzone" class="pf-dropzone" tabindex="0" role="button">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <span id="comprobanteDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
+                      </div>
+                      <input type="file" id="comprobanteFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
+                      <input type="file" id="comprobanteFileCamara" class="d-none" accept="image/*" capture="environment">
+                      <button type="button" id="btnTomarFotoComprobante" class="btn btn-link btn-sm p-0 mt-2 d-md-none">
+                        <i class="bi bi-camera"></i> O toma una foto desde tu celular
+                      </button>
+                    </div>
+                    <button id="btnYaTransferiMembresia" class="pf-btn pf-btn-primary pf-btn-lg w-100 mb-2" data-membresia-id="<?= (int) $membresia['id'] ?>">Ya realicé la transferencia</button>
+                    <a class="btn btn-outline-success w-100" target="_blank"
+                       href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de la membresía ' . $membresia['nombre']) ?>">
+                      Enviar comprobante por WhatsApp
+                    </a>
+                    <div id="transferMembresiaMsg" class="form-text mt-2"></div>
+                  </div>
+                  <div class="tab-pane fade" id="tab-ventanilla">
+                    <p>Paga en ventanilla o en tiendas de conveniencia (OXXO y otras) a:</p>
+                    <ul>
+                      <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
+                      <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
+                      <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
+                      <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
+                    </ul>
+                    <div class="mb-3">
+                      <label class="form-label">Sube tu comprobante (opcional)</label>
+                      <div id="comprobanteVentanillaDropzone" class="pf-dropzone" tabindex="0" role="button">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <span id="comprobanteVentanillaDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
+                      </div>
+                      <input type="file" id="comprobanteVentanillaFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
+                      <input type="file" id="comprobanteVentanillaFileCamara" class="d-none" accept="image/*" capture="environment">
+                      <button type="button" id="btnTomarFotoComprobanteVentanilla" class="btn btn-link btn-sm p-0 mt-2 d-md-none">
+                        <i class="bi bi-camera"></i> O toma una foto desde tu celular
+                      </button>
+                    </div>
+                    <button id="btnYaDepositeVentanillaMembresia" class="pf-btn pf-btn-primary pf-btn-lg w-100 mb-2" data-membresia-id="<?= (int) $membresia['id'] ?>">Ya realicé mi depósito</button>
+                    <a class="btn btn-outline-success w-100" target="_blank"
+                       href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de la membresía ' . $membresia['nombre']) ?>">
+                      Enviar comprobante por WhatsApp
+                    </a>
+                    <div id="transferVentanillaMembresiaMsg" class="form-text mt-2"></div>
+                  </div>
+                </div>
               <?php endif; ?>
-              <button id="btnSuscribirse" class="pf-btn pf-btn-primary pf-btn-lg" data-membresia-id="<?= (int) $membresia['id'] ?>">Suscribirme con tarjeta</button>
-              <button id="btnConfirmarSuscripcion" class="pf-btn pf-btn-primary pf-btn-lg d-none">Confirmar suscripción</button>
-              <div id="suscribirMsg" class="mt-3" style="color:#fff;"></div>
-              <div class="d-flex justify-content-center flex-wrap gap-3 mt-3" style="color:rgba(255,255,255,.6);font-size:12.5px;">
-                <span><i class="bi bi-shield-check" style="color:var(--pf-accent);"></i> Pago seguro</span>
-                <span><i class="bi bi-lock-fill" style="color:var(--pf-accent);"></i> Datos cifrados</span>
-                <span><i class="bi bi-credit-card-2-front" style="color:var(--pf-accent);"></i> Visa · Mastercard · Amex</span>
-                <span><i class="bi bi-x-circle" style="color:var(--pf-accent);"></i> Cancela cuando quieras</span>
-              </div>
-            </div>
-            <?php if ($membresiaOxxoVisible): ?>
-            <div class="tab-pane fade text-center" id="tab-oxxo">
-              <p class="small" style="color:rgba(255,255,255,.85);">
-                Paga en efectivo en cualquier OXXO. A diferencia de tarjeta, <strong>el cobro no es automático</strong> —
-                cada mes te generamos un voucher nuevo (avisándote por correo y en tu panel) que debes pagar antes de
-                que venza para mantener tu acceso.
-              </p>
-              <button id="btnSuscribirseOxxo" class="pf-btn pf-btn-primary pf-btn-lg" data-membresia-id="<?= (int) $membresia['id'] ?>">Generar voucher OXXO</button>
-              <div id="suscribirOxxoMsg" class="mt-3" style="color:#fff;"></div>
-            </div>
-            <?php endif; ?>
-            <?php endif; ?>
-            <div class="tab-pane fade <?= $stripeListo ? '' : 'show active' ?>" id="tab-transferencia">
-              <p style="color:rgba(255,255,255,.85);">Realiza tu transferencia a:</p>
-              <ul style="color:#fff;">
-                <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
-                <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
-                <li><strong>Cuenta CLABE (transferencias nacionales):</strong> <?= htmlspecialchars(BANCO_CLABE) ?></li>
-                <li><strong>Código SWIFT (transferencias internacionales):</strong> <?= htmlspecialchars(BANCO_SWIFT) ?></li>
-              </ul>
-              <div class="mb-3">
-                <label class="form-label" style="color:#fff;">Sube tu comprobante (opcional)</label>
-                <div id="comprobanteDropzone" class="pf-dropzone" tabindex="0" role="button">
-                  <i class="bi bi-cloud-arrow-up"></i>
-                  <span id="comprobanteDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
-                </div>
-                <input type="file" id="comprobanteFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
-                <input type="file" id="comprobanteFileCamara" class="d-none" accept="image/*" capture="environment">
-                <button type="button" id="btnTomarFotoComprobante" class="btn btn-link btn-sm p-0 mt-2 d-md-none" style="color:#fff;text-decoration:underline;">
-                  <i class="bi bi-camera"></i> O toma una foto desde tu celular
-                </button>
-              </div>
-              <button id="btnYaTransferiMembresia" class="pf-btn pf-btn-primary w-100 mb-2" data-membresia-id="<?= (int) $membresia['id'] ?>">Ya realicé la transferencia</button>
-              <a class="pf-btn pf-btn-outline w-100" target="_blank"
-                 href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de la membresía ' . $membresia['nombre']) ?>">
-                O envía tu comprobante por WhatsApp
-              </a>
-              <div id="transferMembresiaMsg" class="form-text mt-2"></div>
-            </div>
-            <div class="tab-pane fade" id="tab-ventanilla">
-              <p style="color:rgba(255,255,255,.85);">Paga en ventanilla o en tiendas de conveniencia (OXXO y otras) a:</p>
-              <ul style="color:#fff;">
-                <li><strong>Banco:</strong> <?= htmlspecialchars(BANCO_NOMBRE) ?></li>
-                <li><strong>Titular:</strong> <?= htmlspecialchars(BANCO_TITULAR) ?></li>
-                <li><strong>Depósito en ventanilla:</strong> <?= htmlspecialchars(BANCO_VENTANILLA) ?></li>
-                <li><strong>Depósito en tiendas OXXO y otras:</strong> <?= htmlspecialchars(BANCO_VENTANILLA_OXXO) ?></li>
-              </ul>
-              <div class="mb-3">
-                <label class="form-label" style="color:#fff;">Sube tu comprobante (opcional)</label>
-                <div id="comprobanteVentanillaDropzone" class="pf-dropzone" tabindex="0" role="button">
-                  <i class="bi bi-cloud-arrow-up"></i>
-                  <span id="comprobanteVentanillaDropzoneTexto">Arrastra tu comprobante aquí o haz clic para buscarlo</span>
-                </div>
-                <input type="file" id="comprobanteVentanillaFile" class="d-none" accept="image/png,image/jpeg,image/webp,application/pdf">
-                <input type="file" id="comprobanteVentanillaFileCamara" class="d-none" accept="image/*" capture="environment">
-                <button type="button" id="btnTomarFotoComprobanteVentanilla" class="btn btn-link btn-sm p-0 mt-2 d-md-none" style="color:#fff;text-decoration:underline;">
-                  <i class="bi bi-camera"></i> O toma una foto desde tu celular
-                </button>
-              </div>
-              <button id="btnYaDepositeVentanillaMembresia" class="pf-btn pf-btn-primary w-100 mb-2" data-membresia-id="<?= (int) $membresia['id'] ?>">Ya realicé mi depósito</button>
-              <a class="pf-btn pf-btn-outline w-100" target="_blank"
-                 href="https://wa.me/<?= htmlspecialchars(WHATSAPP_PAGOS) ?>?text=<?= urlencode('Hola, envío mi comprobante de la membresía ' . $membresia['nombre']) ?>">
-                O envía tu comprobante por WhatsApp
-              </a>
-              <div id="transferVentanillaMembresiaMsg" class="form-text mt-2"></div>
             </div>
           </div>
-        <?php endif; ?>
+
+          <aside class="pf-checkout-side">
+            <h3>🛡️ Compra segura</h3>
+            <p class="pf-checkout-side-lead">Tu pago se procesa de forma cifrada — nunca almacenamos los datos de tu tarjeta.</p>
+            <ul>
+              <li><i class="bi bi-check-circle-fill"></i> Cancela o pausa cuando quieras, sin llamadas ni trámites</li>
+              <li><i class="bi bi-check-circle-fill"></i> Comprobante disponible en tu panel</li>
+              <li><i class="bi bi-check-circle-fill"></i> Soporte por WhatsApp si algo falla</li>
+            </ul>
+            <p class="pf-checkout-side-testimonial">"Una comunidad para sostener lo que te importa."</p>
+          </aside>
+        </div>
       </div>
     </div>
   </section>
@@ -797,5 +881,21 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
     }
   });
 })();
+</script>
+<?php endif; ?>
+
+<?php if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscripcionOxxoPendiente): ?>
+<script>
+  // Los botones de método de pago siguen usando data-bs-toggle="tab" de
+  // Bootstrap (así el .tab-content de abajo no cambia), pero Bootstrap solo
+  // gestiona la clase .active dentro de un <ul class="nav"> — aquí no es un
+  // <li>/<a class="nav-link">, así que se mueve a mano (mismo patrón que
+  // backend/pagos/checkout.php).
+  document.querySelectorAll('.pf-metodo-pago-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.pf-metodo-pago-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
 </script>
 <?php endif; ?>

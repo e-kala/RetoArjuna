@@ -274,7 +274,7 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
           <p>Todo lo que ya construiste — cursos, foro, reconocimientos — conectado a un mismo hilo de práctica.</p>
         </div>
       </div>
-//muestra el pago con tarjeta y transferencia
+      <?php // muestra el pago con tarjeta y transferencia ?>
       <div class="pf-callout" style="margin-top:48px;text-align:center; background: #a0895e;">
         <h2 style="text-align:center;"><?= htmlspecialchars($membresia['nombre']) ?></h2>
         <p style="text-align:center;"><?= nl2br(htmlspecialchars((string) $membresia['descripcion'])) ?></p>
@@ -303,17 +303,15 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
         <?php elseif ($transferenciaPendiente): ?>
           <div class="alert alert-warning mb-0">Registramos tu transferencia — en cuanto confirmemos el pago tu membresía queda activa. Si quieres, envía también tu comprobante por WhatsApp para agilizarlo.</div>
         <?php elseif ($suscripcionOxxoPendiente): ?>
-          <?php if ($voucherOxxoPendiente): ?>
+          <?php if ($voucherOxxoPendiente && $voucherOxxoPendiente['numero']): ?>
             <div class="card p-3 text-center" style="max-width:420px;margin:0 auto;">
               <span class="pf-eyebrow">Voucher generado</span>
               <h3 class="h6 mt-2 mb-2">Paga en tienda para activar tu membresía</h3>
               <p class="text-muted small">Lleva este código a cualquier OXXO y paga en efectivo. En cuanto se registre el pago, tu membresía se activa automáticamente — te avisamos por correo y en tu panel.</p>
-              <?php if ($voucherOxxoPendiente['numero']): ?>
-                <div class="pf-checkout-precio-box" style="background:rgba(247,147,30,0.14);border:1px solid rgba(247,147,30,0.4);border-radius:16px;padding:14px;">
-                  <div class="text-muted small mb-1">Número de referencia</div>
-                  <div style="font-size:16px;font-weight:800;letter-spacing:1px;word-break:break-all;color:var(--pf-accent);"><?= htmlspecialchars($voucherOxxoPendiente['numero']) ?></div>
-                </div>
-              <?php endif; ?>
+              <div class="pf-checkout-precio-box" style="background:rgba(247,147,30,0.14);border:1px solid rgba(247,147,30,0.4);border-radius:16px;padding:14px;">
+                <div class="text-muted small mb-1">Número de referencia</div>
+                <div style="font-size:16px;font-weight:800;letter-spacing:1px;word-break:break-all;color:var(--pf-accent);"><?= htmlspecialchars($voucherOxxoPendiente['numero']) ?></div>
+              </div>
               <?php if ($voucherOxxoPendiente['vence_en']): ?>
                 <p class="text-muted small mt-2">Vence: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($voucherOxxoPendiente['vence_en']))) ?></p>
               <?php endif; ?>
@@ -322,7 +320,23 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
               <?php endif; ?>
             </div>
           <?php else: ?>
-            <div class="alert alert-warning mb-0">Estamos generando tu voucher OXXO — recarga la página en unos segundos. Si el mensaje persiste, contáctanos.</div>
+            <!-- Voucher creado en Stripe pero nunca confirmado en el navegador
+                 (se cerró la pestaña, falló el confirmPayment(), etc.) —
+                 numero/url_voucher solo se llenan DESPUÉS de que el cliente
+                 confirma, así que este estado es normal, no un error. Antes
+                 esto se mostraba como si el voucher ya estuviera listo ("Paga
+                 en tienda") sin ningún código real, dejando al usuario sin
+                 forma de continuar — ahora se retoma la confirmación con el
+                 mismo client_secret (membresia_oxxo_obtener_secreto.php, ya
+                 usado igual en mi_membresia.php para la renovación mensual). -->
+            <div class="card p-3 text-center" style="max-width:420px;margin:0 auto;">
+              <span class="pf-eyebrow">Voucher pendiente de confirmar</span>
+              <h3 class="h6 mt-2 mb-2">Falta un paso para generar tu código de pago</h3>
+              <p class="text-muted small">Iniciaste el pago por OXXO pero no llegaste a confirmarlo — retómalo aquí para obtener tu código.</p>
+              <div id="membresia-oxxo-retomar-element" class="mb-2 text-start d-none"></div>
+              <button type="button" id="btnRetomarVoucherOxxo" class="pf-btn pf-btn-primary w-100" data-suscripcion-id="<?= (int) $suscripcionOxxoPendiente['id'] ?>">Continuar y generar código</button>
+              <div id="retomarVoucherMsg" class="form-text text-danger mt-2"></div>
+            </div>
           <?php endif; ?>
         <?php else: ?>
           <ul class="nav nav-tabs justify-content-center mb-3" style="border-color:rgba(255,255,255,.2);">
@@ -711,5 +725,77 @@ if ($usuario && !$esMiembro && $membresia && !$transferenciaPendiente && !$suscr
 
   configurarPagoManualMembresia('', 'btnYaTransferiMembresia', 'transferMembresiaMsg');
   configurarPagoManualMembresia('Ventanilla', 'btnYaDepositeVentanillaMembresia', 'transferVentanillaMembresiaMsg');
+</script>
+<?php endif; ?>
+
+<?php if ($suscripcionOxxoPendiente && (!$voucherOxxoPendiente || !$voucherOxxoPendiente['numero'])): ?>
+<!-- Bloque de script independiente del de arriba: ese vive dentro de un
+     if que excluye este mismo caso (suscripción OXXO pendiente), así que
+     cuando SÍ hay una (este caso) ni el SDK de Stripe ni ese script se
+     cargan en absoluto — hace falta este bloque aparte, con su propio
+     script[src] y su propio Stripe(), para poder retomar la confirmación. -->
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function () {
+  const stripe = Stripe(<?= json_encode($publishableKeyActiva) ?>);
+  const csrfToken = <?= json_encode(csrf_token()) ?>;
+  const btn = document.getElementById('btnRetomarVoucherOxxo');
+  if (!btn) return;
+  const msg = document.getElementById('retomarVoucherMsg');
+  const contenedor = document.getElementById('membresia-oxxo-retomar-element');
+
+  btn.addEventListener('click', async function () {
+    const textoOriginal = this.innerHTML;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Cargando...';
+    msg.textContent = '';
+    try {
+      const res = await fetch('backend/pagos/membresia_oxxo_obtener_secreto.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ suscripcion_id: this.dataset.suscripcionId, csrf_token: csrfToken }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        msg.textContent = data.message || 'No se pudo cargar el voucher.';
+        this.disabled = false;
+        this.innerHTML = textoOriginal;
+        return;
+      }
+      if (data.ya_confirmado) {
+        // Stripe ya tiene el pago confirmado (ej. otra pestaña lo completó) —
+        // solo falta que esta página vuelva a leer numero/url_voucher.
+        window.location.reload();
+        return;
+      }
+      const elements = stripe.elements({ clientSecret: data.client_secret });
+      const paymentElement = elements.create('payment', { paymentMethodOrder: ['oxxo'] });
+      contenedor.classList.remove('d-none');
+      paymentElement.mount(contenedor);
+      this.classList.add('d-none');
+
+      const btnConfirmar = document.createElement('button');
+      btnConfirmar.type = 'button';
+      btnConfirmar.className = 'pf-btn pf-btn-primary w-100 mt-2';
+      btnConfirmar.textContent = 'Confirmar y generar código';
+      contenedor.insertAdjacentElement('afterend', btnConfirmar);
+      btnConfirmar.addEventListener('click', async function () {
+        this.disabled = true;
+        const { error } = await stripe.confirmPayment({
+          elements,
+          confirmParams: { return_url: window.location.href },
+        });
+        if (error) {
+          msg.textContent = error.message;
+          this.disabled = false;
+        }
+      });
+    } catch (e) {
+      msg.textContent = 'Error de conexión. Intenta de nuevo.';
+      this.disabled = false;
+      this.innerHTML = textoOriginal;
+    }
+  });
+})();
 </script>
 <?php endif; ?>

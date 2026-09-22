@@ -427,7 +427,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
           </div>
           <div id="comboDesglose" class="pf-combo-card d-none">
             <div><span>Membresía Camino Arjuna</span> <span id="comboPrecioMembresia">—</span></div>
-            <div><span><?= htmlspecialchars($item['titulo']) ?></span> <span id="comboPrecioItem">—</span></div>
+            <div><span><?= htmlspecialchars($item['titulo']) ?> <span id="comboItemDescuentoPct" class="badge bg-success d-none"></span></span> <span id="comboPrecioItem">—</span></div>
             <div class="pf-combo-total"><span>Total primer cobro</span> <span id="comboPrecioTotal">—</span></div>
           </div>
         <?php endif; ?>
@@ -820,8 +820,19 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
 
       if (modoCompraActual === 'combo') {
         document.getElementById('comboPrecioMembresia').textContent = formatoMXN(data.precio_membresia_final);
-        document.getElementById('comboPrecioItem').textContent = formatoMXN(data.precio_item);
         document.getElementById('comboPrecioTotal').textContent = formatoMXN(data.precio_total);
+
+        const badgeDescuento = document.getElementById('comboItemDescuentoPct');
+        if (data.item_descuento_pct) {
+          badgeDescuento.textContent = '-' + data.item_descuento_pct + '%';
+          badgeDescuento.classList.remove('d-none');
+          // Precio regular tachado + precio final, para que el % tenga contexto.
+          document.getElementById('comboPrecioItem').innerHTML =
+            '<s class="text-muted me-1">' + formatoMXN(data.precio_item_regular) + '</s>' + formatoMXN(data.precio_item);
+        } else {
+          badgeDescuento.classList.add('d-none');
+          document.getElementById('comboPrecioItem').textContent = formatoMXN(data.precio_item);
+        }
       }
 
       // unmount() real antes de reemplazar — borrar el innerHTML a mano deja

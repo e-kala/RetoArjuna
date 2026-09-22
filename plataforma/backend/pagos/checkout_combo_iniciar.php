@@ -287,7 +287,13 @@ echo json_encode([
     'payment_intent_id' => $paymentIntentId,
     'precio_membresia_regular' => $ofertaMembresia['precio_regular'],
     'precio_membresia_final' => $ofertaMembresia['precio_final'],
+    'precio_item_regular' => $item['precio_regular'],
     'precio_item' => $item['precio_final'],
+    // Para mostrar "-X%" junto al precio del ítem en el desglose del combo
+    // (checkout.php) cuando el beneficio de membresía es un descuento
+    // porcentual — null si el beneficio es incluido_membresia (ya se ve
+    // claro con el precio en $0, no hace falta el %).
+    'item_descuento_pct' => (float) ($item['descuento_miembro_pct'] ?? 0) > 0 ? (float) $item['descuento_miembro_pct'] : null,
     'precio_total' => round($ofertaMembresia['precio_final'] + $item['precio_final'], 2),
     'oferta_nombre' => $ofertaMembresia['oferta_nombre'],
 ]);

@@ -190,8 +190,8 @@ if (!$resProducto['ok'] || empty($resProducto['data']['id'])) {
 }
 $productoIdCombo = $resProducto['data']['id'];
 
-$resSub = stripe_api('POST', 'subscriptions', array_merge([
-    'customer' => $stripeCustomerId,
+$armarPayloadSub = fn (string $customerId) => array_merge([
+    'customer' => $customerId,
     'items' => [['price' => $priceIdMembresia]],
     'add_invoice_items' => [[
         'price_data' => [
@@ -214,7 +214,20 @@ $resSub = stripe_api('POST', 'subscriptions', array_merge([
         'combo_tipo' => $tipo,
         'combo_item_id' => $itemId,
     ],
-], $discounts ? ['discounts' => $discounts] : []));
+], $discounts ? ['discounts' => $discounts] : []);
+
+$resSub = stripe_api('POST', 'subscriptions', $armarPayloadSub($stripeCustomerId));
+
+// El customer_id guardado en membresia_suscripciones puede haber quedado
+// huérfano (se creó en un modo test/live que ya no es el activo — ver
+// stripe_customer_id_invalido()). En ese caso se regenera una sola vez y se
+// reintenta, en vez de tronar con un mensaje críptico de Stripe.
+if (!$resSub['ok'] && stripe_customer_id_invalido($resSub)) {
+    $stripeCustomerId = stripe_customer_regenerar($conn, $usuarioPerfilId, $usuario['email'], $usuario['username'], $modoActual);
+    if ($stripeCustomerId) {
+        $resSub = stripe_api('POST', 'subscriptions', $armarPayloadSub($stripeCustomerId));
+    }
+}
 
 if (!$resSub['ok'] || empty($resSub['data']['id'])) {
     $errStripe = $resSub['data']['error']['message'] ?? 'sin detalle';

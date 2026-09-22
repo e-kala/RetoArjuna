@@ -157,8 +157,8 @@ if ($oferta['estado'] === 'oferta' && $oferta['descuento_monto'] > 0) {
     }
 }
 
-$resSub = stripe_api('POST', 'subscriptions', array_merge([
-    'customer' => $stripeCustomerId,
+$armarPayloadSub = fn (string $customerId) => array_merge([
+    'customer' => $customerId,
     'items' => [['price' => $priceId]],
     'payment_behavior' => 'default_incomplete',
     'payment_settings' => ['save_default_payment_method' => 'on_subscription'],
@@ -169,7 +169,18 @@ $resSub = stripe_api('POST', 'subscriptions', array_merge([
     // real antes de asumir el shape viejo.
     'expand' => ['latest_invoice.confirmation_secret'],
     'metadata' => ['usuario_id' => $usuario['id'], 'membresia_id' => $membresia['id']],
-], $discounts ? ['discounts' => $discounts] : []));
+], $discounts ? ['discounts' => $discounts] : []);
+
+$resSub = stripe_api('POST', 'subscriptions', $armarPayloadSub($stripeCustomerId));
+
+// Customer huérfano (creado en un modo test/live que ya no es el activo) —
+// se regenera una sola vez y se reintenta (ver stripe_customer_id_invalido()).
+if (!$resSub['ok'] && stripe_customer_id_invalido($resSub)) {
+    $stripeCustomerId = stripe_customer_regenerar($conn, $usuario['id'], $usuario['email'], $usuario['username'], $modoActual);
+    if ($stripeCustomerId) {
+        $resSub = stripe_api('POST', 'subscriptions', $armarPayloadSub($stripeCustomerId));
+    }
+}
 
 if (!$resSub['ok'] || empty($resSub['data']['id'])) {
     $errStripe = $resSub['data']['error']['message'] ?? 'sin detalle';

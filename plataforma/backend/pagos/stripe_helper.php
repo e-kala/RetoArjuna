@@ -143,3 +143,43 @@ function stripe_api(string $metodo, string $ruta, array $campos = [], ?string $l
     $data = json_decode((string) $respuesta, true) ?? [];
     return ['ok' => $status >= 200 && $status < 300, 'status' => $status, 'data' => $data];
 }
+
+// true si $res es el error que Stripe da al usar un customer_id que no existe
+// en el modo (test/live) de la llave activa — pasa cuando un registro de
+// membresia_suscripciones.stripe_customer_id quedó "huérfano" porque se creó
+// en un modo y luego el entorno cambió de llave (ver checkout_combo_iniciar.php,
+// membresia_iniciar.php, membresia_portal.php: los tres reutilizan ese
+// customer_id guardado sin haberlo verificado antes contra Stripe).
+function stripe_customer_id_invalido(array $res): bool
+{
+    return $res['status'] === 404
+        && ($res['data']['error']['code'] ?? '') === 'resource_missing'
+        && ($res['data']['error']['param'] ?? '') === 'customer';
+}
+
+// Crea un Customer nuevo en Stripe y lo guarda como el vigente para este
+// usuario/modo, reemplazando cualquier stripe_customer_id previo que haya
+// quedado huérfano (ver stripe_customer_id_invalido()) — así la próxima
+// consulta (membresia_iniciar.php, checkout_combo_iniciar.php,
+// membresia_portal.php) ya encuentra uno válido sin volver a tronar.
+// Devuelve el nuevo customer_id, o null si Stripe rechaza la creación.
+function stripe_customer_regenerar(mysqli $conn, int $usuarioId, string $email, string $nombre, string $modo): ?string
+{
+    $resCustomer = stripe_api('POST', 'customers', [
+        'email' => $email,
+        'name' => $nombre,
+        'metadata' => ['usuario_id' => $usuarioId],
+    ]);
+    if (!$resCustomer['ok']) {
+        return null;
+    }
+    $nuevoId = $resCustomer['data']['id'];
+    $stmt = $conn->prepare(
+        "UPDATE membresia_suscripciones SET stripe_customer_id = ?
+         WHERE usuario_id = ? AND modo = ? AND stripe_customer_id IS NOT NULL"
+    );
+    $stmt->bind_param('sis', $nuevoId, $usuarioId, $modo);
+    $stmt->execute();
+    $stmt->close();
+    return $nuevoId;
+}

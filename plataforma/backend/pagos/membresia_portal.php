@@ -34,6 +34,15 @@ $res = stripe_api('POST', 'billing_portal/sessions', [
     'return_url' => SITE_URL . '/index.php?action=membresia',
 ]);
 
+// Customer huérfano (creado en un modo test/live que ya no es el activo) —
+// no hay nada que "abrir" en el portal para uno que ya no existe en Stripe,
+// así que solo se limpia y se manda de vuelta (ver stripe_customer_id_invalido()
+// en stripe_helper.php); la próxima suscripción regenerará uno válido.
+if (!$res['ok'] && stripe_customer_id_invalido($res)) {
+    header('Location: ' . BASE_URL . '/index.php?action=membresia');
+    exit;
+}
+
 if (!$res['ok'] || empty($res['data']['url'])) {
     header('Location: ' . BASE_URL . '/index.php?action=membresia');
     exit;

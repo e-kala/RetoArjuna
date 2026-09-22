@@ -130,6 +130,18 @@ $miCalificacion = $usuario ? obtener_calificacion_usuario($usuario['id'], $curso
 $regaloConfig = $tieneAcceso ? regalo_configuracion_publica($cursoId, null) : null;
 $regaloOpciones = $regaloConfig && $usuario ? regalo_opciones_usuario($regaloConfig, $usuario['id']) : [];
 $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['id'], $regaloConfig['id']) : [];
+
+// Pestaña "Preguntas y respuestas" (mockup del cliente: en vez de comentarios
+// propios, muestra los temas del FORO ya vinculados a este curso, con botón
+// "Ver todo en el foro"). Sin lección específica aquí (ver leccion.php para
+// la variante acotada a una lección) — ver foro_temas_de() en foro_helpers.php.
+require_once __DIR__ . '/../foro/backend/foro_helpers.php';
+$temasCurso = foro_temas_de($cursoId, null, null, $usuario);
+$stmtTemaExistente = $conn->prepare('SELECT id FROM foro_temas WHERE curso_id = ? AND leccion_id IS NULL LIMIT 1');
+$stmtTemaExistente->bind_param('i', $cursoId);
+$stmtTemaExistente->execute();
+$temaExistenteId = (int) ($stmtTemaExistente->get_result()->fetch_assoc()['id'] ?? 0) ?: null;
+$stmtTemaExistente->close();
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=cursos" class="d-inline-block mb-3">&larr; Volver al catálogo</a>
@@ -158,6 +170,9 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     <?php if ($esAdminCurso): ?>
       <a href="panel/admin/contenido_form.php?tipo=curso&id=<?= $cursoId ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
     <?php endif; ?>
+    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto pf-detalle-toggle-sidebar" id="btnToggleTemario" aria-expanded="true" aria-controls="temarioSidebar">
+      <i class="bi bi-list-ul"></i> Contenido del curso
+    </button>
   </div>
   <?php if ($resumenCalificacion['total'] > 0): ?>
     <p class="text-muted mb-2">
@@ -167,7 +182,6 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
       <?= $resumenCalificacion['promedio'] ?> (<?= $resumenCalificacion['total'] ?> calificación<?= $resumenCalificacion['total'] === 1 ? '' : 'es' ?>)
     </p>
   <?php endif; ?>
-  <div class="pf-contenido-html"><?= (string) $curso['descripcion'] ?></div>
   <p>
     <span class="badge bg-secondary"><?= htmlspecialchars($curso['nivel']) ?></span>
     <?php if ($oferta['estado'] === 'acceso'): ?>
@@ -193,8 +207,31 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
       <div class="progress-bar" style="width: <?= $porcentaje ?>%; background:#f7931e;"></div>
     </div>
     <p class="text-muted small"><?= $porcentaje ?>% completado</p>
-    <a href="<?= $curso['foro_url'] ? htmlspecialchars(navbar_href($curso['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
   <?php endif; ?>
+
+  <div class="pf-detalle-grid">
+    <div class="pf-detalle-main">
+      <ul class="nav nav-tabs pf-detalle-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-descripcion" type="button">Descripción</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($temasCurso): ?><span class="badge bg-secondary"><?= count($temasCurso) ?></span><?php endif; ?></button></li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-descripcion">
+          <div class="pf-contenido-html"><?= (string) $curso['descripcion'] ?></div>
+        </div>
+        <div class="tab-pane fade" id="tab-preguntas">
+          <?php
+          $temasPregyresp = $temasCurso;
+          $temaExistenteIdPregyresp = $temaExistenteId;
+          $verForoUrlPregyresp = 'foro/curso.php?curso_id=' . $cursoId;
+          require __DIR__ . '/_preguntas_respuestas.php';
+          ?>
+        </div>
+      </div>
+
+      <?php if ($tieneAcceso): ?>
+        <a href="<?= $curso['foro_url'] ? htmlspecialchars(navbar_href($curso['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId ?>" class="btn btn-outline-secondary btn-sm mb-3 mt-2"><i class="bi bi-chat-square-text"></i> Discutir este curso en el foro</a>
+      <?php endif; ?>
 
   <?php if ($regaloConfig && $regaloOpciones): ?>
     <div class="card p-3 mb-3" style="max-width:480px;background:#fff8ec;border-color:#f7931e;">
@@ -239,61 +276,69 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     </div>
   <?php endif; ?>
 
-  <div class="list-group mb-4">
-    <?php foreach ($lecciones as $leccion): ?>
-      <?php $desbloqueada = $tieneAcceso || (int) $leccion['vista_previa'] === 1; ?>
-      <?php if ($desbloqueada): ?>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <a href="?action=leccion&id=<?= (int) $leccion['id'] ?>" class="text-decoration-none flex-grow-1">
-            <?php if (!empty($completadas[(int) $leccion['id']])): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
-            <?= htmlspecialchars($leccion['titulo']) ?>
-          </a>
-          <?php if ($esAdminCurso && $leccion['estado_publicacion'] === 'borrador'): ?><span class="badge bg-secondary me-2">Borrador</span><?php endif; ?>
-          <?php if (!$tieneAcceso): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
-          <?php if ($tieneAcceso): ?>
-            <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
-              <i class="bi bi-chat-square-text"></i>
-            </a>
+      <?php if ($puedeCalificar): ?>
+        <div class="card p-3 mb-4 mt-3" style="max-width:480px;">
+          <h2 class="h6 mb-2"><?= $miCalificacion ? 'Tu calificación' : '¿Qué te pareció este curso?' ?></h2>
+          <div id="calificarEstrellas" data-valor="<?= (int) ($miCalificacion['puntuacion'] ?? 0) ?>">
+            <?php for ($i = 1; $i <= 5; $i++): ?>
+              <i class="bi <?= $i <= (int) ($miCalificacion['puntuacion'] ?? 0) ? 'bi-star-fill' : 'bi-star' ?> estrella-calificar" data-estrella="<?= $i ?>" style="color:#f7931e;font-size:1.4rem;cursor:pointer;"></i>
+            <?php endfor; ?>
+          </div>
+          <textarea id="calificarComentario" class="form-control mt-2" rows="2" maxlength="500" placeholder="Comentario opcional"><?= htmlspecialchars((string) ($miCalificacion['comentario'] ?? '')) ?></textarea>
+          <button id="btnGuardarCalificacion" class="btn btn-sm mt-2" style="background:#f7931e;color:#fff;">Guardar calificación</button>
+          <div id="calificarMsg" class="form-text mt-1"></div>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($oferta['estado'] !== 'acceso'): ?>
+        <div class="card p-3 mt-3" style="max-width:480px;">
+          <?php if (!$usuario): ?>
+            <p class="mb-2">Crea tu Cuenta Arjuna para inscribirte — en cuanto termines, quedas inscrito automáticamente, sin pasos extra.</p>
+            <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico'] ? 'Inscribirme gratis' : 'Inscribirme' ?></a>
+          <?php elseif ($oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico']): ?>
+            <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Inscribirme gratis</button>
+            <div id="inscribirCursoMsg" class="form-text mt-2"></div>
+          <?php elseif ($oferta['estado'] === 'incluido_membresia'): ?>
+            <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Accesar gratis con mi membresía</button>
+            <div id="inscribirCursoMsg" class="form-text mt-2"></div>
+          <?php else: ?>
+            <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar curso completo</a>
           <?php endif; ?>
         </div>
-      <?php else: ?>
-        <span class="list-group-item d-flex justify-content-between align-items-center text-muted">
-          <span><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($leccion['titulo']) ?></span>
-        </span>
       <?php endif; ?>
-    <?php endforeach; ?>
-  </div>
+    </div>
 
-  <?php if ($puedeCalificar): ?>
-    <div class="card p-3 mb-4" style="max-width:480px;">
-      <h2 class="h6 mb-2"><?= $miCalificacion ? 'Tu calificación' : '¿Qué te pareció este curso?' ?></h2>
-      <div id="calificarEstrellas" data-valor="<?= (int) ($miCalificacion['puntuacion'] ?? 0) ?>">
-        <?php for ($i = 1; $i <= 5; $i++): ?>
-          <i class="bi <?= $i <= (int) ($miCalificacion['puntuacion'] ?? 0) ? 'bi-star-fill' : 'bi-star' ?> estrella-calificar" data-estrella="<?= $i ?>" style="color:#f7931e;font-size:1.4rem;cursor:pointer;"></i>
-        <?php endfor; ?>
+    <aside class="pf-detalle-sidebar" id="temarioSidebar">
+      <h2 class="h6 fw-bold mb-3">Contenido del curso</h2>
+      <div class="list-group">
+        <?php foreach ($lecciones as $leccion): ?>
+          <?php $desbloqueada = $tieneAcceso || (int) $leccion['vista_previa'] === 1; ?>
+          <?php if ($desbloqueada): ?>
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <a href="?action=leccion&id=<?= (int) $leccion['id'] ?>" class="text-decoration-none flex-grow-1">
+                <?php if (!empty($completadas[(int) $leccion['id']])): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
+                <?= htmlspecialchars($leccion['titulo']) ?>
+              </a>
+              <?php if ($esAdminCurso && $leccion['estado_publicacion'] === 'borrador'): ?><span class="badge bg-secondary me-2">Borrador</span><?php endif; ?>
+              <?php if (!$tieneAcceso): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
+              <?php if ($tieneAcceso): ?>
+                <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/curso.php?curso_id=' . $cursoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
+                  <i class="bi bi-chat-square-text"></i>
+                </a>
+              <?php endif; ?>
+            </div>
+          <?php else: ?>
+            <span class="list-group-item d-flex justify-content-between align-items-center text-muted">
+              <span><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($leccion['titulo']) ?></span>
+            </span>
+          <?php endif; ?>
+        <?php endforeach; ?>
+        <?php if (!$lecciones): ?>
+          <p class="text-muted small px-2 py-3 mb-0">Este curso todavía no tiene lecciones publicadas.</p>
+        <?php endif; ?>
       </div>
-      <textarea id="calificarComentario" class="form-control mt-2" rows="2" maxlength="500" placeholder="Comentario opcional"><?= htmlspecialchars((string) ($miCalificacion['comentario'] ?? '')) ?></textarea>
-      <button id="btnGuardarCalificacion" class="btn btn-sm mt-2" style="background:#f7931e;color:#fff;">Guardar calificación</button>
-      <div id="calificarMsg" class="form-text mt-1"></div>
-    </div>
-  <?php endif; ?>
-
-  <?php if ($oferta['estado'] !== 'acceso'): ?>
-    <div class="card p-3" style="max-width:480px;">
-      <?php if (!$usuario): ?>
-        <p class="mb-2">Crea tu Cuenta Arjuna para inscribirte — en cuanto termines, quedas inscrito automáticamente, sin pasos extra.</p>
-        <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico'] ? 'Inscribirme gratis' : 'Inscribirme' ?></a>
-      <?php elseif ($oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico']): ?>
-        <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Inscribirme gratis</button>
-        <div id="inscribirCursoMsg" class="form-text mt-2"></div>
-      <?php elseif ($oferta['estado'] === 'incluido_membresia'): ?>
-        <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Accesar gratis con mi membresía</button>
-        <div id="inscribirCursoMsg" class="form-text mt-2"></div>
-      <?php else: ?>
-        <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar curso completo</a>
-      <?php endif; ?>
-    </div>
-  <?php endif; ?>
+    </aside>
+  </div>
 </div>
 
 <?php if ($puedeCalificar): ?>
@@ -415,3 +460,119 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
   <?php endif; ?>
 </script>
 <?php endif; ?>
+
+<style>
+  /* Layout tipo Udemy: contenido a la izquierda, temario a la derecha —
+     mismo criterio de "panel lateral" ya usado en checkout.php/membresia.php
+     (.pf-checkout-side), adaptado aquí a un panel OCULTABLE (no siempre
+     visible): el cliente pidió que el temario se pueda plegar/mostrar, no
+     que compita de forma fija con el contenido en pantallas medianas. */
+  .pf-detalle-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+  .pf-detalle-grid.pf-detalle-sin-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .pf-detalle-grid.pf-detalle-sin-sidebar > .pf-detalle-sidebar { display: none; }
+  .pf-detalle-sidebar {
+    background: var(--pf-surface, #fff);
+    border: 1px solid var(--pf-line, #e5e0d8);
+    border-radius: var(--pf-radius-lg, 12px);
+    padding: 18px;
+    position: sticky;
+    top: 90px;
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+  }
+  @media (max-width: 900px) {
+    .pf-detalle-grid { grid-template-columns: minmax(0, 1fr); }
+    .pf-detalle-sidebar { position: static; max-height: none; }
+  }
+  .pf-detalle-tabs .nav-link { font-weight: 700; color: var(--pf-muted, #6c757d); }
+  .pf-detalle-tabs .nav-link.active { color: var(--pf-ink, #212529); border-bottom: 2px solid #f7931e; }
+</style>
+<script>
+  // Botón "Contenido del curso": en desktop solo agrega/quita la clase que
+  // colapsa la columna del grid (el temario ya vive en el DOM en todo
+  // momento, solo cambia si se muestra); en viewport angosto usa el
+  // Offcanvas nativo de Bootstrap (ya cargado por CDN en todo el sitio) —
+  // no había ningún componente de panel lateral ocultable ya construido en
+  // el proyecto, así que se usa el de Bootstrap en vez de inventar uno.
+  (function () {
+    const btn = document.getElementById('btnToggleTemario');
+    const grid = document.querySelector('.pf-detalle-grid');
+    const sidebar = document.getElementById('temarioSidebar');
+    if (!btn || !grid || !sidebar) return;
+
+    function esMovil() { return window.matchMedia('(max-width: 900px)').matches; }
+
+    let offcanvasInstancia = null;
+    function offcanvas() {
+      if (!offcanvasInstancia) {
+        sidebar.classList.add('offcanvas', 'offcanvas-end');
+        offcanvasInstancia = new bootstrap.Offcanvas(sidebar);
+      }
+      return offcanvasInstancia;
+    }
+
+    btn.addEventListener('click', function () {
+      if (esMovil()) {
+        offcanvas().toggle();
+        return;
+      }
+      const oculto = grid.classList.toggle('pf-detalle-sin-sidebar');
+      btn.setAttribute('aria-expanded', oculto ? 'false' : 'true');
+    });
+  })();
+
+  // Pestaña "Preguntas y respuestas" — publica sin salir de la página: si ya
+  // hay un tema vinculado a este contexto (curso/evento, ver
+  // TEMA_EXISTENTE_ID), responde ahí directo (foro/backend/responder.php,
+  // sin modificar); si no, crea el tema con ese mismo contenido como post
+  // original (foro/backend/crear_tema_leccion.php) — nunca duplica temas.
+  (function () {
+    const btn = document.getElementById('pfBtnPublicarPregunta');
+    if (!btn) return;
+    const textarea = document.getElementById('pfNuevaPregunta');
+    const msg = document.getElementById('pfPreguntaMsg');
+    let temaExistenteId = <?= json_encode($temaExistenteId) ?>;
+
+    btn.addEventListener('click', async function () {
+      const contenido = textarea.value.trim();
+      if (!contenido) {
+        msg.textContent = 'Escribe algo antes de publicar.';
+        msg.className = 'form-text text-danger mt-1';
+        return;
+      }
+      btn.disabled = true;
+      msg.textContent = '';
+      try {
+        let res;
+        if (temaExistenteId) {
+          res = await fetch('foro/backend/responder.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ tema_id: temaExistenteId, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
+          });
+        } else {
+          res = await fetch('foro/backend/crear_tema_leccion.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ tipo: 'curso', item_id: <?= $cursoId ?>, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
+          });
+        }
+        const data = await res.json();
+        if (!data.success) {
+          msg.textContent = data.message || 'No se pudo publicar, intenta de nuevo.';
+          msg.className = 'form-text text-danger mt-1';
+          btn.disabled = false;
+          return;
+        }
+        if (data.tema_id) temaExistenteId = data.tema_id;
+        textarea.value = '';
+        $.notify('¡Publicado!', { className: 'success', position: 'top right', autoHideDelay: 2500 });
+        window.location.reload();
+      } catch (e) {
+        msg.textContent = 'Error de conexión. Intenta de nuevo.';
+        msg.className = 'form-text text-danger mt-1';
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>

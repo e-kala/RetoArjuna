@@ -180,6 +180,16 @@ $miCalificacion = $usuario ? obtener_calificacion_usuario($usuario['id'], null, 
 $regaloConfig = $inscrito ? regalo_configuracion_publica(null, $eventoId) : null;
 $regaloOpciones = $regaloConfig && $usuario ? regalo_opciones_usuario($regaloConfig, $usuario['id']) : [];
 $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['id'], $regaloConfig['id']) : [];
+
+// Pestaña "Preguntas y respuestas" — ver curso_detalle.php/foro_temas_de()
+// para el criterio completo.
+require_once __DIR__ . '/../foro/backend/foro_helpers.php';
+$temasEvento = foro_temas_de(null, $eventoId, null, $usuario);
+$stmtTemaExistente = $conn->prepare('SELECT id FROM foro_temas WHERE evento_id = ? AND leccion_id IS NULL LIMIT 1');
+$stmtTemaExistente->bind_param('i', $eventoId);
+$stmtTemaExistente->execute();
+$temaExistenteId = (int) ($stmtTemaExistente->get_result()->fetch_assoc()['id'] ?? 0) ?: null;
+$stmtTemaExistente->close();
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=eventos" class="d-inline-block mb-3">&larr; Volver a eventos</a>
@@ -201,6 +211,11 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     <h1 class="mb-0"><?= htmlspecialchars($evento['titulo']) ?></h1>
     <?php if ($esAdminEvento): ?>
       <a href="panel/admin/contenido_form.php?tipo=evento&id=<?= $eventoId ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
+    <?php endif; ?>
+    <?php if ($lecciones): ?>
+      <button type="button" class="btn btn-outline-secondary btn-sm ms-auto pf-detalle-toggle-sidebar" id="btnToggleTemario" aria-expanded="true" aria-controls="temarioSidebar">
+        <i class="bi bi-list-ul"></i> Contenido del evento
+      </button>
     <?php endif; ?>
   </div>
   <?php if ($resumenCalificacion['total'] > 0): ?>
@@ -233,7 +248,6 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
       👥 <?= $cupoRestante ?> de <?= (int) $evento['cupo_maximo'] ?> lugares disponibles
     </p>
   <?php endif; ?>
-  <div class="pf-contenido-html"><?= (string) $evento['descripcion'] ?></div>
   <?php if (!$inscrito): ?>
   <p>
     <?php if ($accesoGratisPorMembresia || $soloMiembros): ?>
@@ -252,10 +266,32 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     <?php endif; ?>
   </p>
   <?php endif; ?>
+    </div>
+  </div>
 
-  <?php if ($evento['foro_url']): ?>
-    <a href="<?= htmlspecialchars(navbar_href($evento['foro_url'], '../')) ?>" target="_blank" class="btn btn-outline-secondary btn-sm mb-3">Discutir en el foro</a>
-  <?php endif; ?>
+  <div class="pf-detalle-grid">
+    <div class="pf-detalle-main">
+      <ul class="nav nav-tabs pf-detalle-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-descripcion" type="button">Descripción</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($temasEvento): ?><span class="badge bg-secondary"><?= count($temasEvento) ?></span><?php endif; ?></button></li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-descripcion">
+          <div class="pf-contenido-html"><?= (string) $evento['descripcion'] ?></div>
+        </div>
+        <div class="tab-pane fade" id="tab-preguntas">
+          <?php
+          $temasPregyresp = $temasEvento;
+          $temaExistenteIdPregyresp = $temaExistenteId;
+          $verForoUrlPregyresp = 'foro/evento.php?evento_id=' . $eventoId;
+          require __DIR__ . '/_preguntas_respuestas.php';
+          ?>
+        </div>
+      </div>
+
+      <?php if ($evento['foro_url']): ?>
+        <a href="<?= htmlspecialchars(navbar_href($evento['foro_url'], '../')) ?>" target="_blank" class="btn btn-outline-secondary btn-sm mb-3 mt-2">Discutir en el foro</a>
+      <?php endif; ?>
 
   <?php if ($regaloConfig && $regaloOpciones): ?>
     <button type="button" class="btn btn-sm mb-3" style="background:#fff8ec;border:1px solid #f7931e;color:#a35b00;" data-bs-toggle="modal" data-bs-target="#modalRegalarEvento">🎁 Regalar este evento</button>
@@ -356,36 +392,38 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
     <?php endif; ?>
   </div>
     </div>
-  </div>
 
-  <div id="eventoContenido">
-  <?php if ($lecciones): ?>
-    <h2 class="h5 mt-4">Contenido</h2>
-    <div class="list-group mb-4">
-      <?php foreach ($lecciones as $leccion): ?>
-        <?php $desbloqueada = $tieneAccesoLecciones || (int) $leccion['vista_previa'] === 1; ?>
-        <?php if ($desbloqueada): ?>
-          <div class="list-group-item d-flex justify-content-between align-items-center">
-            <a href="?action=leccion&id=<?= (int) $leccion['id'] ?>" class="text-decoration-none flex-grow-1">
-              <?php if (!empty($completadas[(int) $leccion['id']])): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
-              <?= htmlspecialchars($leccion['titulo']) ?>
-            </a>
-            <?php if ($esAdminEvento && $leccion['estado_publicacion'] === 'borrador'): ?><span class="badge bg-secondary me-2">Borrador</span><?php endif; ?>
-            <?php if (!$tieneAccesoLecciones): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
-            <?php if ($tieneAccesoLecciones): ?>
-              <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/evento.php?evento_id=' . $eventoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
-                <i class="bi bi-chat-square-text"></i>
-              </a>
-            <?php endif; ?>
+    <?php if ($lecciones): ?>
+      <aside class="pf-detalle-sidebar" id="temarioSidebar">
+        <h2 class="h6 fw-bold mb-3">Contenido del evento</h2>
+        <div id="eventoContenido">
+          <div class="list-group">
+            <?php foreach ($lecciones as $leccion): ?>
+              <?php $desbloqueada = $tieneAccesoLecciones || (int) $leccion['vista_previa'] === 1; ?>
+              <?php if ($desbloqueada): ?>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                  <a href="?action=leccion&id=<?= (int) $leccion['id'] ?>" class="text-decoration-none flex-grow-1">
+                    <?php if (!empty($completadas[(int) $leccion['id']])): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
+                    <?= htmlspecialchars($leccion['titulo']) ?>
+                  </a>
+                  <?php if ($esAdminEvento && $leccion['estado_publicacion'] === 'borrador'): ?><span class="badge bg-secondary me-2">Borrador</span><?php endif; ?>
+                  <?php if (!$tieneAccesoLecciones): ?><span class="badge bg-info me-2">Demo</span><?php endif; ?>
+                  <?php if ($tieneAccesoLecciones): ?>
+                    <a href="<?= $leccion['foro_url'] ? htmlspecialchars(navbar_href($leccion['foro_url'], '../')) : 'foro/evento.php?evento_id=' . $eventoId . '&leccion_id=' . (int) $leccion['id'] ?>" class="text-muted small" title="Discutir esta lección en el foro">
+                      <i class="bi bi-chat-square-text"></i>
+                    </a>
+                  <?php endif; ?>
+                </div>
+              <?php else: ?>
+                <span class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                  <span><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($leccion['titulo']) ?></span>
+                </span>
+              <?php endif; ?>
+            <?php endforeach; ?>
           </div>
-        <?php else: ?>
-          <span class="list-group-item d-flex justify-content-between align-items-center text-muted">
-            <span><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($leccion['titulo']) ?></span>
-          </span>
-        <?php endif; ?>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
+        </div>
+      </aside>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -597,3 +635,107 @@ $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['
   });
 </script>
 <?php endif; ?>
+
+<style>
+  /* Ver curso_detalle.php para el mismo sistema — layout tipo Udemy con
+     temario ocultable. */
+  .pf-detalle-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+  .pf-detalle-grid.pf-detalle-sin-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .pf-detalle-grid.pf-detalle-sin-sidebar > .pf-detalle-sidebar { display: none; }
+  .pf-detalle-sidebar {
+    background: var(--pf-surface, #fff);
+    border: 1px solid var(--pf-line, #e5e0d8);
+    border-radius: var(--pf-radius-lg, 12px);
+    padding: 18px;
+    position: sticky;
+    top: 90px;
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+  }
+  @media (max-width: 900px) {
+    .pf-detalle-grid { grid-template-columns: minmax(0, 1fr); }
+    .pf-detalle-sidebar { position: static; max-height: none; }
+  }
+  .pf-detalle-tabs .nav-link { font-weight: 700; color: var(--pf-muted, #6c757d); }
+  .pf-detalle-tabs .nav-link.active { color: var(--pf-ink, #212529); border-bottom: 2px solid #f7931e; }
+</style>
+<script>
+  (function () {
+    const btn = document.getElementById('btnToggleTemario');
+    const grid = document.querySelector('.pf-detalle-grid');
+    const sidebar = document.getElementById('temarioSidebar');
+    if (!btn || !grid || !sidebar) return;
+
+    function esMovil() { return window.matchMedia('(max-width: 900px)').matches; }
+
+    let offcanvasInstancia = null;
+    function offcanvas() {
+      if (!offcanvasInstancia) {
+        sidebar.classList.add('offcanvas', 'offcanvas-end');
+        offcanvasInstancia = new bootstrap.Offcanvas(sidebar);
+      }
+      return offcanvasInstancia;
+    }
+
+    btn.addEventListener('click', function () {
+      if (esMovil()) {
+        offcanvas().toggle();
+        return;
+      }
+      const oculto = grid.classList.toggle('pf-detalle-sin-sidebar');
+      btn.setAttribute('aria-expanded', oculto ? 'false' : 'true');
+    });
+  })();
+
+  // Pestaña "Preguntas y respuestas" — ver curso_detalle.php para el mismo
+  // mecanismo (crea el tema si no existe, o responde al que ya existe).
+  (function () {
+    const btn = document.getElementById('pfBtnPublicarPregunta');
+    if (!btn) return;
+    const textarea = document.getElementById('pfNuevaPregunta');
+    const msg = document.getElementById('pfPreguntaMsg');
+    let temaExistenteId = <?= json_encode($temaExistenteId) ?>;
+
+    btn.addEventListener('click', async function () {
+      const contenido = textarea.value.trim();
+      if (!contenido) {
+        msg.textContent = 'Escribe algo antes de publicar.';
+        msg.className = 'form-text text-danger mt-1';
+        return;
+      }
+      btn.disabled = true;
+      msg.textContent = '';
+      try {
+        let res;
+        if (temaExistenteId) {
+          res = await fetch('foro/backend/responder.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ tema_id: temaExistenteId, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
+          });
+        } else {
+          res = await fetch('foro/backend/crear_tema_leccion.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ tipo: 'evento', item_id: <?= $eventoId ?>, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
+          });
+        }
+        const data = await res.json();
+        if (!data.success) {
+          msg.textContent = data.message || 'No se pudo publicar, intenta de nuevo.';
+          msg.className = 'form-text text-danger mt-1';
+          btn.disabled = false;
+          return;
+        }
+        if (data.tema_id) temaExistenteId = data.tema_id;
+        textarea.value = '';
+        $.notify('¡Publicado!', { className: 'success', position: 'top right', autoHideDelay: 2500 });
+        window.location.reload();
+      } catch (e) {
+        msg.textContent = 'Error de conexión. Intenta de nuevo.';
+        msg.className = 'form-text text-danger mt-1';
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>

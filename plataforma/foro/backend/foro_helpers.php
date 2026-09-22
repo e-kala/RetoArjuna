@@ -913,6 +913,53 @@ function foro_lista_eventos_activos(): array
     return $conn->query('SELECT id, titulo FROM eventos WHERE activo = 1 ORDER BY titulo ASC')->fetch_all(MYSQLI_ASSOC);
 }
 
+/**
+ * Temas visibles de un curso/evento (opcionalmente acotados a una lección
+ * puntual) — misma query que ya vivía duplicada casi igual dentro de
+ * foro/curso.php y foro/evento.php, extraída aquí para poder reusarla
+ * también desde content/curso_detalle.php, content/evento_detalle.php y
+ * content/leccion.php (pestaña "Preguntas y respuestas" embebida). Mismo
+ * criterio de visibilidad/oculto que el resto del foro
+ * (foro_visibilidad_sql()/foro_oculto_filtro_sql()), sin el selector de
+ * orden ni el filtro de oculto por admin de las páginas completas del
+ * foro — siempre "más recientes primero", fijados arriba.
+ */
+function foro_temas_de(?int $cursoId, ?int $eventoId, ?int $leccionId, ?array $usuarioActual, int $limite = 20): array
+{
+    global $conn;
+    if (!$cursoId && !$eventoId) {
+        return [];
+    }
+    [$uid1, $uid2, $esAdmin, $esAdmin2] = foro_visibilidad_binds($usuarioActual);
+    $visSql = foro_visibilidad_sql();
+    $columna = $cursoId ? 'curso_id' : 'evento_id';
+    $padreId = $cursoId ?: $eventoId;
+
+    // Sin $leccionId se filtra "leccion_id IS NULL" explícito (no solo "sin
+    // filtro de lección") — si no, los temas ligados a UNA lección puntual
+    // se colaban también en la pestaña "Preguntas y respuestas" del
+    // curso/evento en general, mezclando dos contextos que el usuario
+    // espera separados (confirmado con un caso real: una pregunta hecha
+    // desde leccion.php aparecía también en curso_detalle.php).
+    $sql = "SELECT t.id, t.usuario_id, t.titulo, t.fijado, t.cerrado, t.oculto, t.respuestas_count, t.vistas,
+                   t.ultima_respuesta_at, t.created_at, u.username_cache
+            FROM foro_temas t
+            JOIN usuarios_perfil u ON u.id = t.usuario_id
+            WHERE t.{$columna} = ?" . ($leccionId ? ' AND t.leccion_id = ?' : ' AND t.leccion_id IS NULL') . " AND {$visSql}
+            ORDER BY t.fijado DESC, t.ultima_respuesta_at DESC
+            LIMIT ?";
+    $stmt = $conn->prepare($sql);
+    if ($leccionId) {
+        $stmt->bind_param('iiiiiii', $padreId, $leccionId, $uid1, $uid2, $esAdmin, $esAdmin2, $limite);
+    } else {
+        $stmt->bind_param('iiiiii', $padreId, $uid1, $uid2, $esAdmin, $esAdmin2, $limite);
+    }
+    $stmt->execute();
+    $filas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $filas;
+}
+
 /** Lecciones de un curso o evento (mutuamente excluyentes), para el selector de lección. */
 function foro_lecciones_de(?int $cursoId, ?int $eventoId): array
 {

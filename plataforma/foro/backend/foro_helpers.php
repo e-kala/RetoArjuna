@@ -914,6 +914,143 @@ function foro_lista_eventos_activos(): array
 }
 
 /**
+ * Crea el tema "ancla" de un curso/evento/lección — nace oculto (oculto=1),
+ * sin ningún comentario real todavía (título = el del curso/evento/lección,
+ * contenido vacío), para que exista SIEMPRE exactamente un tema propio y
+ * aislado por contexto desde el momento en que ese curso/evento/lección se
+ * crea en el admin (ver contenido_form.php/leccion_form.php) — a diferencia
+ * del mecanismo lazy anterior (crear_tema_leccion.php creaba el tema recién
+ * al primer comentario), así nunca hay que decidir "cuál de varios temas
+ * históricos es el real" para ese contexto. foro_tema_ancla_de() es quien
+ * más adelante lo busca; foro_activar_tema_ancla() lo saca de oculto en
+ * cuanto llega la primera respuesta real (a menos que un admin ya lo haya
+ * ocultado a mano — ver ese helper).
+ */
+function foro_crear_tema_ancla(?int $cursoId, ?int $eventoId, ?int $leccionId, string $titulo, int $usuarioCreadorId): ?int
+{
+    global $conn;
+    if (!$cursoId && !$eventoId) {
+        return null;
+    }
+    $categoriaLibreId = foro_resolver_o_crear_categoria_libre('General', $usuarioCreadorId);
+    if (!$categoriaLibreId) {
+        return null;
+    }
+    $slug = foro_slug_unico(foro_slugify($titulo));
+    $stmt = $conn->prepare(
+        'INSERT INTO foro_temas (curso_id, evento_id, categoria_libre_id, leccion_id, usuario_id, titulo, slug, contenido, visibilidad, oculto, ultima_respuesta_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, "", "publico", 1, NOW())'
+    );
+    $stmt->bind_param('iiiiiss', $cursoId, $eventoId, $categoriaLibreId, $leccionId, $usuarioCreadorId, $titulo, $slug);
+    $stmt->execute();
+    $temaId = $stmt->insert_id;
+    $stmt->close();
+    return $temaId ?: null;
+}
+
+/**
+ * El tema ancla de un curso/evento (+ lección, si aplica) — el que crea
+ * foro_crear_tema_ancla() al nacer ese contenido. Un curso/evento/lección
+ * creado ANTES de que existiera este mecanismo puede no tener uno todavía;
+ * en ese caso el llamador decide qué hacer (ver crear_tema_leccion.php,
+ * que cae de vuelta al comportamiento lazy anterior como red de seguridad).
+ * Sin filtro de oculto/visibilidad a propósito — el propio tema, oculto o
+ * no, es el que hay que encontrar para poder activarlo o mostrarlo a un
+ * admin.
+ *
+ * $foroUrlLegacy: el campo `foro_url` de ese mismo curso/evento/lección
+ * (cursos.foro_url / eventos.foro_url / lecciones.foro_url) — un admin lo
+ * llena a mano con el link a un tema del foro YA EXISTENTE (ver
+ * leccion_form.php/contenido_form.php), completamente aparte de
+ * foro_temas.curso_id/evento_id/leccion_id. Un curso/evento/lección con ese
+ * campo lleno pero sin ningún tema encontrado por las columnas de arriba
+ * (nunca tuvo su tema ancla creado, o el vínculo real vive solo en este
+ * campo de texto) usa ese tema como si fuera el ancla — si no, la pestaña
+ * embebida se ve vacía aunque el botón "Discutir en el foro" (que sí lee
+ * foro_url directo) lleve a un tema con respuestas reales.
+ */
+function foro_tema_ancla_de(?int $cursoId, ?int $eventoId, ?int $leccionId, ?string $foroUrlLegacy = null): ?int
+{
+    global $conn;
+    if (!$cursoId && !$eventoId) {
+        return null;
+    }
+    $columna = $cursoId ? 'curso_id' : 'evento_id';
+    $padreId = $cursoId ?: $eventoId;
+    if ($leccionId) {
+        $stmt = $conn->prepare("SELECT id FROM foro_temas WHERE {$columna} = ? AND leccion_id = ? ORDER BY id ASC LIMIT 1");
+        $stmt->bind_param('ii', $padreId, $leccionId);
+    } else {
+        $stmt = $conn->prepare("SELECT id FROM foro_temas WHERE {$columna} = ? AND leccion_id IS NULL ORDER BY id ASC LIMIT 1");
+        $stmt->bind_param('i', $padreId);
+    }
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($fila) {
+        return (int) $fila['id'];
+    }
+
+    if ($foroUrlLegacy && preg_match('/[?&]id=(\d+)/', $foroUrlLegacy, $m)) {
+        $temaIdLegacy = (int) $m[1];
+        $stmt = $conn->prepare('SELECT id FROM foro_temas WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $temaIdLegacy);
+        $stmt->execute();
+        $filaLegacy = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($filaLegacy) {
+            return (int) $filaLegacy['id'];
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Saca de oculto un tema ancla en cuanto recibe su primera respuesta real
+ * (ver responder.php) — "a menos que un admin ya lo haya ocultado
+ * explícitamente" se cumple solo actualizando el que sigue en oculto=1 (el
+ * estado de nacimiento); si un admin ya lo ocultó a mano después de haberlo
+ * visto activo, ese UPDATE ya lo dejó en un estado que esta función no toca
+ * (no hay forma de distinguir "nunca se activó" de "un admin lo re-ocultó"
+ * sin una columna aparte, así que se asume que un tema con respuestas ya
+ * activado antes no vuelve a pasar por aquí en la práctica).
+ */
+function foro_activar_tema_ancla(int $temaId): void
+{
+    global $conn;
+    $stmt = $conn->prepare('UPDATE foro_temas SET oculto = 0 WHERE id = ? AND oculto = 1');
+    $stmt->bind_param('i', $temaId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Respuestas de un tema — usado por la pestaña "Preguntas y respuestas"
+ * embebida (content/curso_detalle.php/evento_detalle.php/leccion.php), que
+ * muestra las respuestas del tema ancla directo ahí en vez de una lista de
+ * temas para hacer clic (ver foro_tema_ancla_de()). Mismo criterio de
+ * tema.php: nunca las eliminadas.
+ */
+function foro_respuestas_de(int $temaId, int $limite = 50): array
+{
+    global $conn;
+    $stmt = $conn->prepare(
+        "SELECT r.id, r.usuario_id, r.contenido, r.created_at, u.username_cache
+         FROM foro_respuestas r
+         JOIN usuarios_perfil u ON u.id = r.usuario_id
+         WHERE r.tema_id = ? AND r.eliminado_en IS NULL
+         ORDER BY r.created_at ASC
+         LIMIT ?"
+    );
+    $stmt->bind_param('ii', $temaId, $limite);
+    $stmt->execute();
+    $filas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $filas;
+}
+
+/**
  * Temas visibles de un curso/evento (opcionalmente acotados a una lección
  * puntual) — misma query que ya vivía duplicada casi igual dentro de
  * foro/curso.php y foro/evento.php, extraída aquí para poder reusarla

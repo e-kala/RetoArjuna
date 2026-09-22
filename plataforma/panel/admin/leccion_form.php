@@ -7,6 +7,7 @@
 // escribe y se le insertan cosas", tiene su propia estructura de preguntas.
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
+require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
 require_role('admin');
 
 // Log de diagnóstico temporal — "vista previa"/"guardar borrador"/
@@ -120,8 +121,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
             $stmt->bind_param('issssiiiss', $padreId, $titulo, $descripcion, $tipo, $contenidoTexto, $orden, $duracion, $vistaPrevia, $foroUrl, $estadoPublicacion);
         }
         if ($stmt->execute()) {
+            $esNuevaLeccion = !$id;
             $leccionId = $id ?: $stmt->insert_id;
             $stmt->close();
+
+            // Tema "ancla" de la lección en el foro — ver la misma nota junto
+            // al INSERT de cursos/eventos en contenido_form.php.
+            if ($esNuevaLeccion) {
+                foro_crear_tema_ancla($esEvento ? null : $padreId, $esEvento ? $padreId : null, $leccionId, $titulo, (int) current_user()['id']);
+            }
 
             // Los audios protegidos se suben DESDE el editor (ver
             // backend/leccion_audio_embed_subir.php) antes incluso de que

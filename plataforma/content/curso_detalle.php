@@ -131,17 +131,14 @@ $regaloConfig = $tieneAcceso ? regalo_configuracion_publica($cursoId, null) : nu
 $regaloOpciones = $regaloConfig && $usuario ? regalo_opciones_usuario($regaloConfig, $usuario['id']) : [];
 $regaloMisEnlaces = $regaloConfig && $usuario ? regalos_generados_por($usuario['id'], $regaloConfig['id']) : [];
 
-// Pestaña "Preguntas y respuestas" (mockup del cliente: en vez de comentarios
-// propios, muestra los temas del FORO ya vinculados a este curso, con botón
-// "Ver todo en el foro"). Sin lección específica aquí (ver leccion.php para
-// la variante acotada a una lección) — ver foro_temas_de() en foro_helpers.php.
+// Pestaña "Preguntas y respuestas": muestra las respuestas del tema "ancla"
+// propio de este curso (ver foro_crear_tema_ancla()/foro_tema_ancla_de() en
+// foro_helpers.php — un solo tema aislado, nunca la mezcla de todos los
+// temas históricos que comparten curso_id). Sin lección específica aquí (ver
+// leccion.php para la variante acotada a una lección).
 require_once __DIR__ . '/../foro/backend/foro_helpers.php';
-$temasCurso = foro_temas_de($cursoId, null, null, $usuario);
-$stmtTemaExistente = $conn->prepare('SELECT id FROM foro_temas WHERE curso_id = ? AND leccion_id IS NULL LIMIT 1');
-$stmtTemaExistente->bind_param('i', $cursoId);
-$stmtTemaExistente->execute();
-$temaExistenteId = (int) ($stmtTemaExistente->get_result()->fetch_assoc()['id'] ?? 0) ?: null;
-$stmtTemaExistente->close();
+$temaExistenteId = foro_tema_ancla_de($cursoId, null, null, $curso['foro_url']);
+$respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
   <a href="?action=cursos" class="d-inline-block mb-3">&larr; Volver al catálogo</a>
@@ -213,7 +210,7 @@ $stmtTemaExistente->close();
     <div class="pf-detalle-main">
       <ul class="nav nav-tabs pf-detalle-tabs mb-3">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-descripcion" type="button">Descripción</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($temasCurso): ?><span class="badge bg-secondary"><?= count($temasCurso) ?></span><?php endif; ?></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($respuestasCurso): ?><span class="badge bg-secondary"><?= count($respuestasCurso) ?></span><?php endif; ?></button></li>
       </ul>
       <div class="tab-content">
         <div class="tab-pane fade show active" id="tab-descripcion">
@@ -221,7 +218,7 @@ $stmtTemaExistente->close();
         </div>
         <div class="tab-pane fade" id="tab-preguntas">
           <?php
-          $temasPregyresp = $temasCurso;
+          $respuestasPregyresp = $respuestasCurso;
           $temaExistenteIdPregyresp = $temaExistenteId;
           $verForoUrlPregyresp = 'foro/curso.php?curso_id=' . $cursoId;
           require __DIR__ . '/_preguntas_respuestas.php';
@@ -313,10 +310,11 @@ $stmtTemaExistente->close();
       <div class="list-group">
         <?php foreach ($lecciones as $leccion): ?>
           <?php $desbloqueada = $tieneAcceso || (int) $leccion['vista_previa'] === 1; ?>
+          <?php $completada = !empty($completadas[(int) $leccion['id']]); ?>
           <?php if ($desbloqueada): ?>
-            <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="list-group-item d-flex justify-content-between align-items-center<?= $completada ? ' pf-leccion-completada' : '' ?>">
               <a href="?action=leccion&id=<?= (int) $leccion['id'] ?>" class="text-decoration-none flex-grow-1">
-                <?php if (!empty($completadas[(int) $leccion['id']])): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
+                <?php if ($completada): ?><i class="bi bi-check-circle-fill text-success"></i><?php endif; ?>
                 <?= htmlspecialchars($leccion['titulo']) ?>
               </a>
               <?php if ($esAdminCurso && $leccion['estado_publicacion'] === 'borrador'): ?><span class="badge bg-secondary me-2">Borrador</span><?php endif; ?>
@@ -486,6 +484,10 @@ $stmtTemaExistente->close();
   }
   .pf-detalle-tabs .nav-link { font-weight: 700; color: var(--pf-muted, #6c757d); }
   .pf-detalle-tabs .nav-link.active { color: var(--pf-ink, #212529); border-bottom: 2px solid #f7931e; }
+  /* Lección completada en el temario lateral — mismo verde que el check,
+     para que resalte de un vistazo sin tener que leer el ícono. */
+  .pf-leccion-completada { background: rgba(25,135,84,0.06); }
+  .pf-leccion-completada a { color: var(--pf-ink, #212529); }
 </style>
 <script>
   // Botón "Contenido del curso": en desktop solo agrega/quita la clase que
@@ -521,17 +523,17 @@ $stmtTemaExistente->close();
     });
   })();
 
-  // Pestaña "Preguntas y respuestas" — publica sin salir de la página: si ya
-  // hay un tema vinculado a este contexto (curso/evento, ver
-  // TEMA_EXISTENTE_ID), responde ahí directo (foro/backend/responder.php,
-  // sin modificar); si no, crea el tema con ese mismo contenido como post
-  // original (foro/backend/crear_tema_leccion.php) — nunca duplica temas.
+  // Pestaña "Preguntas y respuestas" — publica sin salir de la página,
+  // siempre vía crear_tema_leccion.php (nunca responder.php directo): el
+  // tema "ancla" de este curso nace OCULTO (ver foro_crear_tema_ancla()), y
+  // responder.php rechaza responder a un tema oculto para cualquier
+  // no-admin — crear_tema_leccion.php es quien sabe activarlo y guardar el
+  // contenido como su primera respuesta.
   (function () {
     const btn = document.getElementById('pfBtnPublicarPregunta');
     if (!btn) return;
     const textarea = document.getElementById('pfNuevaPregunta');
     const msg = document.getElementById('pfPreguntaMsg');
-    let temaExistenteId = <?= json_encode($temaExistenteId) ?>;
 
     btn.addEventListener('click', async function () {
       const contenido = textarea.value.trim();
@@ -543,20 +545,11 @@ $stmtTemaExistente->close();
       btn.disabled = true;
       msg.textContent = '';
       try {
-        let res;
-        if (temaExistenteId) {
-          res = await fetch('foro/backend/responder.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ tema_id: temaExistenteId, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
-          });
-        } else {
-          res = await fetch('foro/backend/crear_tema_leccion.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ tipo: 'curso', item_id: <?= $cursoId ?>, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
-          });
-        }
+        const res = await fetch('foro/backend/crear_tema_leccion.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ tipo: 'curso', item_id: <?= $cursoId ?>, contenido, csrf_token: <?= json_encode(csrf_token()) ?> }),
+        });
         const data = await res.json();
         if (!data.success) {
           msg.textContent = data.message || 'No se pudo publicar, intenta de nuevo.';
@@ -564,7 +557,6 @@ $stmtTemaExistente->close();
           btn.disabled = false;
           return;
         }
-        if (data.tema_id) temaExistenteId = data.tema_id;
         textarea.value = '';
         $.notify('¡Publicado!', { className: 'success', position: 'top right', autoHideDelay: 2500 });
         window.location.reload();

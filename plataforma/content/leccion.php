@@ -124,6 +124,22 @@ foreach ($hermanas as $i => $h) {
 $anterior = $indiceActual !== null && $indiceActual > 0 ? $hermanas[$indiceActual - 1] : null;
 $siguiente = $indiceActual !== null && $indiceActual < count($hermanas) - 1 ? $hermanas[$indiceActual + 1] : null;
 
+// Progreso de TODAS las hermanas (no solo la actual) — para marcar cada
+// lección ya completada en el temario lateral, mismo criterio que
+// curso_detalle.php/evento_detalle.php.
+$completadasHermanas = [];
+if ($usuario && $hermanas) {
+    $stmt = $esDeCurso
+        ? $conn->prepare('SELECT leccion_id FROM progreso WHERE usuario_id = ? AND curso_id = ? AND completado = 1')
+        : $conn->prepare('SELECT leccion_id FROM progreso WHERE usuario_id = ? AND evento_id = ? AND completado = 1');
+    $stmt->bind_param('ii', $usuario['id'], $padreId);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $completadasHermanas[(int) $row['leccion_id']] = true;
+    }
+    $stmt->close();
+}
+
 $completada = false;
 if ($usuario) {
     $stmt = $conn->prepare('SELECT completado FROM progreso WHERE usuario_id = ? AND leccion_id = ?');
@@ -169,43 +185,64 @@ if ($leccion['tipo_contenido'] === 'quiz' && $tieneAcceso) {
 require_once __DIR__ . '/../foro/backend/foro_helpers.php';
 $cursoIdLeccion = $esDeCurso ? $padreId : null;
 $eventoIdLeccion = $esDeCurso ? null : $padreId;
-$temasLeccion = foro_temas_de($cursoIdLeccion, $eventoIdLeccion, $leccionId, $usuario);
-$columnaLeccion = $esDeCurso ? 'curso_id' : 'evento_id';
-$stmtTemaExistente = $conn->prepare("SELECT id FROM foro_temas WHERE {$columnaLeccion} = ? AND leccion_id = ? LIMIT 1");
-$stmtTemaExistente->bind_param('ii', $padreId, $leccionId);
-$stmtTemaExistente->execute();
-$temaExistenteId = (int) ($stmtTemaExistente->get_result()->fetch_assoc()['id'] ?? 0) ?: null;
-$stmtTemaExistente->close();
+$temaExistenteId = foro_tema_ancla_de($cursoIdLeccion, $eventoIdLeccion, $leccionId, $leccion['foro_url']);
+$respuestasLeccion = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
 ?>
-<div class="container" style="margin-top: 143px; margin-bottom: 60px;">
-  <a href="?action=<?= $volverAccion ?>&slug=<?= urlencode($padreSlug) ?>" class="d-inline-block mb-3">&larr; <?= htmlspecialchars($padreTitulo) ?></a>
-  <?php if ($leccion['estado_publicacion'] === 'borrador'): ?>
-    <div class="alert alert-warning">Estás viendo un borrador (vista previa de admin) — los alumnos todavía no pueden ver esta lección.</div>
-  <?php endif; ?>
-  <div class="d-flex align-items-center flex-wrap gap-2">
-    <h1 class="h3 mb-0"><?= htmlspecialchars($leccion['titulo']) ?></h1>
-    <?php if ($esAdmin): ?>
-      <?php $parametroPadre = $leccion['evento_id'] ? 'evento_id=' . (int) $leccion['evento_id'] : 'curso_id=' . (int) $leccion['curso_id']; ?>
-      <a href="panel/admin/leccion_form.php?<?= $parametroPadre ?>&id=<?= $leccionId ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
+<?php
+$totalHermanas = count($hermanas);
+$totalCompletadas = count($completadasHermanas);
+$pctProgreso = $totalHermanas > 0 ? round($totalCompletadas / $totalHermanas * 100) : 0;
+?>
+<div class="pf-leccion-page">
+  <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
+    <a href="?action=<?= $volverAccion ?>&slug=<?= urlencode($padreSlug) ?>" class="pf-leccion-volver d-inline-flex align-items-center gap-1 mb-3">
+      <i class="bi bi-arrow-left"></i> <?= htmlspecialchars($padreTitulo) ?>
+    </a>
+    <?php if ($leccion['estado_publicacion'] === 'borrador'): ?>
+      <div class="alert alert-warning">Estás viendo un borrador (vista previa de admin) — los alumnos todavía no pueden ver esta lección.</div>
     <?php endif; ?>
-    <?php if ($hermanas): ?>
-      <button type="button" class="btn btn-outline-secondary btn-sm ms-auto pf-detalle-toggle-sidebar" id="btnToggleTemario" aria-expanded="true" aria-controls="temarioSidebar">
-        <i class="bi bi-list-ul"></i> Contenido
-      </button>
-    <?php endif; ?>
-  </div>
 
-  <div class="pf-detalle-grid">
-    <div class="pf-detalle-main">
-      <ul class="nav nav-tabs pf-detalle-tabs mb-3">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-descripcion" type="button">Contenido</button></li>
-        <?php if ($tieneAcceso || $esDemo): ?>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($temasLeccion): ?><span class="badge bg-secondary"><?= count($temasLeccion) ?></span><?php endif; ?></button></li>
-        <?php endif; ?>
-      </ul>
-      <div class="tab-content">
-        <div class="tab-pane fade show active" id="tab-descripcion">
-          <div class="my-2">
+    <div class="pf-leccion-header">
+      <div class="d-flex align-items-start flex-wrap gap-3">
+        <div class="flex-grow-1">
+          <?php if ($totalHermanas > 0): ?>
+            <div class="pf-leccion-header-eyebrow">Lección <?= ($indiceActual ?? 0) + 1 ?> de <?= $totalHermanas ?></div>
+          <?php endif; ?>
+          <h1 class="pf-leccion-titulo"><?= htmlspecialchars($leccion['titulo']) ?><?php if ($completada): ?> <i class="bi bi-check-circle-fill text-success" title="Completada"></i><?php endif; ?></h1>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <?php if ($esAdmin): ?>
+            <?php $parametroPadre = $leccion['evento_id'] ? 'evento_id=' . (int) $leccion['evento_id'] : 'curso_id=' . (int) $leccion['curso_id']; ?>
+            <a href="panel/admin/leccion_form.php?<?= $parametroPadre ?>&id=<?= $leccionId ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
+          <?php endif; ?>
+          <?php if ($hermanas): ?>
+            <button type="button" class="btn btn-outline-secondary btn-sm pf-detalle-toggle-sidebar" id="btnToggleTemario" aria-expanded="true" aria-controls="temarioSidebar">
+              <i class="bi bi-list-ul"></i> Contenido
+            </button>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php if ($totalHermanas > 0): ?>
+        <div class="pf-leccion-progreso mt-3">
+          <div class="progress" style="height:8px;">
+            <div class="progress-bar" role="progressbar" style="width:<?= $pctProgreso ?>%;background:var(--pf-accent);" aria-valuenow="<?= $pctProgreso ?>" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <span class="pf-leccion-progreso-texto"><?= $totalCompletadas ?> de <?= $totalHermanas ?> lecciones completadas (<?= $pctProgreso ?>%)</span>
+        </div>
+      <?php endif; ?>
+    </div>
+
+    <?php
+    $foroLeccionUrl = $leccion['foro_url']
+        ? navbar_href($leccion['foro_url'], '../')
+        : ($esDeCurso
+            ? 'foro/curso.php?curso_id=' . $padreId . '&leccion_id=' . $leccionId
+            : 'foro/evento.php?evento_id=' . $padreId . '&leccion_id=' . $leccionId);
+    ?>
+    <div class="pf-detalle-grid">
+      <div class="pf-detalle-main">
+        <div class="pf-leccion-card">
+          <div class="pf-leccion-card-body">
             <?php if ($leccion['tipo_contenido'] === 'quiz'): ?>
               <form id="quizForm">
                 <?php foreach ($preguntasQuiz as $p): ?>
@@ -228,60 +265,67 @@ $stmtTemaExistente->close();
                 <p class="text-muted">Esta lección todavía no tiene contenido.</p>
               <?php endif; ?>
             <?php endif; ?>
+
+            <?php if ($tieneAcceso || $esDemo): ?>
+              <div class="mt-4">
+                <a href="<?= htmlspecialchars($foroLeccionUrl) ?>" class="btn btn-outline-dark btn-sm">
+                  <i class="bi bi-chat-square-text"></i> Discutir esta lección en el foro
+                </a>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($usuario && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
+              <button id="btnCompletar" class="btn pf-btn-completar<?= $completada ? ' pf-btn-completar-hecho' : '' ?> mt-3" <?= $completada ? 'disabled' : '' ?>>
+                <i class="bi <?= $completada ? 'bi-check-circle-fill' : 'bi-circle' ?>"></i>
+                <?= $completada ? 'Lección completada' : 'Marcar como completada' ?>
+              </button>
+            <?php endif; ?>
           </div>
+        </div>
 
-          <?php if ($tieneAcceso || $esDemo): ?>
-            <?php
-            $foroLeccionUrl = $leccion['foro_url']
-                ? navbar_href($leccion['foro_url'], '../')
-                : ($esDeCurso
-                    ? 'foro/curso.php?curso_id=' . $padreId . '&leccion_id=' . $leccionId
-                    : 'foro/evento.php?evento_id=' . $padreId . '&leccion_id=' . $leccionId);
-            ?>
-            <div class="mb-4">
-              <a href="<?= htmlspecialchars($foroLeccionUrl) ?>" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-chat-square-text"></i> Discutir esta lección en el foro
-              </a>
-            </div>
+        <div class="pf-leccion-nav mt-3">
+          <?php if ($anterior): ?>
+            <a class="btn btn-outline-secondary pf-leccion-nav-btn" href="?action=leccion&id=<?= (int) $anterior['id'] ?>">
+              <i class="bi bi-arrow-left"></i> <span class="pf-leccion-nav-label">Anterior</span>
+            </a>
+          <?php else: ?><span></span><?php endif; ?>
+          <?php if ($siguiente): ?>
+            <a class="btn pf-leccion-nav-btn pf-leccion-nav-siguiente" href="?action=leccion&id=<?= (int) $siguiente['id'] ?>">
+              <span class="pf-leccion-nav-label">Siguiente</span> <i class="bi bi-arrow-right"></i>
+            </a>
           <?php endif; ?>
-
-          <?php if ($usuario && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
-            <button id="btnCompletar" class="btn btn-outline-success" <?= $completada ? 'disabled' : '' ?>>
-              <?= $completada ? 'Lección completada' : 'Marcar como completada' ?>
-            </button>
-          <?php endif; ?>
-
-          <div class="d-flex justify-content-between mt-4">
-            <?php if ($anterior): ?><a class="btn btn-link" href="?action=leccion&id=<?= (int) $anterior['id'] ?>">&larr; Anterior</a><?php else: ?><span></span><?php endif; ?>
-            <?php if ($siguiente): ?><a class="btn btn-link" href="?action=leccion&id=<?= (int) $siguiente['id'] ?>">Siguiente &rarr;</a><?php endif; ?>
-          </div>
         </div>
 
         <?php if ($tieneAcceso || $esDemo): ?>
-          <div class="tab-pane fade" id="tab-preguntas">
-            <?php
-            $temasPregyresp = $temasLeccion;
-            $temaExistenteIdPregyresp = $temaExistenteId;
-            $verForoUrlPregyresp = $foroLeccionUrl;
-            require __DIR__ . '/_preguntas_respuestas.php';
-            ?>
+          <div class="pf-leccion-card mt-3">
+            <div class="pf-leccion-card-body">
+              <h2 class="h5 fw-bold mb-3"><i class="bi bi-chat-square-text"></i> Preguntas y respuestas <?php if ($respuestasLeccion): ?><span class="badge bg-secondary"><?= count($respuestasLeccion) ?></span><?php endif; ?></h2>
+              <?php
+              $respuestasPregyresp = $respuestasLeccion;
+              $temaExistenteIdPregyresp = $temaExistenteId;
+              $verForoUrlPregyresp = $foroLeccionUrl;
+              require __DIR__ . '/_preguntas_respuestas.php';
+              ?>
+            </div>
           </div>
         <?php endif; ?>
       </div>
-    </div>
 
-    <?php if ($hermanas): ?>
-      <aside class="pf-detalle-sidebar" id="temarioSidebar">
-        <h2 class="h6 fw-bold mb-3"><?= htmlspecialchars($padreTitulo) ?></h2>
-        <div class="list-group">
-          <?php foreach ($hermanas as $h): ?>
-            <a href="?action=leccion&id=<?= (int) $h['id'] ?>" class="list-group-item list-group-item-action<?= (int) $h['id'] === $leccionId ? ' active' : '' ?>">
-              <?= htmlspecialchars($h['titulo']) ?>
-            </a>
-          <?php endforeach; ?>
-        </div>
-      </aside>
-    <?php endif; ?>
+      <?php if ($hermanas): ?>
+        <aside class="pf-detalle-sidebar" id="temarioSidebar">
+          <h2 class="h6 fw-bold mb-3"><?= htmlspecialchars($padreTitulo) ?></h2>
+          <div class="list-group">
+            <?php foreach ($hermanas as $h): ?>
+              <?php $hCompletada = !empty($completadasHermanas[(int) $h['id']]); ?>
+              <a href="?action=leccion&id=<?= (int) $h['id'] ?>" class="list-group-item list-group-item-action<?= (int) $h['id'] === $leccionId ? ' active' : '' ?><?= $hCompletada ? ' pf-leccion-completada' : '' ?>">
+                <i class="bi <?= $hCompletada ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?>"></i>
+                <?= htmlspecialchars($h['titulo']) ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        </aside>
+      <?php endif; ?>
+    </div>
   </div>
 </div>
 
@@ -327,7 +371,8 @@ $stmtTemaExistente->close();
     });
     const data = await res.json();
     if (data.success) {
-      this.textContent = 'Lección completada';
+      this.innerHTML = '<i class="bi bi-check-circle-fill"></i> Lección completada';
+      this.classList.add('pf-btn-completar-hecho');
       this.disabled = true;
     }
   });
@@ -389,14 +434,15 @@ $stmtTemaExistente->close();
   })();
 
   // Pestaña "Preguntas y respuestas" acotada a ESTA lección — ver
-  // curso_detalle.php para el mismo mecanismo.
+  // curso_detalle.php: siempre publica vía crear_tema_leccion.php (nunca
+  // responder.php directo), porque el tema ancla nace oculto y responder.php
+  // no acepta respuestas a un tema oculto para un no-admin.
   <?php if ($tieneAcceso || $esDemo): ?>
   (function () {
     const btn = document.getElementById('pfBtnPublicarPregunta');
     if (!btn) return;
     const textarea = document.getElementById('pfNuevaPregunta');
     const msg = document.getElementById('pfPreguntaMsg');
-    let temaExistenteId = <?= json_encode($temaExistenteId) ?>;
 
     btn.addEventListener('click', async function () {
       const contenido = textarea.value.trim();
@@ -408,26 +454,17 @@ $stmtTemaExistente->close();
       btn.disabled = true;
       msg.textContent = '';
       try {
-        let res;
-        if (temaExistenteId) {
-          res = await fetch('foro/backend/responder.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ tema_id: temaExistenteId, contenido, csrf_token: CSRF_TOKEN }),
-          });
-        } else {
-          res = await fetch('foro/backend/crear_tema_leccion.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              tipo: <?= json_encode($esDeCurso ? 'curso' : 'evento') ?>,
-              item_id: <?= $padreId ?>,
-              leccion_id: <?= $leccionId ?>,
-              contenido,
-              csrf_token: CSRF_TOKEN,
-            }),
-          });
-        }
+        const res = await fetch('foro/backend/crear_tema_leccion.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            tipo: <?= json_encode($esDeCurso ? 'curso' : 'evento') ?>,
+            item_id: <?= $padreId ?>,
+            leccion_id: <?= $leccionId ?>,
+            contenido,
+            csrf_token: CSRF_TOKEN,
+          }),
+        });
         const data = await res.json();
         if (!data.success) {
           msg.textContent = data.message || 'No se pudo publicar, intenta de nuevo.';
@@ -435,7 +472,6 @@ $stmtTemaExistente->close();
           btn.disabled = false;
           return;
         }
-        if (data.tema_id) temaExistenteId = data.tema_id;
         textarea.value = '';
         $.notify('¡Publicado!', { className: 'success', position: 'top right', autoHideDelay: 2500 });
         window.location.reload();
@@ -449,7 +485,6 @@ $stmtTemaExistente->close();
   <?php endif; ?>
 </script>
 <style>
-  /* Ver curso_detalle.php para el mismo sistema. */
   .pf-detalle-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
   .pf-detalle-grid.pf-detalle-sin-sidebar { grid-template-columns: minmax(0, 1fr); }
   .pf-detalle-grid.pf-detalle-sin-sidebar > .pf-detalle-sidebar { display: none; }
@@ -462,12 +497,56 @@ $stmtTemaExistente->close();
     top: 90px;
     max-height: calc(100vh - 110px);
     overflow-y: auto;
+    box-shadow: var(--pf-shadow, 0 8px 24px rgba(35,38,43,0.06));
   }
-  .pf-detalle-sidebar .list-group-item.active { background: #f7931e; border-color: #f7931e; }
+  .pf-detalle-sidebar .list-group-item { border: none; border-radius: var(--pf-radius-md, 10px) !important; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 500; transition: background .15s ease; }
+  .pf-detalle-sidebar .list-group-item:hover { background: var(--pf-bg, #f7f5f0); }
+  .pf-detalle-sidebar .list-group-item.active { background: var(--pf-accent, #f7931e); border-color: var(--pf-accent, #f7931e); color: #fff; }
+  .pf-detalle-sidebar .list-group-item.active i { color: #fff; }
   @media (max-width: 900px) {
     .pf-detalle-grid { grid-template-columns: minmax(0, 1fr); }
     .pf-detalle-sidebar { position: static; max-height: none; }
   }
-  .pf-detalle-tabs .nav-link { font-weight: 700; color: var(--pf-muted, #6c757d); }
-  .pf-detalle-tabs .nav-link.active { color: var(--pf-ink, #212529); border-bottom: 2px solid #f7931e; }
+
+  /* Header de la lección: eyebrow ("Lección X de Y"), título con más peso,
+     y una barra de progreso del curso/evento completo — antes no había
+     ninguna señal de avance dentro de la lección misma, solo en el sidebar. */
+  .pf-leccion-volver { color: var(--pf-muted, #6b7076); text-decoration: none; font-weight: 600; font-size: .92rem; }
+  .pf-leccion-volver:hover { color: var(--pf-accent-ink, #7a4a00); }
+  .pf-leccion-header { margin-bottom: 24px; }
+  .pf-leccion-header-eyebrow { color: var(--pf-accent-ink, #7a4a00); font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .pf-leccion-titulo { font-size: 1.7rem; font-weight: 800; margin: 0; color: var(--pf-ink, #23262b); }
+  .pf-leccion-progreso { display: flex; align-items: center; gap: 12px; }
+  .pf-leccion-progreso .progress { flex-grow: 1; max-width: 320px; border-radius: 999px; background: var(--pf-line, #eae5da); }
+  .pf-leccion-progreso .progress-bar { border-radius: 999px; }
+  .pf-leccion-progreso-texto { font-size: .85rem; color: var(--pf-muted, #6b7076); font-weight: 600; white-space: nowrap; }
+
+  /* Contenido principal en tarjeta con sombra — antes el contenido "flotaba"
+     directo sobre el fondo de la página, sin ningún borde ni profundidad
+     que lo distinguiera. */
+  .pf-leccion-card { background: var(--pf-surface, #fff); border-radius: var(--pf-radius-lg, 20px); box-shadow: var(--pf-shadow, 0 8px 24px rgba(35,38,43,0.06)); overflow: hidden; }
+  .pf-leccion-card-body { padding: 28px; }
+
+  /* Botón "Marcar como completada" — antes era un btn-outline-success chico
+     y discreto, ahora tiene más presencia visual y un estado "hecho" claro. */
+  .pf-btn-completar { background: #fff; border: 2px solid #198754; color: #198754; font-weight: 700; padding: 10px 22px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; transition: all .15s ease; }
+  .pf-btn-completar:hover:not(:disabled) { background: #198754; color: #fff; }
+  .pf-btn-completar-hecho { background: #198754; border-color: #198754; color: #fff; opacity: 1; }
+
+  /* Navegación anterior/siguiente — antes eran btn-link discretos, ahora
+     botones reales con más peso, "Siguiente" con el color de marca para
+     invitar a seguir avanzando. */
+  .pf-leccion-nav { display: flex; justify-content: space-between; gap: 12px; }
+  .pf-leccion-nav-btn { font-weight: 700; padding: 10px 20px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; }
+  .pf-leccion-nav-siguiente { background: var(--pf-accent, #f7931e); border-color: var(--pf-accent, #f7931e); color: #fff; margin-left: auto; }
+  .pf-leccion-nav-siguiente:hover { background: var(--pf-accent-ink, #7a4a00); border-color: var(--pf-accent-ink, #7a4a00); color: #fff; }
+  @media (max-width: 480px) {
+    .pf-leccion-nav-label { display: none; }
+  }
+
+  /* Lección completada en el temario lateral — mismo verde que el check. La
+     lección actual (.active, fondo naranja) no necesita el verde encima: ya
+     es obvio cuál es por estar resaltada de otra forma. */
+  .pf-leccion-completada:not(.active) { background: rgba(25,135,84,0.08); }
+  .pf-leccion-completada:not(.active) { color: var(--pf-ink, #212529); }
 </style>

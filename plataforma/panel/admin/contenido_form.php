@@ -7,6 +7,7 @@
 // que migra los datos en vez de tener que volver a capturarlos aquí.
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
+require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -212,6 +213,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
                 $guardarRegaloConfig($itemId, true);
+                // Tema "ancla" del curso en el foro (ver foro_crear_tema_ancla())
+                // — nace oculto, sin comentarios, para que la pestaña "Preguntas
+                // y respuestas" embebida (content/curso_detalle.php) siempre
+                // tenga exactamente un tema propio y aislado desde que el curso
+                // existe, en vez de crearlo recién al primer comentario.
+                if ($esNuevo) {
+                    foro_crear_tema_ancla($itemId, null, null, $titulo, (int) current_user()['id']);
+                }
                 if ($esNuevo && $activo && !$esAutosave) {
                     notificacion_difundir('nuevo_curso', 'Nuevo curso: ' . $titulo, $descripcion !== '' ? mb_strimwidth(trim(strip_tags($descripcion)), 0, 140, '…') : null, 'index.php?action=curso&slug=' . urlencode($slug));
                 }
@@ -270,6 +279,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
                 $guardarRegaloConfig($itemId, false);
+                // Tema "ancla" del evento en el foro — ver la misma nota junto
+                // al INSERT de cursos, arriba.
+                if ($esNuevo) {
+                    foro_crear_tema_ancla(null, $itemId, null, $titulo, (int) current_user()['id']);
+                }
                 // No se difunde si es exclusivo para miembros — igual que en
                 // el resto de la plataforma (H02/E01), no se usa contenido de
                 // membresía como anzuelo para quien no es miembro.

@@ -1,13 +1,15 @@
 <?php
-// Combo Membresía + Evento/Curso — para un evento/curso incluido_membresia=1
-// comprado por alguien que todavía no es miembro, este endpoint arma UNA
-// Subscription de Stripe (recurrente, se renueva sola cada mes — decisión
-// confirmada con el usuario, no es un cobro de un solo mes) cuya PRIMERA
-// factura incluye también el precio del evento/curso como cargo único
-// (add_invoice_items). Mismo patrón que membresia_iniciar.php (Subscription
-// con payment_behavior=default_incomplete + Payment Element embebido), pero
-// sin tocar ese archivo: no arriesga el flujo de "solo membresía" que ya
-// funciona en producción.
+// Combo Membresía + Evento/Curso — para un evento/curso donde ser miembro
+// da algún beneficio (incluido_membresia=1, acceso gratis, o
+// descuento_miembro_pct>0, precio con descuento) comprado por alguien que
+// todavía no es miembro, este endpoint arma UNA Subscription de Stripe
+// (recurrente, se renueva sola cada mes — decisión confirmada con el
+// usuario, no es un cobro de un solo mes) cuya PRIMERA factura incluye
+// también el precio del evento/curso (ya con su descuento de miembro
+// aplicado, si aplica) como cargo único (add_invoice_items). Mismo patrón
+// que membresia_iniciar.php (Subscription con payment_behavior=default_incomplete
+// + Payment Element embebido), pero sin tocar ese archivo: no arriesga el
+// flujo de "solo membresía" que ya funciona en producción.
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../error_logger.php';
 require_once __DIR__ . '/../ofertas.php';
@@ -44,10 +46,32 @@ if (!in_array($tipo, ['evento', 'curso'], true) || !$itemId) {
 $paramsItem = $tipo === 'evento' ? ['evento_id' => $itemId] : ['curso_id' => $itemId];
 $item = resolver_item_pago($conn, $paramsItem, $usuarioPerfilId, null);
 
-if (!$item || !$item['activo'] || $item['incluido_membresia'] !== true
+// El combo se ofrece si ser miembro le da CUALQUIER beneficio a este ítem —
+// acceso gratis (incluido_membresia) o descuento (descuento_miembro_pct) —
+// mismo criterio que checkout.php usa para decidir si mostrar la opción
+// (ver $mostrarCombo ahí). Si no hay ningún beneficio, no hay nada que
+// promocionar con este combo específico.
+$tieneBeneficioMembresia = $item && ($item['incluido_membresia'] === true || (float) ($item['descuento_miembro_pct'] ?? 0) > 0);
+if (!$item || !$item['activo'] || !$tieneBeneficioMembresia
     || in_array($item['estado'], ['acceso', 'incluido_membresia', 'exclusivo_bloqueado', 'gratuito'], true)) {
     echo json_encode(['success' => false, 'message' => 'Este artículo no está disponible para el combo de membresía.']);
     exit;
+}
+
+// resolver_item_pago() calcula precio_final asumiendo el estado ACTUAL del
+// usuario — que en el combo siempre es "no miembro todavía" (ver el guard
+// de más abajo), así que nunca aplica el beneficio real: ni el $0 de
+// incluido_membresia, ni el % de descuento_miembro_pct (ambos casos, en
+// ofertas.php, exigen $esMiembro=true). Se recalcula aquí a mano,
+// simulando que el pago YA hizo al usuario miembro — que es exactamente lo
+// que va a pasar en cuanto confirme.
+if ($item['incluido_membresia'] === true) {
+    $item['precio_final'] = 0.0;
+} elseif ((float) ($item['descuento_miembro_pct'] ?? 0) > 0) {
+    $precioConDescuentoMiembro = round($item['precio_regular'] * (1 - (float) $item['descuento_miembro_pct'] / 100), 2);
+    // No empeora un precio ya más bajo por cupón/promoción pública vigente —
+    // se queda con el que sea mejor para quien compra.
+    $item['precio_final'] = min($item['precio_final'], max(0.0, $precioConDescuentoMiembro));
 }
 
 if (usuario_tiene_membresia_activa($usuarioPerfilId)) {

@@ -197,13 +197,19 @@ $paramName = $item['tipo'] . '_id';
 $publishableKeyActiva = stripe_publishable_key_activa();
 $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'][$item['tipo']] ?? 'Compra';
 
-// Combo Membresía + Evento/Curso: solo aplica a curso/evento marcados
-// incluido_membresia=1, comprados por alguien que todavía no es miembro y
-// para los que este checkout normal ya cobra precio completo/con oferta
-// (nunca a quien ya tiene acceso o está bloqueado — esos casos ya salieron
-// por el guard de arriba). Producto queda fuera: la membresía nunca aplica
-// a productos de tienda.
-$mostrarCombo = $stripeListo && $item['tipo'] !== 'producto' && $item['incluido_membresia'] === true
+// Combo Membresía + Evento/Curso: se ofrece como promoción de la membresía
+// en sí ("hazte miembro y sostén tu práctica"), no solo cuando ESTE
+// curso/evento sale gratis por ser miembro — antes solo se mostraba con
+// incluido_membresia=1 (acceso gratis), lo que dejaba fuera el caso, mucho
+// más común, de un curso/evento con descuento_miembro_pct pero sin acceso
+// gratis. El único caso real donde no tiene caso ofrecerlo es que ser
+// miembro no le dé NINGÚN beneficio a este ítem en particular (ni acceso
+// gratis ni descuento) — ahí no hay nada que promocionar. Producto queda
+// fuera: la membresía nunca aplica a productos de tienda. Nunca a quien ya
+// es miembro, ni a quien ya tiene acceso o está bloqueado (esos casos ya
+// salieron por el guard de arriba).
+$mostrarCombo = $stripeListo && $item['tipo'] !== 'producto'
+    && ($item['incluido_membresia'] === true || (float) ($item['descuento_miembro_pct'] ?? 0) > 0)
     && !usuario_tiene_membresia_activa($usuarioPerfilId);
 $membresiaVisible = $mostrarCombo ? $conn->query('SELECT * FROM membresias WHERE activo = 1 ORDER BY orden ASC LIMIT 1')->fetch_assoc() : null;
 if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe_price_id'] ?? ''))) {

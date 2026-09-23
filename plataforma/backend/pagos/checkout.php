@@ -580,7 +580,15 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
           <li><i class="bi bi-check-circle-fill"></i> Comunidad de práctica continua</li>
           <li><i class="bi bi-check-circle-fill"></i> Acceso a futuras actividades exclusivas</li>
         </ul>
-        <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=membresia" target="_blank" style="color:var(--pf-accent-ink);font-weight:700;font-size:13.5px;">Ver todos los beneficios de la membresía →</a>
+        <?php // Landing pública de marketing (panel/admin/landing_pages.php, slug
+        // "membresia-camino-arjuna") en vez de mandar directo a ?action=membresia
+        // — esa página exige cuenta creada (checklist H02/M01), mientras que la
+        // landing es visible para cualquiera y explica con calma antes de pedir
+        // sesión. Si algún admin borra o renombra esa landing, este link deja
+        // de funcionar — no hay una relación en BD que lo detecte solo (a
+        // diferencia de landing_page_id en cursos/eventos, membresias no tiene
+        // ese campo hoy). ?>
+        <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=landing&slug=membresia-camino-arjuna" target="_blank" style="color:var(--pf-accent-ink);font-weight:700;font-size:13.5px;">Ver todos los beneficios de la membresía →</a>
         <div class="pf-checkout-side-nota">
           <i class="bi bi-lightbulb-fill"></i>
           <span><strong>Tú eliges.</strong> Si por ahora solo quieres este <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>, también puedes adquirirlo de forma individual.</span>

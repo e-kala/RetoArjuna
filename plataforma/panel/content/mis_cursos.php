@@ -51,7 +51,10 @@ usort($contenidoExplorable, fn($a, $b) => strtotime($b['fecha']) <=> strtotime($
 <?php if ($misCursos): ?>
   <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
     <?php foreach ($misCursos as $curso): ?>
-      <?php $porcentaje = $curso['total_lecciones'] > 0 ? (int) round($curso['completadas'] / $curso['total_lecciones'] * 100) : 0; ?>
+      <?php
+      $porcentaje = $curso['total_lecciones'] > 0 ? (int) round($curso['completadas'] / $curso['total_lecciones'] * 100) : 0;
+      $labelCtaMisCursos = $porcentaje > 0 ? 'Seguir estudiando' : 'Comenzar a estudiar';
+      ?>
       <div class="col">
         <div class="card h-100 border-0 shadow-sm">
           <img src="<?= htmlspecialchars($curso['imagen_portada'] ? BASE_URL . '/' . $curso['imagen_portada'] : BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:140px;object-fit:cover;" alt="">
@@ -65,7 +68,7 @@ usort($contenidoExplorable, fn($a, $b) => strtotime($b['fecha']) <=> strtotime($
               <?php if ($curso['codigo_certificado']): ?>
                 <a href="../certificado.php?codigo=<?= urlencode($curso['codigo_certificado']) ?>" class="btn btn-outline-secondary btn-sm">Certificado</a>
               <?php endif; ?>
-              <a href="../index.php?action=curso&slug=<?= urlencode($curso['slug']) ?>" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;">Continuar</a>
+              <a href="../index.php?action=curso&slug=<?= urlencode($curso['slug']) ?>&ver=1" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;"><?= htmlspecialchars($labelCtaMisCursos) ?></a>
             </div>
           </div>
         </div>

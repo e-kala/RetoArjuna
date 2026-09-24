@@ -11,13 +11,22 @@ $filtroSoloMiembros = $esMiembroEventosCatalogo ? '' : ' AND solo_miembros = 0';
 // que ya usa panel/content/mis_cursos.php, para la barra de progreso que se
 // muestra en la tarjeta cuando el usuario ya está inscrito (usuario_id=0
 // para un Visitante simplemente no matchea ninguna fila de `progreso`).
+// estado_inscripcion — para distinguir "asistió" (CTA "Volver a ver
+// grabaciones y materiales") de solo inscrito/comprado (CTA por progreso).
+// Puede haber varias filas en evento_inscripciones+pagos para el mismo
+// usuario/evento (ver usuario_esta_inscrito_evento) — MAX() con el orden
+// alfabético 'asistio' > 'confirmado' > 'inscrito' no aplica aquí, así que
+// se prioriza con CASE dentro de una subquery ordenada.
+$subqueryEstadoInscripcion = "(SELECT ei.estado FROM evento_inscripciones ei WHERE ei.usuario_id = ? AND ei.evento_id = eventos.id AND ei.estado <> 'cancelado' ORDER BY (ei.estado = 'asistio') DESC LIMIT 1) AS estado_inscripcion";
+
 $stmtEventos = $conn->prepare(
     "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url,
             (SELECT COUNT(*) FROM lecciones WHERE evento_id = eventos.id AND estado_publicacion = 'publicado') AS total_lecciones,
-            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
+            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas,
+            $subqueryEstadoInscripcion
      FROM eventos WHERE activo = 1 AND fecha_inicio >= NOW()$filtroSoloMiembros ORDER BY fecha_inicio ASC"
 );
-$stmtEventos->bind_param('i', $usuarioIdEventosCatalogo);
+$stmtEventos->bind_param('ii', $usuarioIdEventosCatalogo, $usuarioIdEventosCatalogo);
 $stmtEventos->execute();
 $eventos = $stmtEventos->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmtEventos->close();
@@ -25,10 +34,11 @@ $stmtEventos->close();
 $stmtEventosPasados = $conn->prepare(
     "SELECT id, titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, precio, imagen_portada, gratuito, solo_miembros, incluido_membresia, video_grabado_url,
             (SELECT COUNT(*) FROM lecciones WHERE evento_id = eventos.id AND estado_publicacion = 'publicado') AS total_lecciones,
-            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
+            (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas,
+            $subqueryEstadoInscripcion
      FROM eventos WHERE activo = 1 AND fecha_inicio < NOW()$filtroSoloMiembros ORDER BY fecha_inicio DESC"
 );
-$stmtEventosPasados->bind_param('i', $usuarioIdEventosCatalogo);
+$stmtEventosPasados->bind_param('ii', $usuarioIdEventosCatalogo, $usuarioIdEventosCatalogo);
 $stmtEventosPasados->execute();
 $eventosPasados = $stmtEventosPasados->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmtEventosPasados->close();
@@ -55,9 +65,13 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
     // IN03 (checklist.txt) — quien ya tiene acceso ve un estado breve de
     // disponibilidad en vez de precio/promoción, aquí mismo en la tarjeta.
     $tieneAcceso = $usuarioId > 0 && usuario_esta_inscrito_evento($usuarioId, (int) $evento['id']);
+    $asistio = ($evento['estado_inscripcion'] ?? null) === 'asistio';
+    // ?ver=1 salta la landing comercial (si el evento tiene una vinculada) —
+    // quien ya tiene acceso va directo al contenido.
+    $hrefEvento = '?action=evento&amp;slug=' . urlencode($evento['slug']) . ($tieneAcceso ? '&amp;ver=1' : '');
     ?>
     <div class="col" style="max-width:360px;">
-      <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="?action=evento&slug=<?= urlencode($evento['slug']) ?>">
+      <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="?action=evento&slug=<?= urlencode($evento['slug']) ?><?= $tieneAcceso ? '&ver=1' : '' ?>">
         <div class="position-relative">
           <img src="<?= htmlspecialchars($evento['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
           <?php if ($esPasado && $evento['video_grabado_url']): ?>
@@ -107,16 +121,33 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
             <p class="small text-muted mb-2"><?= $porcentajeEvento ?>% completado</p>
           <?php endif; ?>
           <?php if ($esPasado): ?>
+            <?php
+            // Prioridad: asistió en vivo gana siempre sobre el progreso de la
+            // grabación (confirmado con el usuario) — "Volver a ver..." es el
+            // mensaje correcto tanto si ya avanzó algo en la grabación como si
+            // no, porque ya vivió el evento en el momento. El progreso solo
+            // decide el CTA para quien tiene acceso pero NO asistió en vivo
+            // (está consumiendo la grabación desde cero, o retomándola).
+            if ($tieneAcceso && $asistio) {
+                $labelCtaEvento = 'Volver a ver grabaciones y materiales';
+            } elseif ($tieneAcceso && $evento['video_grabado_url']) {
+                $labelCtaEvento = $porcentajeEvento !== null && $porcentajeEvento > 0 ? 'Seguir viendo' : 'Comenzar a ver';
+            } elseif ($tieneAcceso) {
+                $labelCtaEvento = 'Ver detalle';
+            } else {
+                $labelCtaEvento = $evento['video_grabado_url'] ? 'Ver grabación' : 'Ver detalle';
+            }
+            ?>
             <?php if ($tieneAcceso): ?>
-              <span class="badge rounded-pill align-self-start mb-2" style="background:#e6f4ea;color:#1e7d3c;">✔ Adquirido<?= $evento['video_grabado_url'] ? ' · Grabación disponible' : '' ?></span>
+              <span class="badge rounded-pill align-self-start mb-2" style="background:#e6f4ea;color:#1e7d3c;">✔ Ya tienes acceso<?= $evento['video_grabado_url'] ? ' · Grabación disponible' : '' ?></span>
             <?php endif; ?>
-            <a href="?action=evento&amp;slug=<?= urlencode($evento['slug']) ?>" class="btn btn-outline-secondary btn-sm mt-2"><?= $evento['video_grabado_url'] ? 'Ver grabación' : 'Ver detalle' ?></a>
+            <a href="<?= $hrefEvento ?>" class="btn btn-outline-secondary btn-sm mt-2"><?= htmlspecialchars($labelCtaEvento) ?></a>
           <?php else: ?>
             <div class="d-flex align-items-center justify-content-between mt-2">
               <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">
-                <?= $tieneAcceso ? '✔ Adquirido' : ($accesoGratisPorMembresia || $soloMiembros ? 'Incluido' : ((int) $evento['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN')) ?>
+                <?= $tieneAcceso ? '✔ Ya tienes acceso' : ($accesoGratisPorMembresia || $soloMiembros ? 'Incluido' : ((int) $evento['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN')) ?>
               </span>
-              <a href="?action=evento&amp;slug=<?= urlencode($evento['slug']) ?>" class="btn btn-outline-secondary btn-sm">Ver evento</a>
+              <a href="<?= $hrefEvento ?>" class="btn btn-outline-secondary btn-sm">Ver evento</a>
             </div>
           <?php endif; ?>
         </div>

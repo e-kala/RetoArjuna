@@ -5,8 +5,10 @@
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 
 $stmt = $conn->prepare(
-    "SELECT e.titulo, e.slug, e.tipo, e.ubicacion, e.fecha_inicio, ei.estado,
-            cert.codigo AS codigo_reconocimiento
+    "SELECT e.id, e.titulo, e.slug, e.tipo, e.ubicacion, e.fecha_inicio, e.video_grabado_url, ei.estado,
+            cert.codigo AS codigo_reconocimiento,
+            (SELECT COUNT(*) FROM lecciones WHERE evento_id = e.id AND estado_publicacion = 'publicado') AS total_lecciones,
+            (SELECT COUNT(*) FROM progreso WHERE evento_id = e.id AND usuario_id = ei.usuario_id AND completado = 1) AS lecciones_completadas
      FROM evento_inscripciones ei
      JOIN eventos e ON e.id = ei.evento_id
      LEFT JOIN certificados cert ON cert.evento_id = e.id AND cert.usuario_id = ei.usuario_id
@@ -24,6 +26,25 @@ $stmt->close();
 </div>
 <div class="row row-cols-1 row-cols-md-3 g-4">
   <?php foreach ($misEventos as $ev): ?>
+    <?php
+    $esPasadoMisEventos = strtotime($ev['fecha_inicio']) < time();
+    $asistioMisEventos = $ev['estado'] === 'asistio';
+    $totalLeccionesMisEventos = (int) ($ev['total_lecciones'] ?? 0);
+    $porcentajeMisEventos = $totalLeccionesMisEventos > 0 ? (int) round((int) ($ev['lecciones_completadas'] ?? 0) / $totalLeccionesMisEventos * 100) : 0;
+    // Mismo criterio que eventos_catalogo.php: futuro/en curso siempre "Ver
+    // evento"; pasado con asistencia en vivo siempre "Volver a ver..." (gana
+    // sobre el progreso); pasado sin asistencia pero con grabación decide por
+    // progreso; sin grabación cae a "Ver detalle".
+    if (!$esPasadoMisEventos) {
+        $labelCtaMisEventos = 'Ver evento';
+    } elseif ($asistioMisEventos) {
+        $labelCtaMisEventos = 'Volver a ver grabaciones y materiales';
+    } elseif ($ev['video_grabado_url']) {
+        $labelCtaMisEventos = $porcentajeMisEventos > 0 ? 'Seguir viendo' : 'Comenzar a ver';
+    } else {
+        $labelCtaMisEventos = 'Ver detalle';
+    }
+    ?>
     <div class="col">
       <div class="card h-100 border-0 shadow-sm">
         <div class="card-body">
@@ -32,14 +53,20 @@ $stmt->close();
             <?= $ev['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $ev['ubicacion']) ?>
             · <?= htmlspecialchars(date('d/m/Y', strtotime($ev['fecha_inicio']))) ?>
           </p>
-          <span class="badge rounded-pill mb-2" style="background:<?= $ev['estado'] === 'asistio' ? '#e6f4ea' : '#e6f0fb' ?>;color:<?= $ev['estado'] === 'asistio' ? '#1e7d3c' : '#1c5fa8' ?>;">
-            <?= $ev['estado'] === 'asistio' ? 'Asististe' : 'Inscrito' ?>
+          <span class="badge rounded-pill mb-2" style="background:<?= $asistioMisEventos ? '#e6f4ea' : '#e6f0fb' ?>;color:<?= $asistioMisEventos ? '#1e7d3c' : '#1c5fa8' ?>;">
+            <?= $asistioMisEventos ? 'Asististe' : 'Inscrito' ?>
           </span>
+          <?php if ($esPasadoMisEventos && !$asistioMisEventos && $totalLeccionesMisEventos > 0): ?>
+            <div class="progress mb-1" style="height:6px;">
+              <div class="progress-bar" style="width:<?= $porcentajeMisEventos ?>%;background:#F6C500;"></div>
+            </div>
+            <p class="small text-muted mb-2"><?= $porcentajeMisEventos ?>% completado</p>
+          <?php endif; ?>
           <div class="d-flex gap-2">
             <?php if ($ev['codigo_reconocimiento']): ?>
               <a href="../certificado.php?codigo=<?= urlencode($ev['codigo_reconocimiento']) ?>" class="btn btn-outline-secondary btn-sm">Reconocimiento</a>
             <?php endif; ?>
-            <a href="../index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;">Ver evento</a>
+            <a href="../index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>&ver=1" class="btn btn-sm fw-bold" style="background:#F6C500;color:#171717;"><?= htmlspecialchars($labelCtaMisEventos) ?></a>
           </div>
         </div>
       </div>

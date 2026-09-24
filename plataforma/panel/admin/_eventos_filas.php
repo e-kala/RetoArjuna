@@ -14,11 +14,13 @@ foreach ($eventos as $ev): ?>
     <td data-ajax-estado><?= (int) $ev['activo'] === 1 ? 'Publicado' : 'Oculto' ?></td>
     <td class="d-flex gap-2 flex-wrap">
       <a href="contenido_form.php?tipo=evento&id=<?= (int) $ev['id'] ?>" class="btn btn-sm btn-outline-primary">Editar</a>
-      <?php if ($ev['landing_page_id']): ?>
-        <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar-enlace-directo"
-                data-enlace="<?= htmlspecialchars(SITE_URL . '/index.php?action=evento&slug=' . urlencode($ev['slug']) . '&ver=1') ?>"
-                title="Salta la landing de venta — va directo al evento, para revisar el contenido o el dispositivo de consumo.">🔗 Enlace directo</button>
-      <?php endif; ?>
+      <?php
+      // Disponible SIEMPRE, tenga o no landing vinculada todavía — ver la
+      // misma nota en _cursos_filas.php.
+      ?>
+      <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar-enlace-directo"
+              data-enlace="<?= htmlspecialchars(SITE_URL . '/index.php?action=evento&slug=' . urlencode($ev['slug']) . '&ver=1') ?>"
+              title="Salta la landing de venta — va directo al evento, para revisar el contenido o el dispositivo de consumo.">🔗 Enlace directo</button>
       <form method="post" class="d-inline-flex align-items-center" data-ajax="toggle">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= (int) $ev['id'] ?>">

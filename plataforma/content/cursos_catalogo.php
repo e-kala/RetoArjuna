@@ -51,9 +51,18 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
     <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
       <?php foreach ($cursos as $curso): ?>
         <?php
-        $tieneAccesoCurso = $usuarioCatalogo && ($curso['origen'] === 'curso'
+        $tieneAccesoDirectoCurso = $usuarioCatalogo && ($curso['origen'] === 'curso'
             ? usuario_tiene_acceso_curso($usuarioCatalogo['id'], (int) $curso['id'])
             : usuario_esta_inscrito_evento($usuarioCatalogo['id'], (int) $curso['id']));
+        // Acceso por membresía: el producto en sí está incluido Y el usuario
+        // es miembro ahora — igual criterio que curso_detalle.php
+        // ($incluidoPorMembresia). Se evalúa aparte de la inscripción/compra
+        // real porque evento_inscripciones no guarda de dónde vino el
+        // acceso (compra vs. gratis-por-membresía) — la pregunta correcta
+        // no es "cómo llegó esta fila" sino "¿este producto es de los que
+        // la membresía incluye, para un miembro actual?".
+        $accesoPorMembresiaCurso = $esMiembroCatalogo && (int) $curso['incluido_membresia'] === 1;
+        $tieneAccesoCurso = $tieneAccesoDirectoCurso || $accesoPorMembresiaCurso;
         $totalLeccionesCurso = (int) ($curso['total_lecciones'] ?? 0);
         $tieneProgresoCurso = $totalLeccionesCurso > 0 && (int) ($curso['lecciones_completadas'] ?? 0) > 0;
         // ?ver=1 salta la landing comercial (si el curso/evento tiene una
@@ -76,8 +85,8 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
               <div class="d-flex align-items-center justify-content-between mt-2">
                 <?php if ((int) $curso['gratuito'] === 1): ?>
                   <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">Gratuito</span>
-                <?php elseif ($esMiembroCatalogo && (int) $curso['incluido_membresia'] === 1): ?>
-                  <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido</span>
+                <?php elseif ($accesoPorMembresiaCurso): ?>
+                  <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
                 <?php elseif ($tieneAccesoCurso): ?>
                   <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">✔ Ya tienes acceso</span>
                 <?php else: ?>

@@ -6,8 +6,14 @@
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
 $esMiembro = usuario_tiene_membresia_activa($usuarioPerfilId);
 
+// Un curso incluido_membresia=1 se lista aquí también para un miembro
+// actual aunque nunca haya una fila real en curso_inscripciones — quien es
+// miembro ya puede estudiarlo con solo entrar (mismo acceso que
+// curso_detalle.php resuelve vía resolver_oferta()), así que "Mis cursos"
+// debe reflejar eso, no solo lo que tiene inscripción/pago explícito.
+$filtroMembresiaCursos = $esMiembro ? ' OR c.incluido_membresia = 1' : '';
 $stmt = $conn->prepare(
-    "SELECT c.id, c.titulo, c.slug, c.imagen_portada,
+    "SELECT c.id, c.titulo, c.slug, c.imagen_portada, c.incluido_membresia,
             (SELECT COUNT(*) FROM lecciones WHERE curso_id = c.id) AS total_lecciones,
             (SELECT COUNT(*) FROM progreso WHERE curso_id = c.id AND usuario_id = ? AND completado = 1) AS completadas,
             cert.codigo AS codigo_certificado
@@ -15,7 +21,7 @@ $stmt = $conn->prepare(
      LEFT JOIN pagos p ON p.curso_id = c.id AND p.usuario_id = ? AND p.estado = 'confirmado'
      LEFT JOIN curso_inscripciones ci ON ci.curso_id = c.id AND ci.usuario_id = ?
      LEFT JOIN certificados cert ON cert.curso_id = c.id AND cert.usuario_id = ?
-     WHERE c.activo = 1 AND (p.id IS NOT NULL OR ci.id IS NOT NULL)
+     WHERE c.activo = 1 AND (p.id IS NOT NULL OR ci.id IS NOT NULL$filtroMembresiaCursos)
      GROUP BY c.id"
 );
 $stmt->bind_param('iiii', $usuarioPerfilId, $usuarioPerfilId, $usuarioPerfilId, $usuarioPerfilId);
@@ -54,11 +60,15 @@ usort($contenidoExplorable, fn($a, $b) => strtotime($b['fecha']) <=> strtotime($
       <?php
       $porcentaje = $curso['total_lecciones'] > 0 ? (int) round($curso['completadas'] / $curso['total_lecciones'] * 100) : 0;
       $labelCtaMisCursos = $porcentaje > 0 ? 'Seguir estudiando' : 'Comenzar a estudiar';
+      $accesoPorMembresiaMisCursos = $esMiembro && (int) $curso['incluido_membresia'] === 1;
       ?>
       <div class="col">
         <div class="card h-100 border-0 shadow-sm">
           <img src="<?= htmlspecialchars($curso['imagen_portada'] ? BASE_URL . '/' . $curso['imagen_portada'] : BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:140px;object-fit:cover;" alt="">
           <div class="card-body d-flex flex-column">
+            <?php if ($accesoPorMembresiaMisCursos): ?>
+              <span class="badge rounded-pill align-self-start mb-2 d-inline-flex align-items-center gap-1" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
+            <?php endif; ?>
             <h3 class="h6 fw-bold"><?= htmlspecialchars($curso['titulo']) ?></h3>
             <div class="progress mb-2" style="height:6px;">
               <div class="progress-bar" style="width:<?= $porcentaje ?>%;background:#F6C500;"></div>

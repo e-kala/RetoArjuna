@@ -3,9 +3,15 @@
 // eventos dentro de "Mi aprendizaje". Al ser su propia pestaña ya no se
 // limita a 3, muestra el historial completo de inscripciones.
 $usuarioPerfilId = (int) $_SESSION['usuario_perfil_id'];
+// A diferencia de cursos, "Accesar gratis con mi membresía" en un evento SÍ
+// crea una fila real en evento_inscripciones (exige un clic explícito, no
+// es automático solo por ser miembro) — esta query ya lista todo lo que
+// corresponde, sin necesitar el filtro extra que sí hizo falta en
+// mis_cursos.php.
+$esMiembroMisEventos = usuario_tiene_membresia_activa($usuarioPerfilId);
 
 $stmt = $conn->prepare(
-    "SELECT e.id, e.titulo, e.slug, e.tipo, e.ubicacion, e.fecha_inicio, e.video_grabado_url, ei.estado,
+    "SELECT e.id, e.titulo, e.slug, e.tipo, e.ubicacion, e.fecha_inicio, e.video_grabado_url, e.incluido_membresia, e.solo_miembros, ei.estado,
             cert.codigo AS codigo_reconocimiento,
             (SELECT COUNT(*) FROM lecciones WHERE evento_id = e.id AND estado_publicacion = 'publicado') AS total_lecciones,
             (SELECT COUNT(*) FROM progreso WHERE evento_id = e.id AND usuario_id = ei.usuario_id AND completado = 1) AS lecciones_completadas
@@ -29,6 +35,7 @@ $stmt->close();
     <?php
     $esPasadoMisEventos = strtotime($ev['fecha_inicio']) < time();
     $asistioMisEventos = $ev['estado'] === 'asistio';
+    $accesoPorMembresiaMisEventos = $esMiembroMisEventos && ((int) $ev['incluido_membresia'] === 1 || (int) $ev['solo_miembros'] === 1);
     $totalLeccionesMisEventos = (int) ($ev['total_lecciones'] ?? 0);
     $porcentajeMisEventos = $totalLeccionesMisEventos > 0 ? (int) round((int) ($ev['lecciones_completadas'] ?? 0) / $totalLeccionesMisEventos * 100) : 0;
     // Mismo criterio que eventos_catalogo.php: futuro/en curso siempre "Ver
@@ -56,6 +63,9 @@ $stmt->close();
           <span class="badge rounded-pill mb-2" style="background:<?= $asistioMisEventos ? '#e6f4ea' : '#e6f0fb' ?>;color:<?= $asistioMisEventos ? '#1e7d3c' : '#1c5fa8' ?>;">
             <?= $asistioMisEventos ? 'Asististe' : 'Inscrito' ?>
           </span>
+          <?php if ($accesoPorMembresiaMisEventos): ?>
+            <span class="badge rounded-pill mb-2 d-inline-flex align-items-center gap-1" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
+          <?php endif; ?>
           <?php if ($esPasadoMisEventos && !$asistioMisEventos && $totalLeccionesMisEventos > 0): ?>
             <div class="progress mb-1" style="height:6px;">
               <div class="progress-bar" style="width:<?= $porcentajeMisEventos ?>%;background:#F6C500;"></div>

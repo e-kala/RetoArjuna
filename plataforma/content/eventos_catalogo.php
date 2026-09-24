@@ -66,6 +66,12 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
     // disponibilidad en vez de precio/promoción, aquí mismo en la tarjeta.
     $tieneAcceso = $usuarioId > 0 && usuario_esta_inscrito_evento($usuarioId, (int) $evento['id']);
     $asistio = ($evento['estado_inscripcion'] ?? null) === 'asistio';
+    // Acceso por membresía vs. independiente: evento_inscripciones no
+    // guarda de dónde vino el acceso, así que se evalúa sobre el estado
+    // actual del producto — "¿este evento es de los que la membresía
+    // incluye, para un miembro ahora?" (mismo criterio que
+    // cursos_catalogo.php/curso_detalle.php).
+    $accesoPorMembresiaEvento = $tieneAcceso && $incluidoMembresia && $esMiembro;
     // ?ver=1 salta la landing comercial (si el evento tiene una vinculada) —
     // quien ya tiene acceso va directo al contenido.
     $hrefEvento = '?action=evento&amp;slug=' . urlencode($evento['slug']) . ($tieneAcceso ? '&amp;ver=1' : '');
@@ -138,14 +144,22 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
                 $labelCtaEvento = $evento['video_grabado_url'] ? 'Ver grabación' : 'Ver detalle';
             }
             ?>
-            <?php if ($tieneAcceso): ?>
+            <?php if ($accesoPorMembresiaEvento): ?>
+              <span class="badge rounded-pill align-self-start mb-2 d-inline-flex align-items-center gap-1" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía<?= $evento['video_grabado_url'] ? ' · Grabación disponible' : '' ?></span>
+            <?php elseif ($tieneAcceso): ?>
               <span class="badge rounded-pill align-self-start mb-2" style="background:#e6f4ea;color:#1e7d3c;">✔ Ya tienes acceso<?= $evento['video_grabado_url'] ? ' · Grabación disponible' : '' ?></span>
             <?php endif; ?>
             <a href="<?= $hrefEvento ?>" class="btn btn-outline-secondary btn-sm mt-2"><?= htmlspecialchars($labelCtaEvento) ?></a>
           <?php else: ?>
             <div class="d-flex align-items-center justify-content-between mt-2">
-              <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">
-                <?= $tieneAcceso ? '✔ Ya tienes acceso' : ($accesoGratisPorMembresia || $soloMiembros ? 'Incluido' : ((int) $evento['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN')) ?>
+              <span class="badge rounded-pill d-inline-flex align-items-center gap-1" style="background:<?= $accesoPorMembresiaEvento ? '#6f42c1' : '#e6f4ea' ?>;color:<?= $accesoPorMembresiaEvento ? '#fff' : '#1e7d3c' ?>;">
+                <?php if ($accesoPorMembresiaEvento): ?>
+                  <img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía
+                <?php elseif ($tieneAcceso): ?>
+                  ✔ Ya tienes acceso
+                <?php else: ?>
+                  <?= $accesoGratisPorMembresia || $soloMiembros ? 'Incluido' : ((int) $evento['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN') ?>
+                <?php endif; ?>
               </span>
               <a href="<?= $hrefEvento ?>" class="btn btn-outline-secondary btn-sm">Ver evento</a>
             </div>

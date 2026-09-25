@@ -16,11 +16,13 @@ $tipo = $_GET['tipo'] ?? $_POST['tipo'] ?? 'curso';
 $tipo = in_array($tipo, ['curso', 'evento'], true) ? $tipo : 'curso';
 
 $curso = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'nivel' => 'principiante', 'duracion_horas' => '',
-          'precio' => 0, 'imagen_portada' => '', 'foro_url' => '', 'gratuito' => 0, 'incluido_membresia' => 0,
+          'precio' => 0, 'imagen_portada' => '', 'foro_url' => '', 'whatsapp_grupo_url' => '', 'whatsapp_grupo_texto' => '',
+          'gratuito' => 0, 'incluido_membresia' => 0,
           'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
 $evento = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'tipo' => 'online', 'ubicacion' => '',
            'fecha_inicio' => '', 'fecha_fin' => '', 'cupo_maximo' => '', 'precio' => 0,
-           'imagen_portada' => '', 'foro_url' => '', 'video_grabado_url' => '', 'mostrar_en_cursos' => 0, 'gratuito' => 0,
+           'imagen_portada' => '', 'foro_url' => '', 'whatsapp_grupo_url' => '', 'whatsapp_grupo_texto' => '',
+           'video_grabado_url' => '', 'mostrar_en_cursos' => 0, 'gratuito' => 0,
            'solo_miembros' => 0, 'incluido_membresia' => 0, 'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
 
 if ($id && $tipo === 'curso') {
@@ -193,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $duracion = $_POST['duracion_horas'] !== '' ? (float) $_POST['duracion_horas'] : null;
         $imagen = (string) $curso['imagen_portada'];
         $foroUrl = trim($_POST['foro_url'] ?? '');
+        $whatsappGrupoUrl = trim($_POST['whatsapp_grupo_url'] ?? '') ?: null;
+        $whatsappGrupoTexto = trim($_POST['whatsapp_grupo_texto'] ?? '') ?: null;
         try {
             $imagen = procesar_imagen_form('imagen_portada_file', 'cursos', $imagen);
         } catch (RuntimeException $e) {
@@ -204,11 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($error === '') {
             $esNuevo = !$id;
             if ($id) {
-                $stmt = $conn->prepare('UPDATE cursos SET titulo=?, slug=?, descripcion=?, nivel=?, duracion_horas=?, precio=?, imagen_portada=?, foro_url=?, gratuito=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=? WHERE id=?');
-                $stmt->bind_param('ssssddssiidiiii', $titulo, $slug, $descripcion, $nivel, $duracion, $precio, $imagen, $foroUrl, $gratuito, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $id);
+                $stmt = $conn->prepare('UPDATE cursos SET titulo=?, slug=?, descripcion=?, nivel=?, duracion_horas=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, gratuito=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=? WHERE id=?');
+                $stmt->bind_param('ssssddssssiidiiii', $titulo, $slug, $descripcion, $nivel, $duracion, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $gratuito, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $id);
             } else {
-                $stmt = $conn->prepare('INSERT INTO cursos (titulo, slug, descripcion, nivel, duracion_horas, precio, imagen_portada, foro_url, gratuito, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->bind_param('ssssddssiidiii', $titulo, $slug, $descripcion, $nivel, $duracion, $precio, $imagen, $foroUrl, $gratuito, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId);
+                $stmt = $conn->prepare('INSERT INTO cursos (titulo, slug, descripcion, nivel, duracion_horas, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, gratuito, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->bind_param('ssssddssssiidiii', $titulo, $slug, $descripcion, $nivel, $duracion, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $gratuito, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId);
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
@@ -242,6 +246,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cupoMaximo = $_POST['cupo_maximo'] !== '' ? (int) $_POST['cupo_maximo'] : null;
         $imagen = (string) $evento['imagen_portada'];
         $foroUrl = trim($_POST['foro_url'] ?? '');
+        $whatsappGrupoUrl = trim($_POST['whatsapp_grupo_url'] ?? '') ?: null;
+        $whatsappGrupoTexto = trim($_POST['whatsapp_grupo_texto'] ?? '') ?: null;
         // normalizar_url_youtube() convierte watch?v=/shorts/live a la forma
         // /embed/ que sí se puede meter en un <iframe> — sin esto, un link
         // "youtube.com/live/..." (común al pegar el link de un directo ya
@@ -270,11 +276,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error === '') {
             $esNuevo = !$id;
             if ($id) {
-                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
-                $stmt->bind_param('sssssssidsssiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
+                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
+                $stmt->bind_param('sssssssidsssssiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
             } else {
-                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, video_grabado_url, gratuito, solo_miembros, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->bind_param('sssssssidsssiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
+                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, video_grabado_url, gratuito, solo_miembros, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->bind_param('sssssssidsssssiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
@@ -402,6 +408,15 @@ include __DIR__ . '/_header.php';
     $foroFieldValor = (string) $curso['foro_url'];
     include __DIR__ . '/_foro_link_field.php';
     ?>
+    <div class="col-md-6">
+      <label class="form-label">Enlace de invitación al grupo de WhatsApp (opcional)</label>
+      <input class="form-control" name="whatsapp_grupo_url" value="<?= htmlspecialchars((string) $curso['whatsapp_grupo_url']) ?>" placeholder="https://chat.whatsapp.com/...">
+      <div class="form-text">Vacío = no se muestra ninguna invitación a WhatsApp al confirmar el acceso.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Texto de invitación (opcional)</label>
+      <input class="form-control" name="whatsapp_grupo_texto" value="<?= htmlspecialchars((string) $curso['whatsapp_grupo_texto']) ?>" placeholder="Ej. Únete a la comunidad de este curso">
+    </div>
     <?php if ($id): ?>
       <div class="col-12">
         <p class="text-muted small mb-0">
@@ -453,6 +468,15 @@ include __DIR__ . '/_header.php';
     $foroFieldValor = (string) $evento['foro_url'];
     include __DIR__ . '/_foro_link_field.php';
     ?>
+    <div class="col-md-6">
+      <label class="form-label">Enlace de invitación al grupo de WhatsApp (opcional)</label>
+      <input class="form-control" name="whatsapp_grupo_url" value="<?= htmlspecialchars((string) $evento['whatsapp_grupo_url']) ?>" placeholder="https://chat.whatsapp.com/...">
+      <div class="form-text">Vacío = no se muestra ninguna invitación a WhatsApp al confirmar el acceso.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Texto de invitación (opcional)</label>
+      <input class="form-control" name="whatsapp_grupo_texto" value="<?= htmlspecialchars((string) $evento['whatsapp_grupo_texto']) ?>" placeholder="Ej. Únete a la comunidad de este evento">
+    </div>
     <div class="col-md-6">
       <label class="form-label">Video grabado (para "pasados/grabados")</label>
       <input class="form-control" name="video_grabado_url" id="video_grabado_url" value="<?= htmlspecialchars((string) $evento['video_grabado_url']) ?>" placeholder="https://www.youtube.com/embed/...">

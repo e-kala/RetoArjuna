@@ -179,6 +179,11 @@ ALTER TABLE cursos
 -- agrega más abajo en este archivo, tras crear esa tabla.
 ALTER TABLE cursos ADD COLUMN IF NOT EXISTS landing_page_id INT UNSIGNED NULL AFTER slug;
 
+-- CHK05 — grupo de WhatsApp asociado al curso. URL vacía/NULL = sin grupo,
+-- el bloque de invitación no se muestra en ningún lado (checklist.txt).
+ALTER TABLE cursos ADD COLUMN IF NOT EXISTS whatsapp_grupo_url VARCHAR(500) NULL AFTER foro_url;
+ALTER TABLE cursos ADD COLUMN IF NOT EXISTS whatsapp_grupo_texto VARCHAR(255) NULL AFTER whatsapp_grupo_url;
+
 -- Sin datos de contenido aquí a propósito — este archivo solo trae
 -- estructura + cuentas admin esenciales (ver usuarios_perfil más abajo). El
 -- contenido real (cursos/eventos/productos/etc.) vive únicamente en cada
@@ -272,6 +277,10 @@ ALTER TABLE eventos
 -- landing_page_id (flujo de venta evento→landing) — la FK a landing_pages se
 -- agrega más abajo en este archivo, tras crear esa tabla.
 ALTER TABLE eventos ADD COLUMN IF NOT EXISTS landing_page_id INT UNSIGNED NULL AFTER slug;
+
+-- CHK05 — mismo criterio que cursos arriba.
+ALTER TABLE eventos ADD COLUMN IF NOT EXISTS whatsapp_grupo_url VARCHAR(500) NULL AFTER foro_url;
+ALTER TABLE eventos ADD COLUMN IF NOT EXISTS whatsapp_grupo_texto VARCHAR(255) NULL AFTER whatsapp_grupo_url;
 
 -- Sin datos aquí — ver nota junto a `cursos`.
 
@@ -1933,4 +1942,3 @@ ALTER TABLE pagos
 -- inverso (curso→evento): un curso no tiene fecha, no encaja como evento.
 ALTER TABLE eventos
   ADD COLUMN IF NOT EXISTS `mostrar_en_cursos` tinyint(1) NOT NULL DEFAULT 0 AFTER `video_grabado_url`;
-

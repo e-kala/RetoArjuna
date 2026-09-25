@@ -354,10 +354,23 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
     <?php if ($inscrito): ?>
       <?php // Ya adquirido: ni tarjeta de precio ni aviso "ya estás inscrito" —
       // el propio video/lecciones desbloqueadas más abajo ya son la señal de
-      // que el evento está adquirido. El <div> vacío se conserva (en vez de
-      // quitarlo del todo) para que pfLiberarContenidoEvento() siga
+      // que el evento está adquirido. El <div> se conserva (en vez de
+      // quitarse del todo) para que pfLiberarContenidoEvento() siga
       // encontrando el mismo id al reemplazar este bloque tras inscribirse
-      // sin recargar la página. ?>
+      // sin recargar la página — que es justo lo que aprovecha el bloque de
+      // WhatsApp de abajo para aparecer también en el flujo de inscripción
+      // gratis/membresía (AJAX), no solo en la vuelta de Stripe (?pago=ok). ?>
+      <?php if (!empty($evento['whatsapp_grupo_url'])): ?>
+        <?php
+        // CHK05 — mismo criterio que curso_detalle.php: invitación visible
+        // apenas se confirma el acceso, junto al CTA normal, nunca lo
+        // bloquea. whatsapp_grupo_url vacío = este bloque no se renderiza.
+        ?>
+        <div class="card p-3 mb-3" style="max-width:480px;background:#fff3e0;border:1px solid #f7931e;">
+          <p class="mb-2"><?= htmlspecialchars($evento['whatsapp_grupo_texto'] ?: 'Únete al grupo de WhatsApp de este evento para no perderte nada.') ?></p>
+          <a href="<?= htmlspecialchars($evento['whatsapp_grupo_url']) ?>" target="_blank" rel="noopener" class="btn" style="background:#25D366;color:#fff;"><i class="bi bi-whatsapp"></i> Unirme al grupo de WhatsApp</a>
+        </div>
+      <?php endif; ?>
     <?php elseif (!$esPasado && !$cupoDisponible): ?>
       <p class="mb-0 text-muted">Ya no hay cupo disponible para este evento.</p>
     <?php elseif (!$usuario): ?>

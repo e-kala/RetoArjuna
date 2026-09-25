@@ -297,6 +297,19 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
         </div>
       <?php endif; ?>
 
+      <?php if ($tieneAcceso && !empty($curso['whatsapp_grupo_url'])): ?>
+        <?php
+        // CHK05 — invitación al grupo de WhatsApp del curso: visible de
+        // forma permanente mientras el usuario tenga acceso (no solo justo
+        // tras confirmar la compra), mismo criterio que evento_detalle.php.
+        // whatsapp_grupo_url vacío = este bloque no aparece en ningún lado.
+        ?>
+        <div class="card p-3 mt-3" style="max-width:480px;background:#fff3e0;border:1px solid #f7931e;">
+          <p class="mb-2"><?= htmlspecialchars($curso['whatsapp_grupo_texto'] ?: 'Únete al grupo de WhatsApp de este curso para no perderte nada.') ?></p>
+          <a href="<?= htmlspecialchars($curso['whatsapp_grupo_url']) ?>" target="_blank" rel="noopener" class="btn" style="background:#25D366;color:#fff;"><i class="bi bi-whatsapp"></i> Unirme al grupo de WhatsApp</a>
+        </div>
+      <?php endif; ?>
+
       <?php if ($oferta['estado'] !== 'acceso'): ?>
         <div class="card p-3 mt-3" style="max-width:480px;">
           <?php if (!$usuario): ?>

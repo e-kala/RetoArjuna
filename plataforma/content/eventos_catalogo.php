@@ -2,6 +2,7 @@
 $usuarioEventosCatalogo = current_user();
 $esMiembroEventosCatalogo = $usuarioEventosCatalogo && usuario_tiene_membresia_activa($usuarioEventosCatalogo['id']);
 $usuarioIdEventosCatalogo = (int) ($usuarioEventosCatalogo['id'] ?? 0);
+$esAdminEventosCatalogo = $usuarioEventosCatalogo && $usuarioEventosCatalogo['rol'] === 'admin';
 
 // Un evento exclusivo para miembros (solo_miembros=1) no aparece en ningún
 // listado para quien no es miembro — ni la tarjeta ni el enlace al detalle.
@@ -42,6 +43,24 @@ $stmtEventosPasados->bind_param('ii', $usuarioIdEventosCatalogo, $usuarioIdEvent
 $stmtEventosPasados->execute();
 $eventosPasados = $stmtEventosPasados->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmtEventosPasados->close();
+
+// Grabación exclusiva para asistentes: un evento pasado con video_grabado_url
+// deja de aparecer en el catálogo público (tab "Pasados/grabados" y "Todos")
+// — solo se sigue mostrando ahí para quien ya está registrado al evento
+// (usuario_esta_inscrito_evento, la misma fuente que ya decide $tieneAcceso
+// en pf_evento_card) o para admins, que necesitan verlo para moderarlo. Un
+// evento pasado SIN grabación (video_grabado_url vacío) no tiene nada que
+// "exclusivizar" — sigue visible para todos, como antes. Vive en PHP y no en
+// el SQL de arriba porque usuario_esta_inscrito_evento() ya es la función
+// reutilizable que hace esta misma pregunta en el resto del archivo.
+if (!$esAdminEventosCatalogo) {
+    $eventosPasados = array_values(array_filter($eventosPasados, function (array $evento) use ($usuarioIdEventosCatalogo): bool {
+        if (!$evento['video_grabado_url']) {
+            return true;
+        }
+        return $usuarioIdEventosCatalogo > 0 && usuario_esta_inscrito_evento($usuarioIdEventosCatalogo, (int) $evento['id']);
+    }));
+}
 
 // "Todos" = un solo orden cronológico, de más antiguo (izquierda) a más
 // próximo/nuevo (derecha) — pedido explícito del usuario. Se re-ordena aparte

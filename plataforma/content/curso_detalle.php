@@ -115,6 +115,16 @@ if ($usuario) {
 $porcentaje = count($lecciones) > 0 ? (int) round(count($completadas) / count($lecciones) * 100) : 0;
 $mostrarBienvenida = $tieneAcceso && ($_GET['bienvenida'] ?? '') === '1';
 $primeraLeccion = $lecciones[0] ?? null;
+// "Continuar curso": la primera lección aún no marcada como completada — si
+// ya se completaron todas, no hay a dónde "continuar" más que repasar desde
+// el principio, así que cae de vuelta a $primeraLeccion.
+$siguienteLeccionCurso = $primeraLeccion;
+foreach ($lecciones as $leccionCurso) {
+    if (!isset($completadas[(int) $leccionCurso['id']])) {
+        $siguienteLeccionCurso = $leccionCurso;
+        break;
+    }
+}
 
 $resumenCalificacion = calificacion_resumen($cursoId, null);
 $puedeCalificar = $usuario && usuario_puede_calificar_curso($usuario['id'], $cursoId);
@@ -301,6 +311,17 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
           <?php else: ?>
             <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar curso completo</a>
           <?php endif; ?>
+        </div>
+      <?php elseif ($siguienteLeccionCurso && !$mostrarBienvenida): ?>
+        <?php
+        // CTA permanente para quien ya tiene acceso y vuelve a esta página —
+        // el banner de bienvenida (arriba) ya cubre el "justo después de
+        // comprar" con su propio botón "Comenzar curso"; este es el que se
+        // ve en cualquier visita posterior. "Continuar curso" si ya avanzó
+        // algo, "Comenzar curso" si todavía no.
+        ?>
+        <div class="card p-3 mt-3" style="max-width:480px;">
+          <a href="?action=leccion&id=<?= (int) $siguienteLeccionCurso['id'] ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $porcentaje > 0 ? 'Continuar curso' : 'Comenzar curso' ?></a>
         </div>
       <?php endif; ?>
     </div>

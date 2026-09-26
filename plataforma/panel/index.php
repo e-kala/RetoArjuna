@@ -215,5 +215,6 @@ if ($esAdmin && $action === 'inicio') {
   })();
   </script>
   <?php include 'content/_ajax_scripts.php'; ?>
+  <?php require_once __DIR__ . '/../backend/matomo.php'; matomo_snippet(); ?>
 </body>
 </html>

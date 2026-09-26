@@ -59,3 +59,4 @@
     }
 </script>
 <!-- Google Auth IN -->
+<?php matomo_snippet(); ?>

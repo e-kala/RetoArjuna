@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
+require_once __DIR__ . '/backend/matomo.php';
 // Buffer de salida para todo el router: navbar.php ya imprime HTML antes de
 // llegar al content/*.php de turno, y algunos de esos (curso_detalle.php,
 // evento_detalle.php, producto_detalle.php, leccion.php) necesitan poder

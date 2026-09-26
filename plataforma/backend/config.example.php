@@ -96,3 +96,13 @@
 // un mensaje de contacto siempre es PARA el equipo Arjuna, en cualquier
 // ambiente. Si no se define, cae de vuelta a EMAIL_REMITENTE.
 // define('EMAIL_ADMIN_CONTACTO', 'admin@...');
+
+// --- Analítica Matomo (self-hosted) ---
+// Cada entorno (local/pruebas.arjuna.mx/producción) tiene su PROPIA
+// instalación de Matomo (matomo/ vive fuera de git, ver .gitignore) — nunca
+// copiar la URL/Site ID de un entorno a otro, el tracking de local jamás
+// debe apuntar al Matomo de producción ni viceversa. Si no se definen estas
+// 2 líneas, matomo_snippet() (backend/matomo.php) no imprime nada — el
+// sitio funciona igual sin analítica instalada.
+// define('MATOMO_URL', 'https://arjuna.mx/matomo/'); // termina en /, sin protocolo fijo (funciona http y https)
+// define('MATOMO_SITE_ID', '1');

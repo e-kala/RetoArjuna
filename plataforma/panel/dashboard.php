@@ -188,5 +188,6 @@ if (es_peticion_ajax()) {
       window.history.replaceState({ accion: <?= json_encode($action) ?> }, '', window.location.href);
     })();
   </script>
+  <?php require_once __DIR__ . '/../backend/matomo.php'; matomo_snippet(); ?>
 </body>
 </html>

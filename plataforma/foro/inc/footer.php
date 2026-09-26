@@ -108,5 +108,6 @@
   <?php if (current_user()): ?>
   <script src="../content/session_watch.js" data-check-url="../backend/session_check.php"></script>
   <?php endif; ?>
+  <?php require_once __DIR__ . '/../../backend/matomo.php'; matomo_snippet(); ?>
 </body>
 </html>

@@ -11,3 +11,10 @@ plataforma/backend/.deploy_estado.json
 # Contenido subido en tiempo de ejecución — no es código del proyecto.
 plataforma/uploads/*/*
 !plataforma/uploads/*/.htaccess
+
+# Matomo (analítica self-hosted) — herramienta de terceros con su propia BD,
+# config y ciclo de actualización, no código de RetoArjuna. Vive físicamente
+# dentro del proyecto (para desplegarse junto con el resto por rsync/FTP) pero
+# nunca entra a git — mismo criterio que config.local.php: infraestructura
+# propia de cada entorno (local/pruebas/producción), no algo versionado.
+/matomo/

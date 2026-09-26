@@ -291,16 +291,43 @@ if (($evento['type'] ?? '') === 'payment_intent.succeeded' && ($evento['data']['
                 $suscripcionPrevia['membresia_nombre']
             );
         }
+
+        // Evento regular (checklist "Evento regular") — solo sincroniza si
+        // el estado ANTERIOR no otorgaba acceso ('activa'/'gracia' ya
+        // cuentan como con acceso vía usuario_tiene_membresia_activa()); una
+        // renovación mensual normal ('activa' -> 'activa') es un no-op aquí,
+        // evitando trabajo repetido en cada ciclo.
+        $estadoPrevioSinAcceso = !$suscripcionPrevia || !in_array($suscripcionPrevia['estado'], ['activa', 'gracia'], true);
+        if ($estadoPrevioSinAcceso) {
+            require_once __DIR__ . '/../eventos_regulares.php';
+            sincronizar_inscripciones_regulares((int) $suscripcionPrevia['usuario_id'], true);
+        }
     }
 } elseif (($evento['type'] ?? '') === 'customer.subscription.deleted') {
     $suscripcion = $evento['data']['object'] ?? [];
     $subscriptionId = (string) ($suscripcion['id'] ?? '');
 
     if ($subscriptionId) {
+        $stmt = $conn->prepare('SELECT usuario_id FROM membresia_suscripciones WHERE stripe_subscription_id = ? LIMIT 1');
+        $stmt->bind_param('s', $subscriptionId);
+        $stmt->execute();
+        $susc = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
         $stmt = $conn->prepare("UPDATE membresia_suscripciones SET estado = 'cancelada' WHERE stripe_subscription_id = ?");
         $stmt->bind_param('s', $subscriptionId);
         $stmt->execute();
         $stmt->close();
+
+        // Evento regular — se pasa por usuario_tiene_membresia_activa() en
+        // vez de asumir false directo, por si el usuario tuviera otra
+        // suscripción propia que siga activa (edge case de múltiples
+        // membresías del mismo usuario).
+        if ($susc) {
+            require_once __DIR__ . '/../auth.php';
+            require_once __DIR__ . '/../eventos_regulares.php';
+            sincronizar_inscripciones_regulares((int) $susc['usuario_id'], usuario_tiene_membresia_activa((int) $susc['usuario_id']));
+        }
     }
 }
 

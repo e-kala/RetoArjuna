@@ -110,6 +110,9 @@ foreach ($candidatasVoucher as $s) {
 }
 
 // === 2) Vencimientos: activa -> gracia -> vencida ===
+// activa -> gracia NO requiere sincronizar eventos regulares: 'gracia'
+// sigue contando como membresía activa en usuario_tiene_membresia_activa()
+// (auth.php), así que no se pierde ningún acceso todavía en esta transición.
 $stmt = $conn->prepare(
     "UPDATE membresia_suscripciones
      SET estado = 'gracia'
@@ -120,17 +123,35 @@ $pasaronAGracia = $stmt->affected_rows;
 $stmt->close();
 membresia_oxxo_log("Suscripciones que pasaron a 'gracia': $pasaronAGracia");
 
+// gracia -> vencida SÍ pierde acceso — hay que capturar qué usuarios se ven
+// afectados ANTES del UPDATE (que actúa sobre el conjunto de golpe) para
+// poder sincronizar sus eventos regulares después.
 $stmt = $conn->prepare(
-    "UPDATE membresia_suscripciones
-     SET estado = 'vencida'
+    "SELECT usuario_id FROM membresia_suscripciones
      WHERE metodo = 'oxxo_recurrente' AND estado = 'gracia'
        AND periodo_actual_fin < DATE_SUB(NOW(), INTERVAL ? DAY)"
 );
 $diasGracia = DIAS_GRACIA; // bind_param exige una variable, no la constante directo
 $stmt->bind_param('i', $diasGracia);
 $stmt->execute();
+$usuariosQuePierdenAccesoRegular = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'usuario_id');
+$stmt->close();
+
+$stmt = $conn->prepare(
+    "UPDATE membresia_suscripciones
+     SET estado = 'vencida'
+     WHERE metodo = 'oxxo_recurrente' AND estado = 'gracia'
+       AND periodo_actual_fin < DATE_SUB(NOW(), INTERVAL ? DAY)"
+);
+$stmt->bind_param('i', $diasGracia);
+$stmt->execute();
 $pasaronAVencida = $stmt->affected_rows;
 $stmt->close();
 membresia_oxxo_log("Suscripciones que pasaron a 'vencida': $pasaronAVencida");
+
+require_once __DIR__ . '/eventos_regulares.php';
+foreach ($usuariosQuePierdenAccesoRegular as $uid) {
+    sincronizar_inscripciones_regulares((int) $uid, false);
+}
 
 membresia_oxxo_log('--- fin ---');

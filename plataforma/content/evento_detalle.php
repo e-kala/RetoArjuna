@@ -224,7 +224,7 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
   <?php endif; ?>
   <?php if ($usuario && $soloMiembros): ?>
     <span class="badge mb-2" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Exclusivo para miembros</span>
-  <?php elseif ($usuario && $incluidoMembresia): ?>
+  <?php elseif ($usuario && $incluidoMembresia && !$inscrito): ?>
     <span class="badge mb-2" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con membresía</span>
   <?php endif; ?>
   <p class="text-muted mb-1">

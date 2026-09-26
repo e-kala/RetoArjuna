@@ -215,6 +215,15 @@ ALTER TABLE evento_inscripciones
   ADD COLUMN IF NOT EXISTS metodo ENUM('propio','manual') NOT NULL DEFAULT 'propio' AFTER estado,
   ADD COLUMN IF NOT EXISTS activada_por INT UNSIGNED NULL AFTER metodo;
 
+-- Origen "membresía regular": inscripción automática mientras el usuario
+-- tenga membresía activa/gracia y el evento sea es_regular=1. Nunca se
+-- reetiqueta una fila 'propio' hacia este valor ni viceversa — ver
+-- backend/eventos_regulares.php. MODIFY (no ADD COLUMN) porque solo se
+-- amplía un enum ya existente — es idempotente, agregar un valor que ya
+-- está en el enum no falla ni duplica nada.
+ALTER TABLE evento_inscripciones
+  MODIFY COLUMN metodo ENUM('propio','manual','membresia_regular') NOT NULL DEFAULT 'propio';
+
 ALTER TABLE evento_inscripciones DROP FOREIGN KEY IF EXISTS fk_evento_inscripciones_activada_por;
 ALTER TABLE evento_inscripciones ADD CONSTRAINT fk_evento_inscripciones_activada_por FOREIGN KEY (activada_por) REFERENCES usuarios_perfil (id) ON DELETE SET NULL;
 
@@ -281,6 +290,12 @@ ALTER TABLE eventos ADD COLUMN IF NOT EXISTS landing_page_id INT UNSIGNED NULL A
 -- CHK05 — mismo criterio que cursos arriba.
 ALTER TABLE eventos ADD COLUMN IF NOT EXISTS whatsapp_grupo_url VARCHAR(500) NULL AFTER foro_url;
 ALTER TABLE eventos ADD COLUMN IF NOT EXISTS whatsapp_grupo_texto VARCHAR(255) NULL AFTER whatsapp_grupo_url;
+
+-- "Evento regular" (inscripción automática de miembros activos, no
+-- promocional) — implica incluido_membresia=1 siempre (forzado también en
+-- contenido_form.php), nunca cobra a un miembro. Ver
+-- backend/eventos_regulares.php para la sincronización real.
+ALTER TABLE eventos ADD COLUMN IF NOT EXISTS es_regular TINYINT(1) NOT NULL DEFAULT 0 AFTER incluido_membresia;
 
 -- Sin datos aquí — ver nota junto a `cursos`.
 

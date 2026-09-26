@@ -215,6 +215,13 @@ if ($oferta['acceso_gratis_automatico'] && ($resSub['data']['latest_invoice']['s
     $stmt->execute();
     $stmt->close();
 
+    // Evento regular (checklist "Evento regular") — quien queda activo de
+    // inmediato (oferta $0) debe quedar inscrito en los eventos regulares
+    // próximos ya mismo, sin esperar a invoice.paid (que para este caso
+    // nunca dispara con datos de acceso nuevos, la factura ya llegó pagada).
+    require_once __DIR__ . '/../eventos_regulares.php';
+    sincronizar_inscripciones_regulares((int) $usuario['id'], true);
+
     echo json_encode([
         'success' => true,
         'activada_de_inmediato' => true,

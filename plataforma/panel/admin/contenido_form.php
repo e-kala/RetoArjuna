@@ -23,7 +23,7 @@ $evento = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'tipo' => 'online'
            'fecha_inicio' => '', 'fecha_fin' => '', 'cupo_maximo' => '', 'precio' => 0,
            'imagen_portada' => '', 'foro_url' => '', 'whatsapp_grupo_url' => '', 'whatsapp_grupo_texto' => '',
            'video_grabado_url' => '', 'mostrar_en_cursos' => 0, 'gratuito' => 0,
-           'solo_miembros' => 0, 'incluido_membresia' => 0, 'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
+           'solo_miembros' => 0, 'incluido_membresia' => 0, 'es_regular' => 0, 'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
 
 if ($id && $tipo === 'curso') {
     $stmt = $conn->prepare('SELECT * FROM cursos WHERE id = ?');
@@ -255,6 +255,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // mostrarlo (esa página manda X-Frame-Options: sameorigin, /embed/ no).
         $videoGrabado = normalizar_url_youtube(trim($_POST['video_grabado_url'] ?? ''));
         $soloMiembros = isset($_POST['solo_miembros']) ? 1 : 0;
+        $esRegular = isset($_POST['es_regular']) ? 1 : 0;
+        // "Evento regular" nunca puede cobrarle a un miembro — se fuerza
+        // incluido_membresia=1 en servidor sin importar lo que haya mandado
+        // el POST (el JS del formulario ya lo refleja en vivo, esto es lo
+        // que de verdad manda).
+        if ($esRegular) {
+            $incluidoMembresia = 1;
+        }
         // Solo tiene efecto real si además hay video_grabado_url — un evento
         // sin grabación no encaja en el catálogo de cursos (se consumiría
         // "bajo demanda" algo que en realidad no existe todavía). No se
@@ -276,15 +284,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error === '') {
             $esNuevo = !$id;
             if ($id) {
-                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
-                $stmt->bind_param('sssssssidsssssiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
+                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, es_regular=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
+                $stmt->bind_param('sssssssidsssssiiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
             } else {
-                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, video_grabado_url, gratuito, solo_miembros, incluido_membresia, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->bind_param('sssssssidsssssiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
+                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, video_grabado_url, gratuito, solo_miembros, incluido_membresia, es_regular, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->bind_param('sssssssidsssssiiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
                 $guardarRegaloConfig($itemId, false);
+                // Evento regular — sincroniza a TODOS los miembros con
+                // membresía activa/gracia actuales, no solo a partir de
+                // ahora. Correr esto de nuevo en cada guardado de un evento
+                // que ya era regular es idempotente y barato (el UPSERT no
+                // hace nada si ya están todos inscritos), así que no hace
+                // falta detectar si es la primera vez que se marca.
+                if ($esRegular) {
+                    require_once __DIR__ . '/../../backend/eventos_regulares.php';
+                    sincronizar_evento_regular_para_todos_los_miembros($itemId);
+                }
                 // Tema "ancla" del evento en el foro — ver la misma nota junto
                 // al INSERT de cursos, arriba.
                 if ($esNuevo) {
@@ -494,6 +512,11 @@ include __DIR__ . '/_header.php';
       <input type="checkbox" class="form-check-input" role="switch" name="incluido_membresia" id="incluido_membresia" <?= (int) $evento['incluido_membresia'] === 1 ? 'checked' : '' ?>>
       <label class="form-check-label" for="incluido_membresia"> Incluido con membresía (gratis para miembros, los demás lo pueden comprar)</label>
     </div>
+    <div class="col-md-6 form-check form-switch mt-4">
+      <input type="checkbox" class="form-check-input" role="switch" name="es_regular" id="es_regular" <?= (int) $evento['es_regular'] === 1 ? 'checked' : '' ?>>
+      <label class="form-check-label" for="es_regular"> Evento regular (inscribe automáticamente a todos los miembros activos)</label>
+      <div class="form-text">No es promocional — activa la inscripción automática. Al marcarlo, el evento queda también "Incluido con membresía": un evento regular nunca le cobra al miembro.</div>
+    </div>
     <div class="col-md-6">
       <label class="form-label">Descuento para miembros (% opcional)</label>
       <input type="number" step="0.01" class="form-control" name="descuento_miembro_pct" value="<?= htmlspecialchars((string) $evento['descuento_miembro_pct']) ?>" placeholder="Ej. 20 — vacío = sin descuento de miembro">
@@ -701,6 +724,22 @@ include __DIR__ . '/_header.php';
         ? 'Aparecerá también junto a los cursos, enlazando a este mismo evento.'
         : 'Agrega un video grabado arriba para poder activarlo — solo tiene sentido una vez que se consume bajo demanda.';
     });
+  })();
+
+  // "Evento regular" siempre implica "incluido con membresía" — se
+  // fuerza/bloquea aquí en vivo (y también en el servidor al guardar, por
+  // si alguien manda el POST a mano) para que nunca quede un evento regular
+  // que cobre al miembro.
+  (function () {
+    const switchRegular = document.getElementById('es_regular');
+    const switchIncluido = document.getElementById('incluido_membresia');
+    if (!switchRegular || !switchIncluido) return;
+    function aplicar() {
+      switchIncluido.disabled = switchRegular.checked;
+      if (switchRegular.checked) switchIncluido.checked = true;
+    }
+    switchRegular.addEventListener('change', aplicar);
+    aplicar();
   })();
 </script>
 <script src="_autosave.js"></script>

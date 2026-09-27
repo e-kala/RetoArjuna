@@ -107,6 +107,37 @@ function notificacion_difundir_insertar(string $tipo, string $titulo, ?string $m
 }
 
 /**
+ * Avisa a TODOS los admins que hay un pago por transferencia recién subido
+ * (comprobante) esperando confirmación — ver backend/pagos/transferencia.php.
+ * A diferencia de notificacion_difundir() (que manda a todos los usuarios y
+ * depende de notificacion_config), esto es un aviso dirigido a un rol
+ * específico: no tiene sentido apagarlo desde notificaciones_config.php
+ * (esa pantalla es solo para "contenido nuevo" difundido a todos), así que
+ * se inserta directo con un loop sobre los admins — el volumen de admins es
+ * chico, no amerita el mecanismo de difusion_id pensado para miles de
+ * usuarios.
+ *
+ * El enlace se guarda SIN BASE_URL (mismo patrón que 'respuesta'/
+ * 'nuevo_curso'/etc.) — content/navbar.php ya antepone BASE_URL al pintar
+ * la campana, así que agregarlo aquí también duplicaría el path.
+ */
+function notificar_admins_pago_pendiente(string $tituloItem, ?int $actorUsuarioId = null): void
+{
+    global $conn;
+    $admins = $conn->query("SELECT id FROM usuarios_perfil WHERE rol = 'admin'")->fetch_all(MYSQLI_ASSOC);
+    foreach ($admins as $admin) {
+        notificacion_crear(
+            (int) $admin['id'],
+            'pago_pendiente_transferencia',
+            'Nuevo comprobante por confirmar',
+            'Pago de "' . $tituloItem . '" pendiente de validar.',
+            'panel/admin/pagos.php',
+            $actorUsuarioId
+        );
+    }
+}
+
+/**
  * Difusiones enviadas (contenido nuevo + avisos personalizados de admin),
  * más recientes primero — panel/admin/notificaciones_config.php.
  */
@@ -158,6 +189,7 @@ function notificacion_icono(string $tipo): string
         'aviso_admin' => 'bi-megaphone-fill',
         'voucher_membresia' => 'bi-cash-coin',
         'pago_confirmado' => 'bi-check-circle-fill',
+        'pago_pendiente_transferencia' => 'bi-receipt',
     ];
     return $iconos[$tipo] ?? 'bi-bell';
 }

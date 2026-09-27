@@ -439,6 +439,18 @@ CREATE TABLE IF NOT EXISTS `notificaciones` (
 
 -- Instalación vieja que ya tenía `notificaciones` antes de difusion_id/aviso_admin.
 ALTER TABLE notificaciones MODIFY COLUMN tipo enum('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin') NOT NULL;
+
+-- 'pago_confirmado' (aviso al usuario cuando su comprobante se valida, ver
+-- _pagos_acciones.php) y 'voucher_membresia' (aviso de voucher OXXO listo,
+-- ver membresia_oxxo_generar_vouchers.php) ya estaban en uso real desde
+-- antes, pero este ALTER de este archivo se había quedado sin agregar —
+-- corregido aquí junto con el tipo nuevo de abajo.
+ALTER TABLE notificaciones MODIFY COLUMN tipo enum('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','pago_confirmado','voucher_membresia') NOT NULL;
+
+-- Aviso a admins de un pago por transferencia recién subido (comprobante),
+-- pendiente de que alguno lo confirme/rechace desde panel/admin/pagos.php —
+-- ver notificar_admins_pago_pendiente() en backend/notificaciones.php.
+ALTER TABLE notificaciones MODIFY COLUMN tipo enum('respuesta','mencion','nuevo_curso','nuevo_evento','nuevo_producto','nueva_noticia','aviso_admin','pago_confirmado','voucher_membresia','pago_pendiente_transferencia') NOT NULL;
 ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS difusion_id int(10) unsigned DEFAULT NULL AFTER actor_usuario_id;
 ALTER TABLE notificaciones ADD KEY IF NOT EXISTS idx_notificaciones_difusion (difusion_id);
 

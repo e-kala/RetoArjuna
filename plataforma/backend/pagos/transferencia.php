@@ -104,4 +104,10 @@ $stmt->execute();
 $pagoId = $stmt->insert_id;
 $stmt->close();
 
+// Aviso a admins — se dispara en cuanto se crea el registro de pago, tenga
+// o no comprobante ya adjunto (puede subirse después, ver el bloque
+// $existente de arriba) — el admin sabe que hay un pago por transferencia
+// en camino desde el primer momento.
+notificar_admins_pago_pendiente($item['titulo'], $usuarioPerfilId);
+
 echo json_encode(['success' => true, 'pago_id' => $pagoId]);

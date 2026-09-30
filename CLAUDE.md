@@ -18,8 +18,8 @@ panel de administración. Prioridad #1 entre los proyectos activos.
 - Dominios relacionados (según vault de Obsidian, no verificado desde el código): retoarjuna.org,
   sostener.retoarjuna.org — el foro NO vive en un dominio aparte, es nativo dentro de este mismo
   repo (ver corrección de Foro abajo).
-- Credenciales de acceso: NO están en este repo. Cada entorno (local/pruebas/producción) tiene su
-  propio `plataforma/backend/config.local.php` (gitignored) — plantilla documentada en
+- Credenciales de acceso: no están versionadas. El FTP local vive en `.env` (gitignored) y cada
+  entorno tiene su propio `plataforma/backend/config.local.php` — plantilla documentada en
   `plataforma/backend/config.example.php`. Nunca las escribas en código ni en commits.
 
 ## Estructura principal (reorganizada 2026-08-18)
@@ -57,9 +57,8 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
   tienes"/`$adquirido`), y poder eliminar filas en "mis compras" y en admin "pagos" — todo esto
   **ya está implementado**, no es pendiente.
 - **Membresía**: Stripe para membresía **ya está integrado** (`membresia_iniciar.php`,
-  `membresia_portal.php`, suscripciones recurrentes vía Checkout Session). Pendiente real: el
-  `price_id` de la membresía es de modo LIVE pero la llave secreta configurada en producción
-  es de modo TEST — hay que actualizar las llaves de producción a LIVE (ver sección Pendientes).
+  `membresia_portal.php`, suscripciones recurrentes vía Checkout Session). La configuración
+  remota se auditó el 2026-09-29: producción usa llave principal LIVE y pruebas usa TEST.
 - **Panel admin**: el botón de "Productos" en la barra lateral, el formulario de enlace de
   descarga en "editar producto", y el navbar configurable desde admin — todo esto **ya está
   implementado**.
@@ -70,16 +69,17 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
 ## Pendientes reales (verificado contra el código, no solo el vault)
 
 ### Despliegue / entornos
-- **En curso ahora mismo**: subir a `pruebas.arjuna.mx` (DB `retoarju_pruebas`) la reorganización
-  de carpetas del 2026-08-18 y todo el trabajo de esta sesión (mejora del foro, migración a
-  Bootstrap, borrado de cupones, arreglos de acceso a eventos por membresía) — probarlo ahí antes
-  de tocar producción. Ver lista de archivos a subir en la conversación de Claude Code de esa fecha.
-- Actualizar `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY` de producción a modo LIVE (el
-  `config.local.php` de producción hoy tiene llaves de modo TEST activas — la membresía falla
-  con "a similar object exists in live mode" hasta que se corrija).
-- Configurar el webhook de Stripe en modo LIVE (Dashboard → Developers → Webhooks) y su
-  `STRIPE_WEBHOOK_SECRET` — sin esto, los pagos con tarjeta se quedan en "pendiente" para
-  siempre en vez de confirmarse solos.
+- El despliegue manual por FTP se hace con `scripts/deploy_ftp.sh`; la única variable que
+  selecciona destino es `DEPLOY_ENTORNO=pruebas|produccion` en `.env`. Las raíces remotas son
+  `/pruebas.arjuna.mx` y `/public_html`, respectivamente. Ver `DESPLIEGUE.md`.
+- El script nunca sube `config.local.php`: pruebas debe conservar `DB_NAME=retoarju_pruebas`
+  y producción usa `retoarju_platform`. Tampoco sincroniza uploads, logs, Matomo ni credenciales.
+- `pruebas.arjuna.mx` quedó sincronizado y verificado el 2026-09-29 con el rediseño `v=3.0`.
+  Su `config.local.php` remoto se corrigió para usar `retoarju_pruebas`, llaves Stripe TEST y
+  destinatario de correo forzado; antes estaba cayendo silenciosamente en la BD/Stripe LIVE.
+- Verificar desde el Dashboard de Stripe que el webhook LIVE de producción esté entregando
+  eventos correctamente. El secreto está definido en el servidor, pero esta auditoría no
+  valida el estado del endpoint externo ni su historial de entregas.
 
 ### Membresía
 - Confirmar compatibilidad de Stripe Checkout con Edge (no probado).

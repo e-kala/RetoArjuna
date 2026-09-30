@@ -81,7 +81,7 @@ if (es_peticion_ajax()) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=2.9">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=3.0">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen algunas clases
        de sb-admin-2 (panel/index.php) que aquí no se cargan — se preservan con
@@ -91,10 +91,10 @@ if (es_peticion_ajax()) {
     #dashboardTabContent.pf-cargando { opacity: .45; pointer-events: none; transition: opacity .15s; }
   </style>
 </head>
-<body class="pf-body">
+<body class="pf-body pf-user-dashboard">
   <?php $navPrefijo = '../../'; $navActivoContiene = ''; include '../content/navbar.php'; ?>
 
-  <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
+  <div class="container pf-panel-shell">
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
       <div>
         <h1 class="h3 fw-bold mb-1">Hola, <?= htmlspecialchars((string) $usuario['username']) ?> 👋</h1>

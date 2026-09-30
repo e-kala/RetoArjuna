@@ -3,8 +3,9 @@
 Contexto persistente del proyecto para Claude Code. Basado en el estado real del código
 (verificado directamente en el repo) y en el historial de trabajo de Claude Code, cruzado
 contra el `checklist.txt` del repo y el vault de Obsidian (`Organizador.md`, `Reto Arjuna.md`).
-Actualizado el 2026-08-18 — la versión anterior de este archivo (generada solo desde
-Cowork/Obsidian) estaba desactualizada en varios puntos clave; ver "Correcciones" abajo.
+Actualizado el 2026-09-29 — revisión focalizada de navegación y catálogos; la auditoría
+integral base es del 2026-08-18. La versión anterior (generada solo desde Cowork/Obsidian)
+estaba desactualizada en varios puntos clave; ver "Correcciones" abajo.
 
 ## Qué es esto
 Plataforma web del ecosistema Arjuna (Academia/Reto Arjuna): cursos, tienda, membresías, foro y
@@ -36,6 +37,9 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
   - `vendor/` — NO es Composer (no hay `composer.json` en el proyecto): assets de PHPMailer sin
     usar (el mailer real usa `mail()` nativo) + JS/CSS del formulario de contacto de las
     landing pages.
+- `plataforma/index.php` es el router frontal de la app mediante `?action=...`; los catálogos
+  públicos viven en `plataforma/content/{cursos,eventos,tienda}_catalogo.php` y los detalles en
+  `curso_detalle.php`, `evento_detalle.php` y `producto_detalle.php`.
 - `.gitignore` excluye `/plataforma/vendor/`, `plataforma/backend/config.local.php` y `logs/*.log`.
 - `logs/` se queda deliberadamente FUERA de `plataforma/` (por seguridad, mejor no anidarlo bajo
   algo servido más profundo).
@@ -110,6 +114,14 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
 - Este proyecto es prioridad activa — cuando haya ambigüedad entre proyectos, arjuna.mx va primero.
 - Prioridad actual del usuario: una versión de producción básica-pero-estable antes que
   features nuevas — lo riesgoso se prueba primero en `pruebas.arjuna.mx`.
+- Las tarjetas de los catálogos de cursos, eventos y tienda son clicables completas mediante
+  `.pf-card-clicable` + `data-href`. El listener delegado compartido vive en
+  `plataforma/content/scripts.php`; ignora clicks en enlaces y botones internos.
+- El sistema visual compartido está en `plataforma/assets/css/platform.css` (versión de caché
+  `v=3.0`): variables de color, tipografía, navbar, tarjetas, botones, formularios, tablas,
+  foro y paneles. El admin usa un espacio de trabajo responsivo definido por
+  `.ra-admin-shell`/`.ra-admin-workspace`: barra lateral en escritorio y barra horizontal
+  desplazable en móvil. Antes de agregar CSS inline, revisar si el componente debe resolverse ahí.
 - Antes de tocar `redirect_post_login()`/`volver_validado()` (auth.php) o cualquier página
   con guard de "ya tienes sesión" (ingreso/registro/olvide/restablecer contraseña), leer
   `FLUJO_SESION_REDIRECCIONES.md` — ese mecanismo ya se rompió más de una vez al corregir un

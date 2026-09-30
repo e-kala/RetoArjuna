@@ -1,5 +1,6 @@
 <?php $ra_pagina_actual = basename($_SERVER['SCRIPT_NAME']); ?>
 <div class="ra-admin-nav">
+  <div class="ra-admin-nav-title"><i class="bi bi-grid-1x2-fill"></i> Herramientas</div>
   <?php
   $ra_links = [
       ['index.php', 'bi-speedometer2', 'Dashboard'],
@@ -28,7 +29,7 @@
   foreach ($ra_links as [$href, $icono, $texto]):
   ?>
     <a class="<?= $ra_pagina_actual === $href ? 'activo' : '' ?>" href="<?= $href ?>">
-      <i class="bi <?= $icono ?>"></i> <?= $texto ?>
+      <i class="bi <?= $icono ?>"></i><span><?= $texto ?></span>
     </a>
   <?php endforeach; ?>
 </div>

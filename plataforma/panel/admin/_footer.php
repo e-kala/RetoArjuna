@@ -1,3 +1,5 @@
+      </main>
+    </div>
   </div>
 
   <!-- Modal de zoom para comprobantes de pago (transferencia/ventanilla/membresía).

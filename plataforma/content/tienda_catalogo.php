@@ -16,9 +16,10 @@ $usuarioTienda = current_user();
         <?php
         $agotado = $producto['tipo'] === 'fisico' && $producto['stock'] !== null && (int) $producto['stock'] <= 0;
         $adquirido = $usuarioTienda && usuario_compro_producto($usuarioTienda['id'], (int) $producto['id']);
+        $hrefProducto = '?action=producto&amp;slug=' . urlencode($producto['slug']);
         ?>
         <div class="col" style="max-width:360px;">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="<?= $hrefProducto ?>">
             <img src="<?= htmlspecialchars($producto['imagen'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
             <div class="card-body d-flex flex-column">
               <h3 class="h5 fw-bold">
@@ -35,7 +36,7 @@ $usuarioTienda = current_user();
                 <?php if ($agotado && !$adquirido): ?>
                   <span class="badge bg-secondary">Agotado</span>
                 <?php else: ?>
-                  <a href="?action=producto&amp;slug=<?= urlencode($producto['slug']) ?>" class="btn btn-outline-secondary btn-sm">Ver producto</a>
+                  <a href="<?= $hrefProducto ?>" class="btn btn-outline-secondary btn-sm">Ver producto</a>
                 <?php endif; ?>
               </div>
             </div>

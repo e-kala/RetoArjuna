@@ -224,7 +224,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
   <title>Comprar · <?= htmlspecialchars($item['titulo']) ?> · Reto Arjuna</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=2.9">
+  <link rel="stylesheet" href="../../assets/css/platform.css?v=3.0">
   <?php if ($stripeListo): ?><script src="https://js.stripe.com/v3/"></script><?php endif; ?>
   <style>
     body.pf-checkout-body { background: var(--pf-bg); min-height: 100vh; }

@@ -18,7 +18,7 @@ ob_start();
   <?php include 'content/head.php'; ?>
 </head>
 
-<body class="pf-body">
+<body class="pf-body pf-platform-body">
   <div>
     <?php
     $action = $_GET['action'] ?? 'inicio';

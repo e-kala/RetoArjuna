@@ -17,7 +17,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=2.9">
+  <link rel="stylesheet" href="../../assets/css/platform.css?v=3.0">
   <!-- jQuery + notify.js (mismo par que ya usa el foro) — jQuery SIEMPRE
        antes que notify.min.js, arma su propio "jQuery" global al analizarse. -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
@@ -38,14 +38,17 @@
     }
   </style>
 </head>
-<body class="pf-body">
+<body class="pf-body pf-admin-body">
   <?php $navPrefijo = '../../../'; $navActivoContiene = ''; include __DIR__ . '/../../content/navbar.php'; ?>
 
-  <div class="container-fluid" style="max-width:1200px;margin-top:120px;margin-bottom:60px;padding-left:24px;padding-right:24px;">
-    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2">
-        <a href="../index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Panel admin</a>
-        <h1 class="h4 fw-bold mb-0 ms-2"><?= htmlspecialchars($pageTitle ?? '') ?></h1>
+  <div class="container-fluid ra-admin-shell">
+    <div class="ra-admin-page-header">
+      <a href="../index.php" class="ra-admin-back" aria-label="Volver al panel de administración"><i class="bi bi-arrow-left"></i></a>
+      <div>
+        <span>Administración</span>
+        <strong><?= htmlspecialchars($pageTitle ?? '') ?></strong>
       </div>
     </div>
-    <?php include __DIR__ . '/_nav.php'; ?>
+    <div class="ra-admin-workspace">
+      <?php include __DIR__ . '/_nav.php'; ?>
+      <main class="ra-admin-content">

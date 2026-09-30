@@ -72,7 +72,7 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
         $labelCtaCurso = $tieneAccesoCurso ? ($tieneProgresoCurso ? 'Seguir estudiando' : 'Comenzar a estudiar') : 'Ver curso';
         ?>
         <div class="col" style="max-width:360px;">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="<?= $hrefCurso ?>">
             <img src="<?= htmlspecialchars($curso['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
             <div class="card-body d-flex flex-column">
               <?php if ((int) $curso['gratuito'] === 1): ?>

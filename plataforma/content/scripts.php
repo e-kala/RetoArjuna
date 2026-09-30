@@ -43,6 +43,18 @@
 </script>
 <!--Función ocultar navbar scroll END-->
 
+<!-- Tarjetas completas clicables de los catálogos de cursos, eventos y
+     productos. Los enlaces y botones internos conservan su comportamiento
+     propio para evitar una segunda navegación redundante. -->
+<script>
+    document.addEventListener('click', function (event) {
+        const tarjeta = event.target.closest('.pf-card-clicable');
+        if (!tarjeta || event.target.closest('a, button')) return;
+
+        window.location.href = tarjeta.dataset.href;
+    });
+</script>
+
 <!-- Google Auth IN -->
 <script>
     function onSignIn(googleUser) {

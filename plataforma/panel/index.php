@@ -67,7 +67,7 @@ if ($esAdmin && $action === 'inicio') {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=2.9">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=3.0">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen alguna clase
        vieja de SB Admin 2 que ya no se carga — se preserva con un valor
@@ -75,10 +75,10 @@ if ($esAdmin && $action === 'inicio') {
     .text-gray-800 { color: #5a5c69; }
   </style>
 </head>
-<body class="pf-body">
+<body class="pf-body pf-admin-home">
   <?php $navPrefijo = '../../'; $navActivoContiene = ''; include '../content/navbar.php'; ?>
 
-  <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
+  <div class="container pf-panel-shell">
     <?php if ($action === 'mis_compras'): ?>
       <?php include 'content/mis_compras.php'; ?>
     <?php elseif ($action === 'mi_membresia'): ?>

@@ -247,20 +247,3 @@ function pf_evento_card(array $evento, bool $esPasado, bool $esMiembro, bool $ha
     </div>
   </div>
 </section>
-<script>
-  // Tarjeta completa clicable — navegación explícita por JS en vez de
-  // stretched-link (Bootstrap): se detectó que en navegadores reales un
-  // click en una zona distinta al botón interno (imagen, título, badges)
-  // no siempre navegaba pese a que el CSS/elementFromPoint reportaba que el
-  // link cubría toda la tarjeta — inconsistencia de stacking/hit-testing
-  // difícil de aislar. Un listener delegado que lee data-href es más
-  // predecible y no depende de ese comportamiento del navegador.
-  document.addEventListener('click', function (e) {
-    const tarjeta = e.target.closest('.pf-card-clicable');
-    if (!tarjeta) return;
-    // Si el click cayó en el propio link/botón (o dentro de él), se deja
-    // que navegue solo — no se dispara una segunda navegación redundante.
-    if (e.target.closest('a, button')) return;
-    window.location.href = tarjeta.dataset.href;
-  });
-</script>

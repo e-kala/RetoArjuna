@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/ofertas.php';
 $usuarioCatalogo = current_user();
 $usuarioIdCatalogo = (int) ($usuarioCatalogo['id'] ?? 0);
 
@@ -8,7 +9,7 @@ $usuarioIdCatalogo = (int) ($usuarioCatalogo['id'] ?? 0);
 // eventos_catalogo.php/mis_cursos.php. usuario_id=0 (sin sesión) no
 // matchea ninguna fila de `progreso`, así que $porcentaje sale null.
 $stmtCursosCatalogo = $conn->prepare(
-    "SELECT id, titulo, slug, descripcion, precio, imagen_portada, gratuito, incluido_membresia, created_at, 'curso' AS origen,
+    "SELECT id, titulo, slug, descripcion, precio, imagen_portada, gratuito, incluido_membresia, descuento_miembro_pct, created_at, 'curso' AS origen,
             (SELECT COUNT(*) FROM lecciones WHERE curso_id = cursos.id AND estado_publicacion = 'publicado') AS total_lecciones,
             (SELECT COUNT(*) FROM progreso WHERE curso_id = cursos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
      FROM cursos WHERE activo = 1"
@@ -26,7 +27,7 @@ $stmtCursosCatalogo->close();
 // mismo criterio que el resto del sitio (H02): contenido exclusivo de
 // membresía nunca es el anzuelo público de un catálogo.
 $stmtEventosComoCursos = $conn->prepare(
-    "SELECT id, titulo, slug, descripcion, precio, imagen_portada, gratuito, incluido_membresia, created_at, 'evento' AS origen,
+    "SELECT id, titulo, slug, descripcion, precio, imagen_portada, gratuito, incluido_membresia, descuento_miembro_pct, created_at, 'evento' AS origen,
             (SELECT COUNT(*) FROM lecciones WHERE evento_id = eventos.id AND estado_publicacion = 'publicado') AS total_lecciones,
             (SELECT COUNT(*) FROM progreso WHERE evento_id = eventos.id AND usuario_id = ? AND completado = 1) AS lecciones_completadas
      FROM eventos WHERE activo = 1 AND mostrar_en_cursos = 1 AND solo_miembros = 0
@@ -48,6 +49,7 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
       <h2 class="fw-bold">Cursos</h2>
       <p class="text-muted">Aprende a tu ritmo, con certificado al completar cada curso.</p>
     </div>
+    <?php $buscadorId='buscarCursos'; $buscadorPlaceholder='Buscar cursos por título o descripción…'; include __DIR__.'/_catalogo_buscador.php'; ?>
     <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
       <?php foreach ($cursos as $curso): ?>
         <?php
@@ -61,7 +63,13 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
         // acceso (compra vs. gratis-por-membresía) — la pregunta correcta
         // no es "cómo llegó esta fila" sino "¿este producto es de los que
         // la membresía incluye, para un miembro actual?".
-        $accesoPorMembresiaCurso = $esMiembroCatalogo && (int) $curso['incluido_membresia'] === 1;
+        $ofertaCurso = resolver_oferta($conn, $curso['origen'], [
+            'id' => (int) $curso['id'], 'precio' => (float) $curso['precio'],
+            'gratuito' => (bool) $curso['gratuito'], 'incluido_membresia' => (bool) $curso['incluido_membresia'],
+            'solo_miembros' => false, 'descuento_miembro_pct' => $curso['descuento_miembro_pct'],
+            'ya_tiene_acceso' => (bool) $tieneAccesoDirectoCurso,
+        ], $usuarioCatalogo);
+        $accesoPorMembresiaCurso = $ofertaCurso['estado'] === 'incluido_membresia';
         $tieneAccesoCurso = $tieneAccesoDirectoCurso || $accesoPorMembresiaCurso;
         $totalLeccionesCurso = (int) ($curso['total_lecciones'] ?? 0);
         $tieneProgresoCurso = $totalLeccionesCurso > 0 && (int) ($curso['lecciones_completadas'] ?? 0) > 0;
@@ -69,34 +77,40 @@ $esMiembroCatalogo = $usuarioCatalogo && usuario_tiene_membresia_activa($usuario
         // vinculada) — quien ya tiene acceso va directo al contenido, mismo
         // criterio que el botón "Enlace directo" del admin.
         $hrefCurso = '?action=' . ($curso['origen'] === 'curso' ? 'curso' : 'evento') . '&amp;slug=' . urlencode($curso['slug']) . ($tieneAccesoCurso ? '&amp;ver=1' : '');
-        $labelCtaCurso = $tieneAccesoCurso ? ($tieneProgresoCurso ? 'Seguir estudiando' : 'Comenzar a estudiar') : 'Ver curso';
+        $labelCtaCurso = $tieneAccesoCurso
+            ? ($curso['origen'] === 'evento'
+                ? ($tieneProgresoCurso ? 'Seguir viendo' : 'Comenzar a ver')
+                : ($tieneProgresoCurso ? 'Seguir estudiando' : 'Comenzar a estudiar'))
+            : ($curso['origen'] === 'evento' ? 'Saber más de las grabaciones y los materiales' : 'Saber más del curso');
+        $esPromoCurso = $ofertaCurso['estado'] === 'oferta' && in_array($ofertaCurso['oferta_modalidad'], ['promocion', 'preventa'], true);
+        $esDescuentoMiembroCurso = $ofertaCurso['estado'] === 'oferta'
+            && in_array($ofertaCurso['oferta_tipo'], ['descuento_miembro', 'combinado'], true);
         ?>
-        <div class="col" style="max-width:360px;">
+        <div class="col pf-item-buscable" data-busqueda="<?=htmlspecialchars($curso['titulo'].' '.strip_tags((string)$curso['descripcion']),ENT_QUOTES)?>" style="max-width:360px;">
           <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="<?= $hrefCurso ?>">
             <img src="<?= htmlspecialchars($curso['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
             <div class="card-body d-flex flex-column">
-              <?php if ((int) $curso['gratuito'] === 1): ?>
-                <div class="mb-2">
-                  <span class="badge align-self-start" style="background:#F6C500;color:#171717;">🎉 Gratis</span>
-                </div>
-              <?php endif; ?>
+              <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                <?php if ($tieneAccesoDirectoCurso): ?>
+                  <span class="badge rounded-pill pf-badge-acceso">✔ Ya tienes acceso</span>
+                <?php elseif ($accesoPorMembresiaCurso): ?>
+                  <span class="badge rounded-pill pf-badge-incluido d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
+                <?php elseif ((int) $curso['gratuito'] === 1): ?>
+                  <span class="badge rounded-pill pf-badge-gratis">Gratuito</span>
+                <?php elseif ($esPromoCurso): ?>
+                  <span class="badge rounded-pill <?= $ofertaCurso['oferta_modalidad'] === 'preventa' ? 'pf-badge-preventa' : 'pf-badge-promocion' ?>"><?= $ofertaCurso['oferta_modalidad'] === 'preventa' ? 'Preventa' : '🏷️ Promoción' ?> · <?= htmlspecialchars((string) $ofertaCurso['oferta_nombre']) ?></span>
+                <?php elseif ($esDescuentoMiembroCurso): ?>
+                  <span class="badge rounded-pill pf-badge-precio-miembro d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Precio especial con membresía</span>
+                <?php elseif ((int) $curso['incluido_membresia'] === 1): ?>
+                  <span class="badge rounded-pill pf-badge-incluido d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con Membresía</span>
+                <?php endif; ?>
+                <?php if ($usuarioCatalogo && !$esMiembroCatalogo && (float) ($curso['descuento_miembro_pct'] ?? 0) > 0): ?>
+                  <span class="badge rounded-pill pf-badge-descuento-miembro d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Descuento con membresía <?= number_format((float) $curso['descuento_miembro_pct'], 0) ?>%</span>
+                <?php endif; ?>
+              </div>
               <h3 class="h5 fw-bold"><?= htmlspecialchars($curso['titulo']) ?></h3>
               <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $curso['descripcion'])), 0, 120, '…')) ?></p>
-              <div class="d-flex align-items-center justify-content-between mt-2">
-                <?php if ((int) $curso['gratuito'] === 1): ?>
-                  <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">Gratuito</span>
-                <?php elseif ($accesoPorMembresiaCurso): ?>
-                  <span class="badge rounded-pill" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
-                <?php elseif ($tieneAccesoCurso): ?>
-                  <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">✔ Ya tienes acceso</span>
-                <?php else: ?>
-                  <span class="badge rounded-pill" style="background:#fff3e0;color:#c96a00;">$<?= number_format((float) $curso['precio'], 2) ?> MXN</span>
-                  <?php if ($usuarioCatalogo && (int) $curso['incluido_membresia'] === 1): ?>
-                    <span class="badge rounded-pill d-inline-flex align-items-center" style="background:#6f42c1;color:#fff;" title="Incluido con membresía"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" style="margin-right:0;" alt="Incluido con membresía"></span>
-                  <?php endif; ?>
-                <?php endif; ?>
-                <a href="<?= $hrefCurso ?>" class="btn btn-outline-secondary btn-sm"><?= htmlspecialchars($labelCtaCurso) ?></a>
-              </div>
+              <a href="<?= $hrefCurso ?>" class="small fw-semibold text-decoration-none d-block w-100 text-end mt-2" style="color:#171717;"><?= htmlspecialchars($labelCtaCurso) ?> →</a>
             </div>
           </div>
         </div>

@@ -113,7 +113,9 @@ if ($usuario) {
     $stmt->close();
 }
 $porcentaje = count($lecciones) > 0 ? (int) round(count($completadas) / count($lecciones) * 100) : 0;
-$mostrarBienvenida = $tieneAcceso && ($_GET['bienvenida'] ?? '') === '1';
+$tipoBienvenidaCurso = (string) ($_GET['bienvenida'] ?? '');
+$mostrarBienvenida = $tieneAcceso && in_array($tipoBienvenidaCurso, ['1', 'gratis'], true);
+$bienvenidaCursoGratis = $tipoBienvenidaCurso === 'gratis';
 $primeraLeccion = $lecciones[0] ?? null;
 // "Continuar curso": la primera lección aún no marcada como completada — si
 // ya se completaron todas, no hay a dónde "continuar" más que repasar desde
@@ -151,6 +153,7 @@ $temaExistenteId = foro_tema_ancla_de($cursoId, null, null, $curso['foro_url']);
 $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
+  <?php $pfTipoRuta='curso'; $pfContenidoRutaId=$cursoId; $pfUsuarioRuta=$usuario; include __DIR__.'/_ruta_contexto.php'; ?>
   <a href="?action=cursos" class="d-inline-block mb-3">&larr; Volver al catálogo</a>
 
   <?php if ((int) $curso['activo'] !== 1): ?>
@@ -160,17 +163,21 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
   <?php if ($mostrarBienvenida): ?>
     <div class="card p-4 mb-4" style="background:#fff3e0;border:1px solid #f7931e;">
       <h2 class="h4 mb-2">🎉 ¡Bienvenido a <?= htmlspecialchars($curso['titulo']) ?>!</h2>
-      <p class="mb-3">Tu compra fue confirmada y ya tienes acceso completo a este curso.</p>
+      <p class="mb-3"><?= $bienvenidaCursoGratis ? 'Tu inscripción fue completada y ya tienes acceso completo a este curso.' : 'Tu compra fue confirmada y ya tienes acceso completo a este curso.' ?></p>
       <?php if ($primeraLeccion): ?>
         <a href="?action=leccion&id=<?= (int) $primeraLeccion['id'] ?>" class="btn" style="background:#f7931e;color:#fff;">Comenzar curso</a>
       <?php endif; ?>
     </div>
     <script>
       $(function () {
-        $.notify('¡Listo! Tu pago fue confirmado y ya tienes acceso a este curso.', { className: 'success', position: 'top right', autoHideDelay: 4000 });
+        $.notify(<?= json_encode($bienvenidaCursoGratis
+          ? '¡Listo! Tu inscripción fue completada y ya tienes acceso a este curso.'
+          : '¡Listo! Tu pago fue confirmado y ya tienes acceso a este curso.', JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, { className: 'success', position: 'top right', autoHideDelay: 4000 });
       });
     </script>
   <?php endif; ?>
+
+  <img src="<?= htmlspecialchars($curso['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="img-fluid rounded mb-3 w-100" style="max-height:360px;object-fit:cover;" alt="">
 
   <div class="d-flex align-items-center flex-wrap gap-2">
     <h1 class="mb-0"><?= htmlspecialchars($curso['titulo']) ?></h1>
@@ -194,18 +201,25 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
     <?php if ($oferta['estado'] === 'acceso'): ?>
       <span class="badge bg-success">Ya tienes acceso</span>
     <?php elseif ($oferta['estado'] === 'incluido_membresia'): ?>
-      <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido en tu membresía</span>
+      <span class="badge pf-badge-incluido"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido en tu membresía</span>
     <?php elseif ($oferta['estado'] === 'gratuito'): ?>
       <span class="badge" style="background:#f7931e;">Gratuito</span>
     <?php elseif ($oferta['estado'] === 'oferta'): ?>
       <span class="badge text-decoration-line-through bg-secondary">$<?= number_format($oferta['precio_regular'], 2) ?></span>
       <span class="badge" style="background:#f7931e;"><?= $oferta['precio_final'] > 0 ? '$' . number_format($oferta['precio_final'], 2) . ' MXN' : 'Gratis' ?></span>
-      <span class="badge bg-secondary"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>
+      <?php if (in_array($oferta['oferta_tipo'], ['descuento_miembro', 'combinado'], true)): ?>
+        <span class="badge pf-badge-precio-miembro"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Precio especial con membresía</span>
+      <?php else: ?>
+        <span class="badge bg-secondary"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>
+      <?php endif; ?>
     <?php else: ?>
       <span class="badge" style="background:#f7931e;">$<?= number_format((float) $curso['precio'], 2) ?> MXN</span>
       <?php if ($usuario && (int) $curso['incluido_membresia'] === 1): ?>
-        <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con membresía</span>
+        <span class="badge pf-badge-incluido"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con membresía</span>
       <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($usuario && !$esMiembro && (float) ($curso['descuento_miembro_pct'] ?? 0) > 0): ?>
+      <span class="badge pf-badge-descuento-miembro"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Descuento con membresía <?= number_format((float) $curso['descuento_miembro_pct'], 0) ?>%</span>
     <?php endif; ?>
   </p>
 
@@ -314,15 +328,15 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
         <div class="card p-3 mt-3" style="max-width:480px;">
           <?php if (!$usuario): ?>
             <p class="mb-2">Crea tu Cuenta Arjuna para inscribirte — en cuanto termines, quedas inscrito automáticamente, sin pasos extra.</p>
-            <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico'] ? 'Inscribirme gratis' : 'Inscribirme' ?></a>
+            <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Obtener acceso completo →</a>
           <?php elseif ($oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico']): ?>
             <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Inscribirme gratis</button>
             <div id="inscribirCursoMsg" class="form-text mt-2"></div>
           <?php elseif ($oferta['estado'] === 'incluido_membresia'): ?>
-            <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Accesar gratis con mi membresía</button>
+            <button id="btnInscribirseCurso" class="btn" style="background:#f7931e;color:#fff;">Acceder con mi membresía →</button>
             <div id="inscribirCursoMsg" class="form-text mt-2"></div>
           <?php else: ?>
-            <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Comprar curso completo</a>
+            <a href="backend/pagos/checkout.php?curso_id=<?= $cursoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;">Obtener acceso completo →</a>
           <?php endif; ?>
         </div>
       <?php elseif ($siguienteLeccionCurso && !$mostrarBienvenida): ?>
@@ -480,7 +494,7 @@ $respuestasCurso = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
     const data = await res.json();
     const msg = document.getElementById('inscribirCursoMsg');
     if (data.success) {
-      window.location.href = '?action=curso&slug=<?= urlencode($curso['slug']) ?>&bienvenida=1';
+      window.location.href = '?action=curso&slug=<?= urlencode($curso['slug']) ?>&bienvenida=gratis';
     } else {
       msg.textContent = data.message || 'No se pudo completar la inscripción.';
       msg.className = 'form-text text-danger mt-2';

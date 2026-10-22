@@ -11,6 +11,12 @@ Valores permitidos:
 - `pruebas`: sube a `/pruebas.arjuna.mx` y valida `https://pruebas.arjuna.mx/`.
 - `produccion`: sube a `/public_html` y valida `https://arjuna.mx/`.
 
+## Flujo habitual
+
+Por instrucción del propietario, todo cambio terminado se despliega en ambos
+entornos: primero `pruebas` y, después de verificarlo por HTTPS, `produccion`.
+Solo se deja un cambio exclusivamente en local si se solicita expresamente.
+
 Las variables `FTP_HOST`, `FTP_USER`, `FTP_PASS`, `FTP_PUERTO` y
 `FTP_PROTOCOLO` permanecen iguales para ambos destinos. El servidor solo
 ofrece FTP clásico; las credenciales viajan sin cifrado.

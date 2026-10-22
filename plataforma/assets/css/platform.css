@@ -112,6 +112,12 @@ a { text-decoration: none; }
   padding-top: 16px;
   padding-bottom: 16px;
 }
+.pf-stripe-test-banner {
+  position: relative;
+  z-index: 45;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
 .pf-logo {
   font-weight: 800;
   font-size: 19px;
@@ -335,6 +341,76 @@ a { text-decoration: none; }
   gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* Home orientativo */
+.pf-home-hero { padding: 48px 0 28px; }
+.pf-home-hero-shell {
+  min-height: 590px; display: grid; grid-template-columns: 1.05fr .95fr;
+  align-items: stretch; overflow: hidden; border: 1px solid var(--pf-line);
+  border-radius: 32px; background: #fff; box-shadow: 0 24px 70px rgba(30, 23, 17, .10);
+}
+.pf-home-hero-copy { padding: clamp(42px, 6vw, 82px); align-self: center; }
+.pf-home-kicker {
+  display: inline-flex; align-items: center; gap: 8px; color: #a9570c;
+  font-size: 12px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.pf-home-hero h1 { max-width: 680px; margin: 0 0 22px; font-size: clamp(40px, 5vw, 68px); line-height: 1.02; letter-spacing: -.045em; font-weight: 850; }
+.pf-home-hero-copy > p { max-width: 620px; margin: 0 0 30px; color: var(--pf-muted); font-size: 19px; line-height: 1.7; }
+.pf-home-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.pf-home-hero-visual { position: relative; min-height: 520px; background: #201b17; }
+.pf-home-hero-visual > img { width: 100%; height: 100%; object-fit: cover; opacity: .86; }
+.pf-home-hero-visual::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(32,27,23,.22), transparent 45%, rgba(32,27,23,.28)); }
+.pf-home-guide-card { position: absolute; z-index: 1; left: 28px; right: 28px; bottom: 28px; padding: 24px 26px; color: #fff; background: rgba(24,20,17,.82); border: 1px solid rgba(255,255,255,.2); border-radius: 20px; backdrop-filter: blur(12px); }
+.pf-home-guide-card > span { display: block; margin-bottom: 12px; color: #ffd29c; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.pf-home-guide-card ol { list-style: none; display: flex; gap: 18px; margin: 0; padding: 0; counter-reset: guide; }
+.pf-home-guide-card li { flex: 1; font-size: 13px; line-height: 1.35; opacity: .9; }
+.pf-home-guide-card li b { display: block; font-size: 15px; color: #fff; }
+.pf-home-intro { padding: 16px 0 34px; }
+.pf-home-intro p { max-width: 760px; margin: 0 auto; text-align: center; color: var(--pf-muted); font-size: 16px; }
+.pf-path-section { padding: 72px 0; background: linear-gradient(180deg, #fff 0%, #fffaf4 100%); border-block: 1px solid var(--pf-line); scroll-margin-top: 90px; }
+.pf-path-section .pf-section-title { max-width: 720px; margin-inline: auto; }
+.pf-path-section .pf-section-title h2 { font-size: clamp(30px, 4vw, 44px); }
+.pf-path-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.pf-path-card { position: relative; min-height: 390px; display: flex; flex-direction: column; padding: 32px; overflow: hidden; color: var(--pf-ink); text-decoration: none; background: #fff; border: 1px solid var(--pf-line); border-radius: 24px; transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.pf-path-card:hover { color: var(--pf-ink); transform: translateY(-6px); border-color: #efb06a; box-shadow: 0 22px 50px rgba(51,38,25,.12); }
+.pf-path-card-featured { background: #25201c; border-color: #25201c; color: #fff; }
+.pf-path-card-featured:hover { color: #fff; }
+.pf-path-number { position: absolute; top: 22px; right: 26px; color: rgba(100,78,59,.12); font-size: 64px; line-height: 1; font-weight: 900; }
+.pf-path-card-featured .pf-path-number { color: rgba(255,255,255,.09); }
+.pf-path-icon { width: 54px; height: 54px; display: grid; place-items: center; margin-bottom: 36px; border-radius: 16px; color: #c96a00; background: #fff3e0; font-size: 24px; }
+.pf-path-card-featured .pf-path-icon { color: #2a2018; background: #f7a13e; }
+.pf-path-label { margin: 0 0 10px; color: #a9570c; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.pf-path-card-featured .pf-path-label { color: #f6b86f; }
+.pf-path-card h3 { margin: 0 0 14px; font-size: 24px; font-weight: 800; }
+.pf-path-card > p:not(.pf-path-label) { color: var(--pf-muted); line-height: 1.65; }
+.pf-path-card-featured > p:not(.pf-path-label) { color: rgba(255,255,255,.7); }
+.pf-path-link { margin-top: auto; padding-top: 24px; font-weight: 800; color: #a9570c; }
+.pf-path-card-featured .pf-path-link { color: #f7a13e; }
+.pf-path-link i { margin-left: 5px; transition: margin .2s ease; }
+.pf-path-card:hover .pf-path-link i { margin-left: 10px; }
+.pf-path-footnote { margin: 28px 0 0; text-align: center; color: var(--pf-muted); }
+.pf-path-footnote a { color: #8d4a0d; font-weight: 700; }
+
+@media (max-width: 991.98px) {
+  .pf-home-hero-shell { grid-template-columns: 1fr; }
+  .pf-home-hero-visual { min-height: 390px; }
+  .pf-path-grid { grid-template-columns: 1fr; }
+  .pf-path-card { min-height: 330px; }
+}
+@media (max-width: 575.98px) {
+  .pf-home-hero { padding: 20px 12px 18px; }
+  .pf-home-hero-shell { border-radius: 22px; }
+  .pf-home-hero-copy { padding: 34px 24px; }
+  .pf-home-hero h1 { font-size: 38px; }
+  .pf-home-hero-copy > p { font-size: 17px; }
+  .pf-home-hero-actions .pf-btn { width: 100%; text-align: center; }
+  .pf-home-hero-visual { min-height: 360px; }
+  .pf-home-guide-card { left: 16px; right: 16px; bottom: 16px; padding: 20px; }
+  .pf-home-guide-card ol { flex-direction: column; gap: 10px; }
+  .pf-home-guide-card li b { display: inline; margin-right: 5px; }
+  .pf-path-section { padding: 54px 8px; }
 }
 
 /* ===================================================================
@@ -1074,8 +1150,64 @@ a { text-decoration: none; }
 .pf-body .table tbody tr:last-child > * { border-bottom: 0; }
 .pf-admin-body .table td:first-child { min-width: 160px; }
 
+/* En las tablas anchas del admin, la columna de acciones permanece visible
+   mientras el resto de las columnas se desplaza horizontalmente. La clase la
+   añade _footer.php solo cuando la última cabecera dice "Acciones", para no
+   fijar por accidente la última columna de reportes u otras tablas. */
+.pf-admin-body .table-responsive.pf-tabla-acciones-fijas {
+  isolation: isolate;
+}
+.pf-admin-body .pf-tabla-acciones-fijas .table thead th:last-child,
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody td:last-child:not([colspan]) {
+  position: sticky;
+  right: 0;
+  border-left: 1px solid var(--pf-line);
+  box-shadow: -10px 0 14px -14px rgba(42, 38, 32, 0.75);
+}
+.pf-admin-body .pf-tabla-acciones-fijas .table thead th:last-child {
+  z-index: 4;
+  background: #f3eee6;
+}
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody td:last-child:not([colspan]) {
+  z-index: 2;
+  min-width: 132px;
+  background: var(--pf-surface);
+  /* Varias vistas usan .d-flex directamente sobre el <td>. Bootstrap lo
+     convierte en display:flex !important y algunos navegadores dejan de
+     tratarlo como celda sticky. Se restaura la semántica de tabla; los
+     controles hijos conservan una distribución compacta y envolvente. */
+  display: table-cell !important;
+  white-space: normal;
+}
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody td:last-child:not([colspan]) > a,
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody td:last-child:not([colspan]) > button,
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody td:last-child:not([colspan]) > form {
+  display: inline-flex !important;
+  align-items: center;
+  margin: 2px;
+  vertical-align: middle;
+}
+.pf-admin-body .pf-tabla-acciones-fijas .table tbody tr:hover > td:last-child:not([colspan]) {
+  background: #fff8ef;
+}
+
 /* Componentes Bootstrap secundarios. */
 .pf-body .badge { padding: .42em .68em; font-weight: 700; letter-spacing: .01em; }
+/* Paleta semántica de badges de catálogo: un color por significado. */
+.pf-body .pf-badge-proximo { background:#2563eb !important; color:#fff !important; }
+.pf-body .pf-badge-grabado { background:#475569 !important; color:#fff !important; }
+.pf-body .pf-badge-gratis { background:#d97706 !important; color:#fff !important; }
+.pf-body .pf-badge-presencial { background:#0891b2 !important; color:#fff !important; }
+.pf-body .pf-badge-acceso { background:#047857 !important; color:#fff !important; }
+.pf-body .pf-badge-incluido { background:#08d655 !important; color:#073b1b !important; }
+.pf-body .pf-badge-promocion { background:#ea580c !important; color:#fff !important; }
+.pf-body .pf-badge-preventa { background:#c2410c !important; color:#fff !important; }
+.pf-body .pf-badge-precio-miembro { background:#08d655 !important; color:#073b1b !important; }
+.pf-body .pf-badge-descuento-miembro { background:#08d655 !important; color:#073b1b !important; }
+.pf-body .pf-badge-digital { background:#4f46e5 !important; color:#fff !important; }
+.pf-body .pf-badge-adquirido { background:#0f766e !important; color:#fff !important; }
+.pf-body .pf-badge-precio { background:#be123c !important; color:#fff !important; }
+.pf-body .pf-badge-agotado { background:#334155 !important; color:#fff !important; }
 .pf-body .alert { border-radius: 14px; border-width: 1px; box-shadow: var(--pf-shadow-sm); }
 .pf-body .modal-content { border: 0; border-radius: 20px; box-shadow: var(--pf-shadow-lg); overflow: hidden; }
 .pf-body .dropdown-menu { border-color: var(--pf-line); border-radius: 13px; box-shadow: var(--pf-shadow); padding: 8px; }
@@ -1249,6 +1381,27 @@ a { text-decoration: none; }
   box-shadow: var(--pf-shadow-sm);
 }
 .ra-admin-content > .card { box-shadow: var(--pf-shadow-sm); }
+.pf-editor-collapsible {
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--pf-line);
+  border-radius: 14px;
+}
+.pf-editor-collapsible > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 17px;
+  cursor: pointer;
+  list-style: none;
+}
+.pf-editor-collapsible > summary::-webkit-details-marker { display: none; }
+.pf-editor-collapsible > summary::after { content: "+"; color: var(--pf-muted); font-size: 1.3rem; line-height: 1; }
+.pf-editor-collapsible[open] > summary { background: var(--pf-accent-soft); border-bottom: 1px solid var(--pf-line); }
+.pf-editor-collapsible[open] > summary::after { content: "−"; }
+.pf-editor-collapsible > summary span { color: var(--pf-muted); font-size: .82rem; font-weight: 400; text-align: right; }
 .ra-admin-content > .d-flex:first-child h1,
 .ra-admin-content > h1:first-child,
 .ra-admin-content > h2:first-child { font-weight: 800; }

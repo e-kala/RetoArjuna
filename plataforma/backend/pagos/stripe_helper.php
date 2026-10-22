@@ -76,19 +76,16 @@ function stripe_publishable_key_activa(): string
     return STRIPE_PUBLISHABLE_KEY;
 }
 
-// Franja fija y muy visible mientras el modo prueba está activo, para que un
-// admin nunca la pierda de vista mientras navega (a diferencia de la sesión, que
-// se olvida sola, este modo queda encendido hasta apagarlo a mano — ver
-// stripe_modo_prueba.php). Se llama desde navbar.php (cubre casi todo el sitio)
-// y explícitamente en checkout.php, que no incluye el navbar por tener su propio
-// <html> minimalista.
+// Franja visible mientras el modo prueba está activo. navbar.php la imprime
+// DESPUÉS del <nav> para que ocupe su propia altura y nunca tape la navegación;
+// checkout.php la llama directamente porque usa un <html> minimalista sin nav.
 function stripe_modo_prueba_banner_html(): string
 {
     if (!stripe_modo_prueba_activo()) {
         return '';
     }
     $volver = htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? (BASE_URL . '/panel/index.php')));
-    return '<div class="alert alert-warning text-center mb-0 py-2 px-2" style="position:sticky;top:0;z-index:1055;border-radius:0;">'
+    return '<div class="pf-stripe-test-banner alert alert-warning text-center mb-0 py-2 px-2" role="status">'
         . '<strong> Modo prueba de Stripe activo</strong> — los pagos que hagas ahora no usan dinero real. '
         . '<form method="post" action="' . htmlspecialchars(BASE_URL) . '/panel/admin/stripe_modo_prueba.php" class="d-inline ms-2">'
         . csrf_field()

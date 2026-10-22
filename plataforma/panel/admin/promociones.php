@@ -59,11 +59,11 @@ $promociones = $conn->query(
      ORDER BY p.fecha_inicio DESC"
 )->fetch_all(MYSQLI_ASSOC);
 
-$pageTitle = 'Promociones';
+$pageTitle = 'Promociones y preventas';
 include __DIR__ . '/_header.php';
 ?>
 <div class="d-flex justify-content-between mb-3">
-  <h1 class="h4">Promociones públicas</h1>
+  <h1 class="h4">Promociones y preventas públicas</h1>
   <a href="promocion_form.php" class="btn btn-success btn-sm">+ Nueva promoción</a>
 </div>
 <p class="text-muted small">Descuentos temporales, visibles para cualquiera (Visitantes incluidos) — independientes de la membresía. Activan y vencen solos por fecha.</p>

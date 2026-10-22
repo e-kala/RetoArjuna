@@ -11,6 +11,7 @@ $usuarioTienda = current_user();
       <h2 class="fw-bold">Tienda</h2>
       <p class="text-muted">Merchandise e infoproductos del Reto Arjuna.</p>
     </div>
+    <?php $buscadorId='buscarTienda'; $buscadorPlaceholder='Buscar productos por nombre o descripción…'; include __DIR__.'/_catalogo_buscador.php'; ?>
     <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
       <?php foreach ($productos as $producto): ?>
         <?php
@@ -18,27 +19,24 @@ $usuarioTienda = current_user();
         $adquirido = $usuarioTienda && usuario_compro_producto($usuarioTienda['id'], (int) $producto['id']);
         $hrefProducto = '?action=producto&amp;slug=' . urlencode($producto['slug']);
         ?>
-        <div class="col" style="max-width:360px;">
+        <div class="col pf-item-buscable" data-busqueda="<?=htmlspecialchars($producto['nombre'].' '.strip_tags((string)$producto['descripcion']),ENT_QUOTES)?>" style="max-width:360px;">
           <div class="card h-100 border-0 shadow-sm pf-card-clicable" style="cursor:pointer;" data-href="<?= $hrefProducto ?>">
             <img src="<?= htmlspecialchars($producto['imagen'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
             <div class="card-body d-flex flex-column">
-              <h3 class="h5 fw-bold">
-                <?= htmlspecialchars($producto['nombre']) ?>
-                <?php if ($producto['tipo'] === 'digital'): ?><span class="badge bg-secondary align-middle">Digital</span><?php endif; ?>
-              </h3>
-              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $producto['descripcion'])), 0, 100, '…')) ?></p>
-              <div class="d-flex align-items-center justify-content-between mt-2">
+              <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                <?php if ($producto['tipo'] === 'digital'): ?><span class="badge pf-badge-digital">Digital</span><?php endif; ?>
                 <?php if ($adquirido): ?>
-                  <span class="badge rounded-pill" style="background:#e6f4ea;color:#1e7d3c;">Adquirido</span>
+                  <span class="badge rounded-pill pf-badge-adquirido">Adquirido</span>
                 <?php else: ?>
-                  <span class="badge rounded-pill" style="background:#fdeaea;color:#c0392b;">$<?= number_format((float) $producto['precio'], 2) ?> MXN</span>
+                  <span class="badge rounded-pill pf-badge-precio">$<?= number_format((float) $producto['precio'], 2) ?> MXN</span>
                 <?php endif; ?>
-                <?php if ($agotado && !$adquirido): ?>
-                  <span class="badge bg-secondary">Agotado</span>
-                <?php else: ?>
-                  <a href="<?= $hrefProducto ?>" class="btn btn-outline-secondary btn-sm">Ver producto</a>
-                <?php endif; ?>
+                <?php if ($agotado && !$adquirido): ?><span class="badge pf-badge-agotado">Agotado</span><?php endif; ?>
               </div>
+              <h3 class="h5 fw-bold"><?= htmlspecialchars($producto['nombre']) ?></h3>
+              <p class="small text-muted flex-grow-1"><?= htmlspecialchars(mb_strimwidth(trim(strip_tags((string) $producto['descripcion'])), 0, 100, '…')) ?></p>
+              <?php if (!$agotado || $adquirido): ?>
+                <a href="<?= $hrefProducto ?>" class="small fw-semibold text-decoration-none d-block w-100 text-end mt-2" style="color:#171717;">Ver producto →</a>
+              <?php endif; ?>
             </div>
           </div>
         </div>

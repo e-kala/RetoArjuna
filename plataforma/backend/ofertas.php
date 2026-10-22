@@ -184,6 +184,7 @@ function resolver_oferta(mysqli $conn, string $tipo, array $item, ?array $usuari
         'oferta_tipo' => null,
         'oferta_id' => null,
         'oferta_nombre' => null,
+        'oferta_modalidad' => null,
         'cupon_error' => null,
         'acceso_gratis_automatico' => false,
         'badge' => '',
@@ -245,6 +246,7 @@ function resolver_oferta(mysqli $conn, string $tipo, array $item, ?array $usuari
             'tipo' => 'promocion',
             'id' => (int) $promo['id'],
             'nombre' => $promo['nombre'],
+            'modalidad' => $promo['modalidad'] ?? 'promocion',
             'precio_final' => round($precioPromo, 2),
             'combinable' => (bool) $promo['combinable'],
         ];
@@ -303,8 +305,15 @@ function resolver_oferta(mysqli $conn, string $tipo, array $item, ?array $usuari
         }
         $ganador = [
             'tipo' => 'combinado', 'id' => null, 'nombre' => implode(' + ', $nombres),
+            'modalidad' => null,
             'precio_final' => max(0.0, round($precioRegular - $descuentoTotal, 2)),
         ];
+        foreach ($candidatos as $c) {
+            if (!empty($c['modalidad'])) {
+                $ganador['modalidad'] = $c['modalidad'];
+                break;
+            }
+        }
     } else {
         usort($candidatos, fn (array $a, array $b) => $a['precio_final'] <=> $b['precio_final']);
         $ganador = $candidatos[0];
@@ -318,6 +327,7 @@ function resolver_oferta(mysqli $conn, string $tipo, array $item, ?array $usuari
         'oferta_tipo' => $ganador['tipo'],
         'oferta_id' => $ganador['id'],
         'oferta_nombre' => $ganador['nombre'],
+        'oferta_modalidad' => $ganador['modalidad'] ?? null,
         'cupon_error' => $cuponError,
         'acceso_gratis_automatico' => $precioFinal <= 0.0,
         'badge' => $ganador['nombre'],

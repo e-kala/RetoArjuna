@@ -3,6 +3,7 @@
 // en todo el sitio) para saber si ya hay alguien logueado — Flarum sigue
 // siendo la única fuente de credenciales, esto solo lee el estado ya resuelto.
 require_once __DIR__ . '/plataforma/backend/auth.php';
+require_once __DIR__ . '/plataforma/backend/seo.php';
 
 $usuario = current_user();
 $plataformaUrl = BASE_URL; // .../plataforma
@@ -27,45 +28,64 @@ $productosDestacados = $conn->query(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Reto Arjuna — Plataforma</title>
-  <meta name="description" content="Cursos, eventos, foro y tienda del Reto Arjuna, todo en un mismo lugar.">
+  <?php seo_render_meta([
+    'titulo' => 'Reto Arjuna — claridad para avanzar',
+    'descripcion' => 'Aprendizaje, práctica y acompañamiento para comprender lo que estás viviendo y dar un siguiente paso posible.',
+    'imagen' => seo_url_absoluta('/plataforma/digital-creative/img/banner.jpg'),
+    'url' => seo_url_absoluta('/'),
+    'tipo' => 'website',
+  ]); ?>
   <link rel="icon" href="plataforma/digital-creative/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="plataforma/assets/css/platform.css?v=3.0">
+  <link rel="stylesheet" href="plataforma/assets/css/platform.css?v=3.4">
 </head>
 <body class="pf-body pf-home-body">
 
   <?php $navPrefijo = ''; include 'plataforma/content/navbar.php'; ?>
 
-  <section class="py-5">
-    <div class="container py-4">
-      <div class="row align-items-center g-5">
-        <div class="col-lg-6">
-          <span class="badge rounded-pill text-uppercase mb-3" style="background:#fff3e0;color:#c96a00;font-size:12px;letter-spacing:.06em;padding:8px 16px;">Un espacio guiado, no solo contenido</span>
-          <h1 class="display-5 fw-bold mb-3">
+  <section class="pf-home-hero">
+    <div class="container">
+      <div class="pf-home-hero-shell">
+        <div class="pf-home-hero-copy">
+          <span class="pf-home-kicker"><i class="bi bi-compass"></i> Tu camino empieza con una pregunta</span>
+          <h1>
             <?php if ($usuario): ?>
-              Hola, <?= htmlspecialchars((string) $usuario['username']) ?> — qué bueno tenerte de vuelta 👋
+              Hola, <?= htmlspecialchars((string) $usuario['username']) ?>. ¿Qué necesitas fortalecer hoy?
             <?php else: ?>
-              Bienvenidos al ecosistema Arjuna
+              Encuentra claridad para avanzar, incluso cuando no tienes todas las respuestas
             <?php endif; ?>
           </h1>
-          <p class="fs-5 text-muted mb-4">No es solo contenido — es un espacio guiado, con personas reales acompañando cada paso: cursos, comunidad, encuentros y práctica continua, todo en un mismo lugar.</p>
-          <div class="d-flex gap-3 flex-wrap">
+          <p>Arjuna reúne aprendizaje, práctica y acompañamiento para ayudarte a comprender lo que estás viviendo y convertir esa claridad en un siguiente paso posible.</p>
+          <div class="pf-home-hero-actions">
             <?php if ($usuario): ?>
-              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/<?= $usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php' ?>">Ir a mi panel</a>
-              <a class="btn btn-outline-secondary btn-lg" href="plataforma/foro/">Ir al foro</a>
+              <a class="pf-btn pf-btn-primary pf-btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/panel/<?= $usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php' ?>">Continuar mi camino <i class="bi bi-arrow-right"></i></a>
+              <a class="pf-btn pf-btn-outline pf-btn-lg" href="#elige-tu-camino">Elegir otra ruta</a>
             <?php else: ?>
-              <a class="btn btn-lg" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Crea tu Cuenta Arjuna gratis</a>
-              <a class="btn btn-outline-secondary btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">Explorar cursos</a>
+              <a class="pf-btn pf-btn-primary pf-btn-lg" href="#elige-tu-camino">Quiero saber por dónde empezar <i class="bi bi-arrow-down"></i></a>
+              <a class="pf-btn pf-btn-outline pf-btn-lg" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=registro">Crear mi cuenta gratis</a>
             <?php endif; ?>
           </div>
         </div>
-        <div class="col-lg-6">
-          <img src="plataforma/digital-creative/img/banner.jpg" alt="Una brújula sobre un mapa — orientación en el camino" class="img-fluid rounded-4 shadow">
+        <div class="pf-home-hero-visual">
+          <img src="plataforma/digital-creative/img/banner.jpg" alt="Una brújula sobre un mapa, símbolo de orientación en el camino">
+          <div class="pf-home-guide-card">
+            <span>Tu recorrido en Arjuna</span>
+            <ol>
+              <li><b>Reconoce</b> dónde estás</li>
+              <li><b>Elige</b> una práctica</li>
+              <li><b>Avanza</b> con acompañamiento</li>
+            </ol>
+          </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="pf-home-intro">
+    <div class="container">
+      <p><strong>No tienes que recorrer todo a la vez.</strong> Elige la opción que más se parece a lo que buscas hoy; podrás cambiar de camino cuando lo necesites.</p>
     </div>
   </section>
 
@@ -112,36 +132,37 @@ $productosDestacados = $conn->query(
   </section>
   <?php endif; ?>
 
-  <section class="py-5" style="background:var(--pf-surface);border-top:1px solid var(--pf-line);border-bottom:1px solid var(--pf-line);">
+  <section id="elige-tu-camino" class="pf-path-section">
     <div class="container py-4">
-      <div class="text-center mb-5">
-        <h2 class="fw-bold">Explora el ecosistema</h2>
-        <p class="text-muted">Un mapa rápido de todo lo que tienes disponible, en un solo vistazo.</p>
+      <div class="pf-section-title mb-5">
+        <span class="pf-home-kicker">Elige según tu momento</span>
+        <h2>¿Qué te gustaría encontrar hoy?</h2>
+        <p>Hay distintas puertas de entrada. Estas tres rutas te ayudan a comenzar sin perderte entre opciones.</p>
       </div>
-      <div class="row row-cols-2 row-cols-md-4 g-3">
-        <?php
-        $mapaEcosistema = [
-          ['icono' => '🎓', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Cursos', 'texto' => 'Aprende a tu ritmo con lecciones, quizzes y certificado al completar.', 'href' => $plataformaUrl . '/index.php?action=cursos'],
-          ['icono' => '📅', 'bg' => '#e6f4ea', 'color' => '#1e7d3c', 'titulo' => 'Eventos', 'texto' => 'Encuentros en línea y presenciales — inscríbete y recibe tu reconocimiento.', 'href' => $plataformaUrl . '/index.php?action=eventos'],
-          ['icono' => '💬', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Foro', 'texto' => 'Conversa, pregunta y comparte con la comunidad del Reto Arjuna.', 'href' => 'plataforma/foro/'],
-          ['icono' => '🛍️', 'bg' => '#fdeaea', 'color' => '#c0392b', 'titulo' => 'Tienda', 'texto' => 'Merchandise e infoproductos físicos y digitales para tu práctica.', 'href' => $plataformaUrl . '/index.php?action=tienda'],
-          ['icono' => '🙏', 'bg' => '#fff3e0', 'color' => '#c96a00', 'titulo' => 'Actividades', 'texto' => 'Prácticas guiadas para sostener el método en tu día a día.', 'href' => $plataformaUrl . '/index.php?action=actividades'],
-          ['icono' => '📰', 'bg' => '#e6f0fb', 'color' => '#1c5fa8', 'titulo' => 'Noticias', 'texto' => 'Avisos y novedades de la comunidad, siempre al día.', 'href' => $plataformaUrl . '/index.php?action=noticias'],
-          ['icono' => '🧭', 'bg' => '#eeeeee', 'color' => '#444444', 'titulo' => 'Mi panel', 'texto' => 'Tu progreso, tus compras y tu Camino Arjuna — todo en un solo lugar.', 'href' => $usuario ? $plataformaUrl . '/panel/' . ($usuario['rol'] === 'admin' ? 'index.php' : 'dashboard.php') : $plataformaUrl . '/index.php?action=ingreso&volver=' . urlencode($plataformaUrl . '/panel/dashboard.php')],
-        ];
-        ?>
-        <?php foreach ($mapaEcosistema as $item): ?>
-          <div class="col">
-            <a href="<?= htmlspecialchars($item['href']) ?>" class="card h-100 text-decoration-none shadow-sm border-0" style="transition:transform .15s ease;">
-              <div class="card-body">
-                <div class="rounded-3 d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;font-size:22px;background:<?= $item['bg'] ?>;color:<?= $item['color'] ?>;"><?= $item['icono'] ?></div>
-                <h3 class="h6 fw-bold text-body"><?= htmlspecialchars($item['titulo']) ?></h3>
-                <p class="small text-muted mb-0"><?= htmlspecialchars($item['texto']) ?></p>
-              </div>
-            </a>
-          </div>
-        <?php endforeach; ?>
+      <div class="pf-path-grid">
+        <a class="pf-path-card pf-path-card-featured" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=proximo_evento">
+          <span class="pf-path-number">01</span><i class="bi bi-compass pf-path-icon"></i>
+          <p class="pf-path-label">Necesito claridad y un punto de partida</p>
+          <h3>Vivir el próximo Reto Arjuna</h3>
+          <p>Una experiencia guiada para reconocer tus bloqueos, ordenar lo importante y dar pasos concretos acompañado.</p>
+          <span class="pf-path-link">Conocer el próximo reto <i class="bi bi-arrow-right"></i></span>
+        </a>
+        <a class="pf-path-card" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=cursos">
+          <span class="pf-path-number">02</span><i class="bi bi-journal-bookmark pf-path-icon"></i>
+          <p class="pf-path-label">Quiero profundizar a mi propio ritmo</p>
+          <h3>Aprender con un curso</h3>
+          <p>Elige un tema, avanza por lecciones y vuelve a la práctica cuando lo necesites. Tu progreso queda guardado.</p>
+          <span class="pf-path-link">Ver cursos disponibles <i class="bi bi-arrow-right"></i></span>
+        </a>
+        <a class="pf-path-card" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=membresia">
+          <span class="pf-path-number">03</span><i class="bi bi-people pf-path-icon"></i>
+          <p class="pf-path-label">Busco constancia y acompañamiento</p>
+          <h3>Caminar en comunidad</h3>
+          <p>Encuentros, materiales y una comunidad que te ayudan a sostener lo aprendido más allá de un impulso inicial.</p>
+          <span class="pf-path-link">Conocer Camino Arjuna <i class="bi bi-arrow-right"></i></span>
+        </a>
       </div>
+      <p class="pf-path-footnote">¿Ya sabes lo que buscas? También puedes ir directo a <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=eventos">eventos</a>, <a href="plataforma/foro/">foro</a> o <a href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=tienda">tienda</a>.</p>
     </div>
   </section>
 
@@ -200,9 +221,10 @@ $productosDestacados = $conn->query(
           // de disponibilidad en vez de precio/promoción, aquí mismo en la
           // tarjeta de Inicio (misma lógica que eventos_catalogo.php).
           $tieneAccesoEv = $usuario && usuario_esta_inscrito_evento((int) $usuario['id'], (int) $ev['id']);
+          $hrefEv = $plataformaUrl . '/index.php?action=evento&slug=' . urlencode($ev['slug']) . ($tieneAccesoEv ? '&ver=1' : '');
           ?>
           <div class="col" style="max-width:360px;">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm pf-card-clicable" data-href="<?= htmlspecialchars($hrefEv) ?>" style="cursor:pointer;">
               <img src="<?= htmlspecialchars($ev['imagen_portada'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
               <div class="card-body d-flex flex-column">
                 <h3 class="h5 fw-bold"><?= htmlspecialchars($ev['titulo']) ?></h3>
@@ -210,8 +232,8 @@ $productosDestacados = $conn->query(
                   <?= $ev['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $ev['ubicacion']) ?>
                   · <?= htmlspecialchars(date('d/m/Y', strtotime($ev['fecha_inicio']))) ?>
                 </p>
-                <p class="mb-3"><?= $tieneAccesoEv ? 'Evento disponible' : ((int) $ev['gratuito'] === 1 ? 'Gratuito' : '$' . number_format((float) $ev['precio'], 2) . ' MXN') ?></p>
-                <a class="btn mt-auto" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=evento&slug=<?= urlencode($ev['slug']) ?>"><?= $tieneAccesoEv ? 'Ver evento' : 'Inscribirme' ?></a>
+                <p class="mb-3 text-muted"><?= $tieneAccesoEv ? 'Ya tienes acceso' : ((int) $ev['gratuito'] === 1 ? 'Participación gratuita' : 'Conoce todos los detalles') ?></p>
+                <a class="btn mt-auto" style="background:#f7931e;color:#fff;" href="<?= htmlspecialchars($hrefEv) ?>"><?= $tieneAccesoEv ? 'Ver evento →' : 'Saber más del evento →' ?></a>
               </div>
             </div>
           </div>
@@ -230,13 +252,14 @@ $productosDestacados = $conn->query(
       </div>
       <div class="row row-cols-1 row-cols-md-3 justify-content-center g-4">
         <?php foreach ($productosDestacados as $p): ?>
+          <?php $hrefProducto = $plataformaUrl . '/index.php?action=producto&slug=' . urlencode($p['slug']); ?>
           <div class="col" style="max-width:360px;">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm pf-card-clicable" data-href="<?= htmlspecialchars($hrefProducto) ?>" style="cursor:pointer;">
               <img src="<?= htmlspecialchars($p['imagen'] ?: BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:160px;object-fit:cover;" alt="">
               <div class="card-body d-flex flex-column">
                 <h3 class="h5 fw-bold"><?= htmlspecialchars($p['nombre']) ?></h3>
                 <p class="mb-3">$<?= number_format((float) $p['precio'], 2) ?> MXN</p>
-                <a class="btn btn-outline-secondary mt-auto" href="<?= htmlspecialchars($plataformaUrl) ?>/index.php?action=producto&slug=<?= urlencode($p['slug']) ?>">Ver producto</a>
+                <a class="btn btn-outline-secondary mt-auto" href="<?= htmlspecialchars($hrefProducto) ?>">Ver producto</a>
               </div>
             </div>
           </div>
@@ -257,6 +280,14 @@ $productosDestacados = $conn->query(
   </section>
 
   <?php $navPrefijo = ''; include 'plataforma/content/footer.php'; ?>
+
+  <script>
+    document.addEventListener('click', function (event) {
+      const tarjeta = event.target.closest('.pf-card-clicable');
+      if (!tarjeta || event.target.closest('a, button')) return;
+      window.location.href = tarjeta.dataset.href;
+    });
+  </script>
 
 </body>
 </html>

@@ -38,6 +38,9 @@ ob_start();
       case 'registro':
         include 'content/registro.php';
         break;
+      case 'email_verificado':
+        include 'content/email_verificado.php';
+        break;
       case 'olvide_contrasena':
         include 'content/olvide_contrasena.php';
         break;
@@ -73,6 +76,9 @@ ob_start();
         break;
       case 'evento':
         include 'content/evento_detalle.php';
+        break;
+      case 'ruta':
+        include 'content/ruta_detalle.php';
         break;
       case 'tienda':
         include 'content/tienda_catalogo.php';

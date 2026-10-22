@@ -325,6 +325,8 @@
       dataType: 'json'
     }).done(function (data) {
       if (data.success) {
+        var formularioGuardado = $form.get(0);
+        if (formularioGuardado) formularioGuardado.dispatchEvent(new CustomEvent('pf:guardado-manual'));
         if (data.redirect) {
           window.location.href = data.redirect;
         } else {
@@ -338,6 +340,15 @@
       $.notify('Error de conexión. Intenta de nuevo.', 'error');
       $botones.prop('disabled', false).first().text(textoOriginal);
     });
+  });
+
+  // Mantiene visible la última columna únicamente en tablas cuya cabecera la
+  // identifica como "Acciones". Se marca el contenedor y el comportamiento
+  // sticky se resuelve en platform.css, sin afectar tablas de solo lectura.
+  document.querySelectorAll('.pf-admin-body .table-responsive > table').forEach(function (tabla) {
+    var ultimaCabecera = tabla.querySelector('thead tr > th:last-child');
+    if (!ultimaCabecera || ultimaCabecera.textContent.trim().toLocaleLowerCase('es') !== 'acciones') return;
+    tabla.closest('.table-responsive').classList.add('pf-tabla-acciones-fijas');
   });
   </script>
   <script src="../../content/session_watch.js" data-check-url="../../backend/session_check.php"></script>

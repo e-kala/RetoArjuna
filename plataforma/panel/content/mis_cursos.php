@@ -67,7 +67,7 @@ usort($contenidoExplorable, fn($a, $b) => strtotime($b['fecha']) <=> strtotime($
           <img src="<?= htmlspecialchars($curso['imagen_portada'] ? BASE_URL . '/' . $curso['imagen_portada'] : BASE_URL . '/../banner.png') ?>" class="card-img-top" style="height:140px;object-fit:cover;" alt="">
           <div class="card-body d-flex flex-column">
             <?php if ($accesoPorMembresiaMisCursos): ?>
-              <span class="badge rounded-pill align-self-start mb-2 d-inline-flex align-items-center gap-1" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
+              <span class="badge rounded-pill pf-badge-incluido align-self-start mb-2 d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
             <?php endif; ?>
             <h3 class="h6 fw-bold"><?= htmlspecialchars($curso['titulo']) ?></h3>
             <div class="progress mb-2" style="height:6px;">

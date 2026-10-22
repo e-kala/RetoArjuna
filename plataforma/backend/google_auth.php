@@ -76,7 +76,7 @@ $usuario = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if ($usuario) {
-    $stmt = $conn->prepare('UPDATE usuarios_perfil SET google_id = ? WHERE id = ?');
+    $stmt = $conn->prepare('UPDATE usuarios_perfil SET google_id = ?, email_verificado_at = COALESCE(email_verificado_at, NOW()) WHERE id = ?');
     $stmt->bind_param('si', $google_id, $usuario['id']);
     $stmt->execute();
     $stmt->close();
@@ -104,8 +104,8 @@ while (true) {
 }
 
 $stmt = $conn->prepare(
-    "INSERT INTO usuarios_perfil (username_cache, email_cache, google_id, rol, activo)
-     VALUES (?, ?, ?, 'estudiante', 1)"
+    "INSERT INTO usuarios_perfil (username_cache, email_cache, google_id, rol, activo, email_verificado_at)
+     VALUES (?, ?, ?, 'estudiante', 1, NOW())"
 );
 $stmt->bind_param('sss', $username, $email, $google_id);
 $stmt->execute();

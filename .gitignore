@@ -3,6 +3,10 @@ plataforma/backend/config.local.php
 logs/*.log
 plataforma/backend/.deploy_estado.json
 
+# Credenciales FTP/despliegue u otras del entorno — nunca deben comitearse,
+# mismo criterio que config.local.php.
+/.env
+
 # Notas personales de trabajo (una llegó a traer una contraseña real pegada) —
 # nunca deben comitearse.
 /notas.txt

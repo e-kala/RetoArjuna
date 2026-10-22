@@ -52,6 +52,6 @@ $stmt->close();
 
 login_user($nuevoId);
 guardar_cupon_sesion((string) ($_POST['cupon'] ?? ''));
-enviar_email_bienvenida($nuevoId, $email);
+enviar_email_verificacion($nuevoId, $email);
 
 echo json_encode(['success' => true, 'redirect' => redirect_post_login('perfil', (string) ($_POST['volver'] ?? ''))]);

@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
 require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
+require_once __DIR__ . '/../../backend/preventa_notificaciones.php';
 require_role('admin');
 
 // Log de diagnóstico temporal — "vista previa"/"guardar borrador"/
@@ -105,6 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
     } else {
         $estadoPublicacion = $leccion['estado_publicacion'] ?? 'borrador';
     }
+    $sePublicaPorPrimeraVez = $estadoPublicacion === 'publicado'
+        && ($leccion['estado_publicacion'] ?? 'borrador') !== 'publicado';
 
     if ($titulo === '') {
         $error = 'El título es obligatorio.';
@@ -129,6 +132,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
             // al INSERT de cursos/eventos en contenido_form.php.
             if ($esNuevaLeccion) {
                 foro_crear_tema_ancla($esEvento ? null : $padreId, $esEvento ? $padreId : null, $leccionId, $titulo, (int) current_user()['id']);
+            }
+
+            // En cursos vendidos en preventa, el paso borrador -> publicado
+            // avisa automáticamente a quienes precompraron. Editar y volver
+            // a guardar una lección ya publicada no reenvía el aviso.
+            $preventaNotificados = 0;
+            if (!$esEvento && $sePublicaPorPrimeraVez) {
+                $preventaNotificados = preventa_notificar_leccion_publicada($padreId, $leccionId, (string) $padre['titulo'], $titulo);
             }
 
             // Los audios protegidos se suben DESDE el editor (ver
@@ -180,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') !== 'elimi
                 // "Guardar borrador" y el autoguardado se quedan en el editor
                 // (sin redirect) para poder seguir editando; solo "Guardar y
                 // publicar" regresa al listado, como antes.
-                $respuesta = ['success' => true, 'leccion_id' => $leccionId, 'estado_publicacion' => $estadoPublicacion];
+                $respuesta = ['success' => true, 'leccion_id' => $leccionId, 'estado_publicacion' => $estadoPublicacion, 'preventa_notificados' => $preventaNotificados];
                 if ($accionPublicacion === 'publicar') {
                     $respuesta['redirect'] = $volverUrl;
                 }

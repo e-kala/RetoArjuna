@@ -253,6 +253,7 @@ CREATE TABLE IF NOT EXISTS `eventos` (
   `titulo` varchar(150) NOT NULL,
   `slug` varchar(160) NOT NULL,
   `descripcion` text DEFAULT NULL,
+  `contenido` mediumtext DEFAULT NULL,
   `tipo` enum('online','presencial') NOT NULL DEFAULT 'online',
   `ubicacion` varchar(255) DEFAULT NULL COMMENT 'Dirección física, o "Zoom"/liga si es online',
   `fecha_inicio` datetime NOT NULL,
@@ -278,6 +279,10 @@ CREATE TABLE IF NOT EXISTS `eventos` (
 
 ALTER TABLE eventos
   ADD COLUMN IF NOT EXISTS mostrar_codigo_promocion TINYINT(1) NOT NULL DEFAULT 0 AFTER activo;
+
+-- Cuerpo editorial amplio del evento, separado del resumen/descripcion.
+ALTER TABLE eventos
+  ADD COLUMN IF NOT EXISTS contenido MEDIUMTEXT NULL AFTER descripcion;
 
 -- "Precio especial de miembro" (OF10) — mismo criterio que cursos arriba.
 ALTER TABLE eventos
@@ -1366,6 +1371,7 @@ CREATE TABLE IF NOT EXISTS `usuarios_perfil` (
   `perfil_publico` tinyint(1) NOT NULL DEFAULT 1,
   `username_cache` varchar(255) NOT NULL,
   `email_cache` varchar(255) NOT NULL,
+  `email_verificado_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `ultimo_login` datetime DEFAULT NULL,
@@ -1401,12 +1407,25 @@ ALTER TABLE usuarios_perfil
 ALTER TABLE usuarios_perfil
   MODIFY COLUMN perfil_publico TINYINT(1) NOT NULL DEFAULT 1;
 
+ALTER TABLE usuarios_perfil ADD COLUMN IF NOT EXISTS email_verificado_at DATETIME NULL AFTER email_cache;
+
+CREATE TABLE IF NOT EXISTS `email_verificacion_tokens` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT, `usuario_id` int unsigned NOT NULL,
+  `token_hash` char(64) NOT NULL, `expira_en` datetime NOT NULL, `usado_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_email_verificacion_token` (`token_hash`), KEY `idx_email_verificacion_usuario` (`usuario_id`),
+  CONSTRAINT `fk_email_verificacion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios_perfil` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Dumping data for table `usuarios_perfil`
 --
 
 LOCK TABLES `usuarios_perfil` WRITE;
 /*!40000 ALTER TABLE `usuarios_perfil` DISABLE KEYS */;
-INSERT  IGNORE INTO `usuarios_perfil` VALUES (9,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'EKALA','desarrollo@retoarjuna.org','2026-07-30 02:16:32','2026-09-03 16:00:32',NULL),(62,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'Srivas','srivasthakur@gmail.com','2026-04-08 00:15:28','2026-09-03 16:00:32',NULL),(67,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'Eka','caiman.mistico@gmail.com','2026-08-02 13:20:40','2026-09-03 16:00:32',NULL);
+INSERT IGNORE INTO `usuarios_perfil` (`id`,`rol`,`stripe_modo_prueba`,`password_hash`,`google_id`,`telefono`,`activo`,`es_prueba`,`avatar_cache`,`perfil_publico`,`username_cache`,`email_cache`,`email_verificado_at`,`created_at`,`updated_at`,`ultimo_login`) VALUES
+(9,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'EKALA','desarrollo@retoarjuna.org','2026-07-30 02:16:32','2026-07-30 02:16:32','2026-09-03 16:00:32',NULL),
+(62,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'Srivas','srivasthakur@gmail.com','2026-04-08 00:15:28','2026-04-08 00:15:28','2026-09-03 16:00:32',NULL),
+(67,'admin',0,NULL,NULL,NULL,1,0,NULL,1,'Eka','caiman.mistico@gmail.com','2026-08-02 13:20:40','2026-08-02 13:20:40','2026-09-03 16:00:32',NULL);
 /*!40000 ALTER TABLE `usuarios_perfil` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1969,3 +1988,51 @@ ALTER TABLE pagos
 -- inverso (curso→evento): un curso no tiene fecha, no encaja como evento.
 ALTER TABLE eventos
   ADD COLUMN IF NOT EXISTS `mostrar_en_cursos` tinyint(1) NOT NULL DEFAULT 0 AFTER `video_grabado_url`;
+
+-- Rutas de aprendizaje: organización editorial de cursos/eventos. No otorgan
+-- acceso ni representan un producto de pago; el acceso sigue en cada ítem.
+CREATE TABLE IF NOT EXISTS `rutas_aprendizaje` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `titulo` varchar(180) NOT NULL,
+  `slug` varchar(190) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `imagen_portada` varchar(500) DEFAULT NULL,
+  `nivel` enum('principiante','intermedio','avanzado') NOT NULL DEFAULT 'principiante',
+  `duracion_min_estimada` int unsigned DEFAULT NULL,
+  `responsable` varchar(180) DEFAULT NULL,
+  `orden` int NOT NULL DEFAULT 0,
+  `es_empieza_aqui` tinyint(1) NOT NULL DEFAULT 0,
+  `estado` enum('borrador','publicada') NOT NULL DEFAULT 'borrador',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`), UNIQUE KEY `uq_rutas_slug` (`slug`), KEY `idx_rutas_estado_orden` (`estado`,`orden`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ruta_aprendizaje_items` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `ruta_id` int unsigned NOT NULL,
+  `tipo_contenido` enum('curso','evento') NOT NULL,
+  `contenido_id` int unsigned NOT NULL,
+  `orden` int NOT NULL DEFAULT 0,
+  `obligatorio` tinyint(1) NOT NULL DEFAULT 1,
+  `introduccion` varchar(500) DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uq_ruta_contenido` (`ruta_id`,`tipo_contenido`,`contenido_id`),
+  KEY `idx_ruta_items_contenido` (`tipo_contenido`,`contenido_id`),
+  CONSTRAINT `fk_ruta_items_ruta` FOREIGN KEY (`ruta_id`) REFERENCES `rutas_aprendizaje` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `usuario_rutas` (
+  `usuario_id` int unsigned NOT NULL, `ruta_id` int unsigned NOT NULL, `item_actual_id` int unsigned DEFAULT NULL,
+  `estado` enum('en_progreso','pausada','completada') NOT NULL DEFAULT 'en_progreso', `es_activa` tinyint(1) NOT NULL DEFAULT 0,
+  `iniciada_at` datetime DEFAULT NULL, `ultimo_acceso_at` datetime DEFAULT NULL, `completada_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`usuario_id`,`ruta_id`), KEY `idx_usuario_ruta_activa` (`usuario_id`,`es_activa`),
+  CONSTRAINT `fk_usuario_rutas_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios_perfil` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_usuario_rutas_ruta` FOREIGN KEY (`ruta_id`) REFERENCES `rutas_aprendizaje` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_usuario_rutas_item` FOREIGN KEY (`item_actual_id`) REFERENCES `ruta_aprendizaje_items` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `contenido_sugerencias` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT, `origen_tipo` enum('curso','evento') NOT NULL, `origen_id` int unsigned NOT NULL,
+  `destino_tipo` enum('curso','evento') NOT NULL, `destino_id` int unsigned NOT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uq_sugerencia_origen` (`origen_tipo`,`origen_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

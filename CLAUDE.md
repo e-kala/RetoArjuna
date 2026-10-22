@@ -72,11 +72,25 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
 - El despliegue manual por FTP se hace con `scripts/deploy_ftp.sh`; la única variable que
   selecciona destino es `DEPLOY_ENTORNO=pruebas|produccion` en `.env`. Las raíces remotas son
   `/pruebas.arjuna.mx` y `/public_html`, respectivamente. Ver `DESPLIEGUE.md`.
+- Instrucción permanente del usuario (2026-09-30): al terminar cambios de código o interfaz,
+  desplegarlos siempre en ambos destinos, primero `pruebas.arjuna.mx` y después producción, y
+  verificar por HTTPS los dos. No dejar una implementación únicamente en local salvo que el
+  usuario lo pida expresamente.
 - El script nunca sube `config.local.php`: pruebas debe conservar `DB_NAME=retoarju_pruebas`
   y producción usa `retoarju_platform`. Tampoco sincroniza uploads, logs, Matomo ni credenciales.
 - `pruebas.arjuna.mx` quedó sincronizado y verificado el 2026-09-29 con el rediseño `v=3.0`.
-  Su `config.local.php` remoto se corrigió para usar `retoarju_pruebas`, llaves Stripe TEST y
-  destinatario de correo forzado; antes estaba cayendo silenciosamente en la BD/Stripe LIVE.
+  Su `config.local.php` remoto se corrigió para usar `retoarju_pruebas` y destinatario de correo
+  forzado. Por decisión del usuario, pruebas conserva exactamente los mismos dos juegos de Stripe
+  que producción (LIVE en las constantes principales y TEST en las constantes `_PRUEBA`), porque
+  la plataforma ya permite alternar el modo por cuenta; no sustituir las principales LIVE por TEST.
+- El 2026-09-30 se corrigió la contaminación de datos causada por esa configuración: se migraron
+  de `retoarju_platform` a `retoarju_pruebas` únicamente los registros nuevos de prueba (cursos
+  originales 9–12 y eventos originales 26–56), junto con 2 lecciones, 37 temas ocultos y 35
+  configuraciones de regalo. Se conservaron los registros antiguos y no había pagos,
+  inscripciones ni progreso asociados. La categoría libre `general` se copió a pruebas, pero se
+  conservó en producción porque también la usan temas legítimos. Las 35 imágenes relacionadas ya
+  existían solo bajo el subdominio de pruebas. Respaldo selectivo de recuperación de esta operación:
+  `/tmp/retoarjuna-db-backups/migracion-pruebas-20260929/` (temporal, fuera del repositorio).
 - Verificar desde el Dashboard de Stripe que el webhook LIVE de producción esté entregando
   eventos correctamente. El secreto está definido en el servidor, pero esta auditoría no
   valida el estado del endpoint externo ni su historial de entregas.
@@ -105,9 +119,10 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
 - Adaptación para Edge.
 
 ## Convenciones de trabajo
-- Antes de tocar pagos, confirmar en qué ambiente se está trabajando (local / pruebas.arjuna.mx /
-  producción) — cada uno tiene su propio `config.local.php`, nunca reusar llaves de Stripe entre
-  entornos (mezclar TEST y LIVE ya causó al menos un bug real).
+- Antes de tocar pagos, confirmar el ambiente y el modo de Stripe activo. Cada entorno conserva su
+  propio `config.local.php`; producción y pruebas remotas comparten deliberadamente ambos juegos
+  de Stripe, pero la base de pruebas siempre debe seguir siendo `retoarju_pruebas` y el correo debe
+  permanecer forzado. No intercambiar las constantes LIVE con las `_PRUEBA`.
 - No commitear credenciales, `config.local.php` ni archivos bajo `logs/`.
 - Un solo archivo de SQL para producción: `plataforma/db/exportar_produccion.sql` — se
   regenera cada vez que cambia el esquema, nunca se sube un `schema_*.sql` suelto.
@@ -117,11 +132,52 @@ que la estructura sea más limpia (sin cambiar el DocumentRoot ni fusionar los d
 - Las tarjetas de los catálogos de cursos, eventos y tienda son clicables completas mediante
   `.pf-card-clicable` + `data-href`. El listener delegado compartido vive en
   `plataforma/content/scripts.php`; ignora clicks en enlaces y botones internos.
+- Desde 2026-09-30 los catálogos de cursos/eventos no muestran precios: un Visitante ve
+  “Saber más…” y, si existe, la etiqueta pública Promoción/Preventa; quien ya tiene acceso va
+  directo a `&ver=1` y ve Comenzar/Seguir. Las grabaciones pasadas permanecen descubribles para
+  quien aún no tiene acceso. `resolver_oferta()` expone `oferta_modalidad` para distinguir ambas.
+- El guardado AJAX del admin emite `pf:guardado-manual` al responder con éxito; `_autosave.js`
+  limpia entonces el estado sucio para evitar el aviso incorrecto de posible pérdida al salir.
+- El `index.php` raíz ya no usa la sección “Explora el ecosistema”. Su primer vistazo funciona
+  como orientación: promesa principal, recorrido Reconoce/Elige/Avanza y tres rutas según la
+  necesidad actual (Reto, cursos o Camino Arjuna). Los accesos secundarios a eventos, foro y
+  tienda siguen disponibles debajo de esas rutas.
+- Las vistas previas al compartir por WhatsApp/redes se generan en `plataforma/backend/seo.php`.
+  `content/head.php` obtiene dinámicamente título, resumen e imagen de cursos, eventos, productos,
+  noticias y landings; el index raíz declara su propia ficha. Mantener siempre URLs absolutas y
+  una imagen pública de respaldo porque los crawlers sociales no ejecutan JavaScript.
+- `backend/og_imagen.php` genera para cada curso/evento/producto/noticia una miniatura social
+  cacheada JPEG 1200×630 (~100–200 KB). `seo.php` apunta `og:image` a ese endpoint y declara tipo y
+  dimensiones; no volver a enlazar portadas PNG grandes directamente porque WhatsApp puede omitirlas.
+- Los eventos tienen un cuerpo editorial independiente en `eventos.contenido` (MEDIUMTEXT), además
+  de `descripcion`. `contenido_form.php?tipo=evento` lo edita con una segunda instancia de
+  `PfEditor` y lo incluye en el mismo autoguardado; `evento_detalle.php` lo presenta en la pestaña
+  “Contenido” solo cuando no está vacío. La columna existe tanto en pruebas como en producción.
+- Rutas de aprendizaje (2026-10-01): tablas `rutas_aprendizaje`, `ruta_aprendizaje_items`,
+  `usuario_rutas` y `contenido_sugerencias`; gestor en admin `rutas.php`/`ruta_form.php`; página
+  pública `?action=ruta&slug=...`; contexto anterior/siguiente en curso/evento; asociación y
+  siguiente sugerido desde `contenido_form.php`; el dashboard abre por “Empieza aquí”. Las rutas
+  orientan y calculan progreso real, pero no conceden acceso ni funcionan como paquete de pago.
+- Verificación de correo (2026-10-01): las cuentas nativas nuevas entran inmediatamente pero quedan
+  con `email_verificado_at=NULL`, reciben un token de 24 h y ven un aviso global con reenvío limitado
+  a uno cada 2 minutos. Google marca el correo como verificado. Las cuentas históricas se migraron
+  como verificadas. Cursos, eventos y tienda tienen búsqueda cliente por título/descripción.
+- El checkout muestra arriba una flecha discreta que regresa directamente al detalle del curso,
+  evento o producto (conserva el cupón si existe). Su enlace “Ver todos los beneficios de la
+  membresía” abre `?action=landing&slug=membresia-camino-arjuna`; `content/landing.php` sirve para
+  ese slug el fragmento versionado `landing-membresia-camino-arjuna.html`, sin depender de un
+  registro previo en `landing_pages`.
 - El sistema visual compartido está en `plataforma/assets/css/platform.css` (versión de caché
-  `v=3.0`): variables de color, tipografía, navbar, tarjetas, botones, formularios, tablas,
+  `v=3.3`): variables de color, tipografía, navbar, tarjetas, botones, formularios, tablas,
   foro y paneles. El admin usa un espacio de trabajo responsivo definido por
   `.ra-admin-shell`/`.ra-admin-workspace`: barra lateral en escritorio y barra horizontal
   desplazable en móvil. Antes de agregar CSS inline, revisar si el componente debe resolverse ahí.
+- En tablas del admin con scroll horizontal, `_footer.php` detecta las que terminan en la cabecera
+  “Acciones” y marca su contenedor con `.pf-tabla-acciones-fijas`; `platform.css` mantiene esa
+  última columna fija a la derecha. Las tablas sin columna de acciones no se alteran.
+- Cuando Stripe está en modo prueba, `navbar.php` imprime la franja de advertencia después del
+  `<nav>` y esta permanece en el flujo normal (`.pf-stripe-test-banner`), para que quede bajo la
+  navbar sin cubrirla. El checkout la imprime arriba porque no incluye la navegación compartida.
 - Antes de tocar `redirect_post_login()`/`volver_validado()` (auth.php) o cualquier página
   con guard de "ya tienes sesión" (ingreso/registro/olvide/restablecer contraseña), leer
   `FLUJO_SESION_REDIRECCIONES.md` — ese mecanismo ya se rompió más de una vez al corregir un

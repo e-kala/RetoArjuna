@@ -56,7 +56,7 @@ function login_user(int $usuarioPerfilId): void
     global $conn;
 
     $stmt = $conn->prepare(
-        'SELECT id, rol, es_prueba, avatar_cache, username_cache, email_cache FROM usuarios_perfil WHERE id = ?'
+        'SELECT id, rol, es_prueba, avatar_cache, username_cache, email_cache, email_verificado_at FROM usuarios_perfil WHERE id = ?'
     );
     $stmt->bind_param('i', $usuarioPerfilId);
     $stmt->execute();
@@ -75,6 +75,7 @@ function login_user(int $usuarioPerfilId): void
     $_SESSION['username'] = $row['username_cache'];
     $_SESSION['email'] = $row['email_cache'];
     $_SESSION['avatar'] = $row['avatar_cache'];
+    $_SESSION['email_verificado'] = $row['email_verificado_at'] !== null;
 
     // Para el panel de inactividad (panel/admin/inactividad.php) — un solo
     // punto de entrada (login_user() cubre login nativo y Google OAuth por
@@ -186,8 +187,16 @@ function is_logged_in(): bool
 
 function current_user(): ?array
 {
+    global $conn;
     if (!is_logged_in()) {
         return null;
+    }
+    if (!array_key_exists('email_verificado', $_SESSION)) {
+        $uid = (int) $_SESSION['usuario_perfil_id'];
+        $stmt = $conn->prepare('SELECT email_verificado_at FROM usuarios_perfil WHERE id=?');
+        $stmt->bind_param('i', $uid); $stmt->execute();
+        $_SESSION['email_verificado'] = $stmt->get_result()->fetch_assoc()['email_verificado_at'] !== null;
+        $stmt->close();
     }
     return [
         'id' => (int) $_SESSION['usuario_perfil_id'],
@@ -196,6 +205,7 @@ function current_user(): ?array
         'username' => $_SESSION['username'] ?? null,
         'email' => $_SESSION['email'] ?? null,
         'avatar' => $_SESSION['avatar'] ?? null,
+        'email_verificado' => !empty($_SESSION['email_verificado']),
     ];
 }
 

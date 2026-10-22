@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'elimi
 // nada y solo confundiría).
 $hayCursosActivos = (bool) $conn->query('SELECT 1 FROM cursos WHERE activo = 1 LIMIT 1')->fetch_row();
 $mapaContenidoPestanas = [
+    'inicio' => 'content/inicio_aprendizaje.php',
     'mis_eventos' => 'content/mis_eventos.php',
 ];
 if ($hayCursosActivos) {
@@ -56,7 +57,7 @@ $mapaContenidoPestanas += [
     'foro_actividad' => 'content/foro_actividad.php',
     'notificaciones' => 'content/notificaciones.php',
 ];
-$action = $_GET['action'] ?? 'mis_eventos';
+$action = $_GET['action'] ?? 'inicio';
 $archivoContenido = $mapaContenidoPestanas[$action] ?? $mapaContenidoPestanas['mis_eventos'];
 $esMiembro = usuario_tiene_membresia_activa($usuarioPerfilId);
 
@@ -81,7 +82,7 @@ if (es_peticion_ajax()) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../assets/css/platform.css?v=3.0">
+  <link rel="stylesheet" href="../assets/css/platform.css?v=3.8">
   <style>
     /* Los content/*.php reutilizados (mis_compras, perfil) traen algunas clases
        de sb-admin-2 (panel/index.php) que aquí no se cargan — se preservan con
@@ -113,7 +114,7 @@ if (es_peticion_ajax()) {
       ?>
         <li class="nav-item">
           <a class="btn btn-sm pf-tab-link <?= $action === $accionPestana ? 'pf-tab-activa' : 'btn-outline-secondary' ?>" data-accion="<?= $accionPestana ?>" href="?action=<?= $accionPestana ?>">
-            <?= ['mis_eventos' => 'Mis eventos', 'mis_cursos' => 'Mis cursos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
+            <?= ['inicio' => 'Empieza aquí', 'mis_eventos' => 'Mis eventos', 'mis_cursos' => 'Mis cursos', 'mis_compras' => 'Mis compras', 'reconocimientos' => 'Mis reconocimientos', 'mi_membresia' => 'Mi membresía', 'perfil' => 'Mi perfil'][$accionPestana] ?>
           </a>
         </li>
       <?php endforeach; ?>
@@ -181,7 +182,7 @@ if (es_peticion_ajax()) {
       });
 
       window.addEventListener('popstate', function (e) {
-        var accion = (e.state && e.state.accion) || 'mis_eventos';
+        var accion = (e.state && e.state.accion) || 'inicio';
         cargarPestana(accion, false);
       });
 

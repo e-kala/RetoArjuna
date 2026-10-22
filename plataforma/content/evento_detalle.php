@@ -190,6 +190,7 @@ $temaExistenteId = foro_tema_ancla_de(null, $eventoId, null, $evento['foro_url']
 $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : [];
 ?>
 <div class="container" style="margin-top: 143px; margin-bottom: 60px;">
+  <?php $pfTipoRuta='evento'; $pfContenidoRutaId=$eventoId; $pfUsuarioRuta=$usuario; include __DIR__.'/_ruta_contexto.php'; ?>
   <a href="?action=eventos" class="d-inline-block mb-3">&larr; Volver a eventos</a>
   <?php if ((int) $evento['activo'] !== 1): ?>
     <div class="alert alert-warning">Estás viendo este evento como oculto — no aparece en el catálogo ni pueden verlo los alumnos.</div>
@@ -211,6 +212,32 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
       <a href="panel/admin/contenido_form.php?tipo=evento&id=<?= $eventoId ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> Editar</a>
     <?php endif; ?>
   </div>
+  <div class="d-flex flex-wrap align-items-center gap-1 my-2">
+    <?php if ($esPasado): ?>
+      <span class="badge pf-badge-grabado">Grabado</span>
+    <?php endif; ?>
+    <?php if ($usuario && $soloMiembros): ?>
+      <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Exclusivo para miembros</span>
+    <?php elseif ($usuario && $incluidoMembresia && !$inscrito): ?>
+      <span class="badge pf-badge-incluido"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con Membresía</span>
+    <?php endif; ?>
+    <?php if (!$inscrito && !$accesoGratisPorMembresia && !$soloMiembros): ?>
+      <?php if ($oferta['estado'] === 'oferta'): ?>
+        <span class="badge text-decoration-line-through bg-secondary">$<?= number_format($oferta['precio_regular'], 2) ?></span>
+        <span class="badge" style="background:#f7931e;"><?= $oferta['precio_final'] > 0 ? '$' . number_format($oferta['precio_final'], 2) . ' MXN' : 'Gratis' ?></span>
+        <?php if (in_array($oferta['oferta_tipo'], ['descuento_miembro', 'combinado'], true)): ?>
+          <span class="badge pf-badge-precio-miembro"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Precio especial con membresía</span>
+        <?php else: ?>
+          <span class="badge bg-secondary"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>
+        <?php endif; ?>
+      <?php else: ?>
+        <span class="badge" style="background:#f7931e;"><?= $oferta['estado'] === 'gratuito' ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN' ?></span>
+      <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($usuario && !$esMiembro && (float) ($evento['descuento_miembro_pct'] ?? 0) > 0): ?>
+      <span class="badge pf-badge-descuento-miembro"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Descuento con membresía <?= number_format((float) $evento['descuento_miembro_pct'], 0) ?>%</span>
+    <?php endif; ?>
+  </div>
   <?php if ($resumenCalificacion['total'] > 0): ?>
     <p class="text-muted mb-2">
       <?php for ($i = 1; $i <= 5; $i++): ?>
@@ -218,14 +245,6 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
       <?php endfor; ?>
       <?= $resumenCalificacion['promedio'] ?> (<?= $resumenCalificacion['total'] ?> calificación<?= $resumenCalificacion['total'] === 1 ? '' : 'es' ?>)
     </p>
-  <?php endif; ?>
-  <?php if ($esPasado): ?>
-    <span class="badge bg-secondary mb-2">Grabado</span>
-  <?php endif; ?>
-  <?php if ($usuario && $soloMiembros): ?>
-    <span class="badge mb-2" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Exclusivo para miembros</span>
-  <?php elseif ($usuario && $incluidoMembresia && !$inscrito): ?>
-    <span class="badge mb-2" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con membresía</span>
   <?php endif; ?>
   <p class="text-muted mb-1">
     <?= $evento['tipo'] === 'online' ? '💻 En línea' : '📍 ' . htmlspecialchars((string) $evento['ubicacion']) ?>
@@ -241,35 +260,23 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
       👥 <?= $cupoRestante ?> de <?= (int) $evento['cupo_maximo'] ?> lugares disponibles
     </p>
   <?php endif; ?>
-  <?php if (!$inscrito): ?>
-  <p>
-    <?php if ($accesoGratisPorMembresia || $soloMiembros): ?>
-      <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido en tu membresía</span>
-    <?php elseif ($oferta['estado'] === 'oferta'): ?>
-      <span class="badge text-decoration-line-through bg-secondary">$<?= number_format($oferta['precio_regular'], 2) ?></span>
-      <span class="badge" style="background:#f7931e;"><?= $oferta['precio_final'] > 0 ? '$' . number_format($oferta['precio_final'], 2) . ' MXN' : 'Gratis' ?></span>
-      <span class="badge bg-secondary"><?= htmlspecialchars((string) $oferta['oferta_nombre']) ?></span>
-    <?php else: ?>
-      <span class="badge" style="background:#f7931e;">
-        <?= $oferta['estado'] === 'gratuito' ? 'Gratuito' : '$' . number_format((float) $evento['precio'], 2) . ' MXN' ?>
-      </span>
-      <?php if ($usuario && $incluidoMembresia): ?>
-        <span class="badge" style="background:#6f42c1;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con membresía</span>
-      <?php endif; ?>
-    <?php endif; ?>
-  </p>
-  <?php endif; ?>
     </div>
   </div>
 
   <ul class="nav nav-tabs pf-detalle-tabs mb-3">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-descripcion" type="button">Descripción</button></li>
+    <?php if (!empty($evento['contenido'])): ?><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-contenido" type="button">Contenido</button></li><?php endif; ?>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preguntas" type="button">Preguntas y respuestas <?php if ($respuestasEvento): ?><span class="badge bg-secondary"><?= count($respuestasEvento) ?></span><?php endif; ?></button></li>
   </ul>
   <div class="tab-content">
     <div class="tab-pane fade show active" id="tab-descripcion">
       <div class="pf-contenido-html"><?= (string) $evento['descripcion'] ?></div>
     </div>
+    <?php if (!empty($evento['contenido'])): ?>
+      <div class="tab-pane fade" id="tab-contenido">
+        <div class="pf-contenido-html"><?= (string) $evento['contenido'] ?></div>
+      </div>
+    <?php endif; ?>
     <div class="tab-pane fade" id="tab-preguntas">
       <?php
       $respuestasPregyresp = $respuestasEvento;
@@ -375,11 +382,11 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
       <p class="mb-0 text-muted">Ya no hay cupo disponible para este evento.</p>
     <?php elseif (!$usuario): ?>
       <p class="mb-2"><?= $esPasado ? 'Crea tu Cuenta Arjuna para acceder a la grabación de este evento — al terminar, quedas inscrito automáticamente.' : 'Crea tu Cuenta Arjuna para inscribirte — al terminar, quedas inscrito automáticamente, sin pasos extra.' ?></p>
-      <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= !$esPasado && ($oferta['estado'] === 'gratuito' || $oferta['acceso_gratis_automatico']) ? 'Inscribirme gratis' : 'Inscribirme' ?></a>
+      <a href="?action=registro&volver=<?= $volverActualConAuto ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $esPasado && $evento['video_grabado_url'] ? 'Obtener acceso a todas las grabaciones y materiales →' : 'Inscribirme al evento →' ?></a>
     <?php elseif ($puedeAccederGratis): ?>
       <button id="btnInscribirse" class="btn" style="background:#f7931e;color:#fff;">
         <?php if ($accesoGratisPorMembresia && $oferta['estado'] !== 'gratuito'): ?>
-          Accesar gratis con mi membresía
+          Acceder con mi membresía →
         <?php elseif ($oferta['acceso_gratis_automatico'] && $oferta['estado'] === 'oferta'): ?>
           Inscribirme gratis (<?= htmlspecialchars((string) $oferta['oferta_nombre']) ?>)
         <?php elseif ($esPasado): ?>
@@ -392,7 +399,7 @@ $respuestasEvento = $temaExistenteId ? foro_respuestas_de($temaExistenteId) : []
       </button>
       <div id="inscribirMsg" class="form-text mt-2"></div>
     <?php else: ?>
-      <a href="backend/pagos/checkout.php?evento_id=<?= $eventoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $esPasado ? 'Comprar acceso a la grabación' : 'Inscribirme (de pago)' ?></a>
+      <a href="backend/pagos/checkout.php?evento_id=<?= $eventoId ?><?= $codigoCupon ? '&cupon=' . urlencode($codigoCupon) : '' ?>" class="btn" style="background:#f7931e;color:#fff;"><?= $esPasado && $evento['video_grabado_url'] ? 'Obtener acceso a todas las grabaciones y materiales →' : 'Inscribirme al evento →' ?></a>
     <?php endif; ?>
   </div>
 

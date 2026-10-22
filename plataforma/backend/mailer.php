@@ -149,6 +149,29 @@ function enviar_email_bienvenida(int $usuarioPerfilId, string $destinatario): bo
     return enviar_email($usuarioPerfilId, $destinatario, 'Bienvenido a Reto Arjuna', $html, 'bienvenida');
 }
 
+function enviar_email_verificacion(int $usuarioPerfilId, string $destinatario): bool
+{
+    global $conn;
+    $stmt = $conn->prepare('SELECT created_at FROM email_verificacion_tokens WHERE usuario_id=? AND usado_at IS NULL ORDER BY id DESC LIMIT 1');
+    $stmt->bind_param('i', $usuarioPerfilId); $stmt->execute();
+    $reciente = $stmt->get_result()->fetch_assoc(); $stmt->close();
+    if ($reciente && strtotime($reciente['created_at']) > time() - 120) return true;
+    $token = bin2hex(random_bytes(32));
+    $hash = hash('sha256', $token);
+    $stmt = $conn->prepare('DELETE FROM email_verificacion_tokens WHERE usuario_id = ?');
+    $stmt->bind_param('i', $usuarioPerfilId); $stmt->execute(); $stmt->close();
+    $stmt = $conn->prepare('INSERT INTO email_verificacion_tokens (usuario_id, token_hash, expira_en) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))');
+    $stmt->bind_param('is', $usuarioPerfilId, $hash); $stmt->execute(); $stmt->close();
+    $url = SITE_URL . '/backend/email_verificar.php?token=' . urlencode($token);
+    $html = plantilla_email(
+        'Confirma tu correo',
+        '<p>Tu Cuenta Arjuna ya está activa y puedes usarla desde ahora.</p><p>Confirma que este correo te pertenece para mantener tu cuenta protegida. El enlace vence en 24 horas.</p>',
+        'Confirmar mi correo',
+        $url
+    );
+    return enviar_email($usuarioPerfilId, $destinatario, 'Confirma tu correo — Reto Arjuna', $html, 'verificacion_email');
+}
+
 function enviar_email_inscripcion(int $usuarioPerfilId, string $destinatario, string $cursoTitulo, string $cursoUrl): bool
 {
     $personalizada = email_plantilla_personalizada('inscripcion');

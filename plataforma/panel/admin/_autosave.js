@@ -185,6 +185,10 @@ window.PfAutosave = (function ($) {
         e.returnValue = '';
       }
     });
+    form.addEventListener('pf:guardado-manual', function () {
+      sucio = false;
+      clearTimeout(temporizador);
+    });
   }
 
   return { iniciar: iniciar };

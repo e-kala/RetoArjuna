@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
 require_once __DIR__ . '/../../foro/backend/foro_helpers.php';
+require_once __DIR__ . '/_promocion_embebida_helper.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -19,7 +20,7 @@ $curso = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'nivel' => 'princip
           'precio' => 0, 'imagen_portada' => '', 'foro_url' => '', 'whatsapp_grupo_url' => '', 'whatsapp_grupo_texto' => '',
           'gratuito' => 0, 'incluido_membresia' => 0,
           'descuento_miembro_pct' => '', 'activo' => 1, 'mostrar_codigo_promocion' => 0];
-$evento = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'tipo' => 'online', 'ubicacion' => '',
+$evento = ['titulo' => '', 'slug' => '', 'descripcion' => '', 'contenido' => '', 'tipo' => 'online', 'ubicacion' => '',
            'fecha_inicio' => '', 'fecha_fin' => '', 'cupo_maximo' => '', 'precio' => 0,
            'imagen_portada' => '', 'foro_url' => '', 'whatsapp_grupo_url' => '', 'whatsapp_grupo_texto' => '',
            'video_grabado_url' => '', 'mostrar_en_cursos' => 0, 'gratuito' => 0,
@@ -38,6 +39,7 @@ if ($id && $tipo === 'curso') {
     $evento = $stmt->get_result()->fetch_assoc() ?: $evento;
     $stmt->close();
 }
+$promocionEmbebida = promocion_embebida_cargar($conn, $tipo, $id);
 
 // Prestaciones y regalos (ver backend/regalos.php) — configuración opcional,
 // nunca activa por default. "Regalar descuento" y "Regalar acceso" son
@@ -56,6 +58,20 @@ if ($id) {
 // acceso (ver curso_detalle.php/evento_detalle.php) — solo landings activas,
 // para no poder enlazar una que ni siquiera se puede visitar hoy.
 $landingsDisponibles = $conn->query('SELECT id, titulo, slug FROM landing_pages WHERE activo = 1 ORDER BY titulo')->fetch_all(MYSQLI_ASSOC);
+$rutasDisponibles = $conn->query('SELECT id, titulo, estado FROM rutas_aprendizaje ORDER BY orden, titulo')->fetch_all(MYSQLI_ASSOC);
+$rutasVinculadas = [];
+if ($id) {
+    $stmt = $conn->prepare('SELECT ruta_id FROM ruta_aprendizaje_items WHERE tipo_contenido=? AND contenido_id=?');
+    $stmt->bind_param('si', $tipo, $id); $stmt->execute();
+    $rutasVinculadas = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'ruta_id')); $stmt->close();
+}
+$cursosSugeribles = $conn->query('SELECT id,titulo FROM cursos WHERE activo=1 ORDER BY titulo')->fetch_all(MYSQLI_ASSOC);
+$eventosSugeribles = $conn->query('SELECT id,titulo FROM eventos WHERE activo=1 ORDER BY titulo')->fetch_all(MYSQLI_ASSOC);
+$sugerenciaActual = null;
+if ($id) {
+    $stmt=$conn->prepare('SELECT destino_tipo,destino_id FROM contenido_sugerencias WHERE origen_tipo=? AND origen_id=?');
+    $stmt->bind_param('si',$tipo,$id);$stmt->execute();$sugerenciaActual=$stmt->get_result()->fetch_assoc();$stmt->close();
+}
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -71,7 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (trim(str_replace(['<p><br></p>', '<p><br/></p>'], '', $descripcion)) === '') {
         $descripcion = '';
     }
-    $precio = (float) ($_POST['precio'] ?? 0);
+    $contenidoEvento = trim($_POST['contenido'] ?? '');
+    if (trim(str_replace(['<p><br></p>', '<p><br/></p>'], '', $contenidoEvento)) === '') {
+        $contenidoEvento = '';
+    }
+    $precio = isset($_POST['promo_activa']) && trim((string) ($_POST['promo_precio_regular'] ?? '')) !== ''
+        ? (float) $_POST['promo_precio_regular']
+        : (float) ($_POST['precio'] ?? 0);
     $gratuito = isset($_POST['gratuito']) ? 1 : 0;
     $incluidoMembresia = isset($_POST['incluido_membresia']) ? 1 : 0;
     // El campo ya no trae min/max en el HTML (evitaba un bloqueo de
@@ -80,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $descuentoMiembroPct = trim($_POST['descuento_miembro_pct'] ?? '') !== '' ? min(100.0, max(0.0, (float) $_POST['descuento_miembro_pct'])) : null;
     $activo = isset($_POST['activo']) ? 1 : 0;
     $mostrarCodigoPromocion = isset($_POST['mostrar_codigo_promocion']) ? 1 : 0;
+    $error = promocion_embebida_validar($_POST, $tipo);
     $landingPageId = trim($_POST['landing_page_id'] ?? '') !== '' ? (int) $_POST['landing_page_id'] : null;
 
     // "Regalar descuento" y "Regalar acceso" son dos prestaciones
@@ -190,6 +213,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
+    $guardarOrientacion = function (int $itemId, string $tipoItem) use ($conn): void {
+        $seleccionadas = array_values(array_unique(array_map('intval', $_POST['ruta_ids'] ?? [])));
+        $stmt=$conn->prepare('SELECT ruta_id FROM ruta_aprendizaje_items WHERE tipo_contenido=? AND contenido_id=?');$stmt->bind_param('si',$tipoItem,$itemId);$stmt->execute();$actuales=array_map('intval',array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC),'ruta_id'));$stmt->close();
+        foreach(array_diff($actuales,$seleccionadas) as $rid){$stmt=$conn->prepare('DELETE FROM ruta_aprendizaje_items WHERE ruta_id=? AND tipo_contenido=? AND contenido_id=?');$stmt->bind_param('isi',$rid,$tipoItem,$itemId);$stmt->execute();$stmt->close();}
+        foreach(array_diff($seleccionadas,$actuales) as $rid){$stmt=$conn->prepare('SELECT COALESCE(MAX(orden),0)+1 n FROM ruta_aprendizaje_items WHERE ruta_id=?');$stmt->bind_param('i',$rid);$stmt->execute();$orden=(int)$stmt->get_result()->fetch_assoc()['n'];$stmt->close();$stmt=$conn->prepare('INSERT INTO ruta_aprendizaje_items(ruta_id,tipo_contenido,contenido_id,orden) VALUES(?,?,?,?)');$stmt->bind_param('isii',$rid,$tipoItem,$itemId,$orden);$stmt->execute();$stmt->close();}
+        $destTipo=$_POST['sugerido_tipo']??'';$destId=(int)($_POST['sugerido_id']??0);$stmt=$conn->prepare('DELETE FROM contenido_sugerencias WHERE origen_tipo=? AND origen_id=?');$stmt->bind_param('si',$tipoItem,$itemId);$stmt->execute();$stmt->close();
+        if(in_array($destTipo,['curso','evento'],true)&&$destId>0&&!($destTipo===$tipoItem&&$destId===$itemId)){$stmt=$conn->prepare('INSERT INTO contenido_sugerencias(origen_tipo,origen_id,destino_tipo,destino_id) VALUES(?,?,?,?)');$stmt->bind_param('sisi',$tipoItem,$itemId,$destTipo,$destId);$stmt->execute();$stmt->close();}
+    };
+
     if ($tipo === 'curso') {
         $nivel = $_POST['nivel'] ?? 'principiante';
         $duracion = $_POST['duracion_horas'] !== '' ? (float) $_POST['duracion_horas'] : null;
@@ -216,7 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
+                promocion_embebida_guardar($conn, 'curso', $itemId, $_POST, (int) ($promocionEmbebida['id'] ?? 0));
                 $guardarRegaloConfig($itemId, true);
+                $guardarOrientacion($itemId, 'curso');
                 // Tema "ancla" del curso en el foro (ver foro_crear_tema_ancla())
                 // — nace oculto, sin comentarios, para que la pestaña "Preguntas
                 // y respuestas" embebida (content/curso_detalle.php) siempre
@@ -284,15 +318,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error === '') {
             $esNuevo = !$id;
             if ($id) {
-                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, es_regular=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
-                $stmt->bind_param('sssssssidsssssiiiidiiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
+                $stmt = $conn->prepare('UPDATE eventos SET titulo=?, slug=?, descripcion=?, contenido=?, tipo=?, ubicacion=?, fecha_inicio=?, fecha_fin=?, cupo_maximo=?, precio=?, imagen_portada=?, foro_url=?, whatsapp_grupo_url=?, whatsapp_grupo_texto=?, video_grabado_url=?, gratuito=?, solo_miembros=?, incluido_membresia=?, es_regular=?, descuento_miembro_pct=?, activo=?, mostrar_codigo_promocion=?, landing_page_id=?, mostrar_en_cursos=? WHERE id=?');
+                $stmt->bind_param('ssssssssidsssssiiiidiiiii', $titulo, $slug, $descripcion, $contenidoEvento, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos, $id);
             } else {
-                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, video_grabado_url, gratuito, solo_miembros, incluido_membresia, es_regular, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->bind_param('sssssssidsssssiiiidiiii', $titulo, $slug, $descripcion, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
+                $stmt = $conn->prepare('INSERT INTO eventos (titulo, slug, descripcion, contenido, tipo, ubicacion, fecha_inicio, fecha_fin, cupo_maximo, precio, imagen_portada, foro_url, whatsapp_grupo_url, whatsapp_grupo_texto, video_grabado_url, gratuito, solo_miembros, incluido_membresia, es_regular, descuento_miembro_pct, activo, mostrar_codigo_promocion, landing_page_id, mostrar_en_cursos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->bind_param('ssssssssidsssssiiiidiiii', $titulo, $slug, $descripcion, $contenidoEvento, $tipoEvento, $ubicacion, $fechaInicio, $fechaFin, $cupoMaximo, $precio, $imagen, $foroUrl, $whatsappGrupoUrl, $whatsappGrupoTexto, $videoGrabado, $gratuito, $soloMiembros, $incluidoMembresia, $esRegular, $descuentoMiembroPct, $activo, $mostrarCodigoPromocion, $landingPageId, $mostrarEnCursos);
             }
             if ($stmt->execute()) {
                 $itemId = $id ?: $stmt->insert_id;
+                promocion_embebida_guardar($conn, 'evento', $itemId, $_POST, (int) ($promocionEmbebida['id'] ?? 0));
                 $guardarRegaloConfig($itemId, false);
+                $guardarOrientacion($itemId, 'evento');
                 // Evento regular — sincroniza a TODOS los miembros con
                 // membresía activa/gracia actuales, no solo a partir de
                 // ahora. Correr esto de nuevo en cada guardado de un evento
@@ -359,6 +395,9 @@ include __DIR__ . '/_header.php';
   <input type="hidden" name="id" value="<?= (int) $id ?>">
   <input type="hidden" name="tipo" value="<?= htmlspecialchars($tipo) ?>">
 
+  <details class="col-12 pf-editor-collapsible" open>
+  <summary><strong>📝 Información principal</strong><span>Título y página comercial</span></summary>
+  <div class="row g-3 p-3 pt-2">
   <div class="col-md-6"><label class="form-label">Título</label><input class="form-control" name="titulo" value="<?= htmlspecialchars($item['titulo']) ?>" required></div>
   <div class="col-md-6"><label class="form-label">Slug (opcional)</label><input class="form-control" name="slug" value="<?= htmlspecialchars($item['slug']) ?>"></div>
 
@@ -396,12 +435,34 @@ include __DIR__ . '/_header.php';
     </p>
   </div>
 
-  <div class="col-12">
+  <?php if ($tipo === 'evento'): ?>
+    <div class="col-12">
+      <label class="form-label">Contenido del evento</label>
+      <div id="editorContenidoEvento" style="background:#fff;height:400px;"></div>
+      <textarea name="contenido" id="contenidoEventoOculto" class="d-none"></textarea>
+      <div class="form-text">Contenido amplio que se mostrará en una pestaña propia del evento. Puedes insertar imágenes, videos, encabezados, listas y secciones colapsables.</div>
+    </div>
+  <?php endif; ?>
+  </div>
+  </details>
+
+  <details class="col-12 pf-editor-collapsible">
+  <summary><strong>✍️ Descripción</strong><span>Contenido que se muestra en la ficha</span></summary>
+  <div class="p-3">
     <label class="form-label">Descripción</label>
     <div id="editorDescripcion" style="background:#fff;height:220px;"></div>
     <textarea name="descripcion" id="descripcionOculta" class="d-none"></textarea>
   </div>
+  </details>
 
+  <details class="col-12 pf-editor-collapsible">
+    <summary><strong>🧭 Orientación y rutas</strong><span>Ruta de aprendizaje y siguiente contenido sugerido</span></summary>
+    <div class="p-3"><label class="form-label">Este contenido forma parte de</label><div class="row row-cols-1 row-cols-md-3 g-2 mb-3"><?php foreach($rutasDisponibles as $r):?><label class="col"><span class="border rounded p-2 d-block"><input type="checkbox" class="form-check-input me-1" name="ruta_ids[]" value="<?=(int)$r['id']?>" <?=in_array((int)$r['id'],$rutasVinculadas,true)?'checked':''?>> <?=htmlspecialchars($r['titulo'])?> <small class="text-muted">(<?=htmlspecialchars($r['estado'])?>)</small></span></label><?php endforeach;?><?php if(!$rutasDisponibles):?><p class="text-muted">Aún no hay rutas. <a href="ruta_form.php" target="_blank">Crear la primera ruta</a>.</p><?php endif;?></div><div class="d-flex gap-2 mb-3"><a href="ruta_form.php" target="_blank" class="btn btn-sm btn-outline-primary">+ Crear nueva ruta</a><a href="rutas.php" target="_blank" class="btn btn-sm btn-outline-secondary">Administrar orden y contenidos</a></div><label class="form-label">Contenido sugerido siguiente (fuera de una ruta)</label><div class="row g-2"><div class="col-md-3"><select class="form-select" name="sugerido_tipo" id="sugeridoTipo"><option value="">— Ninguno —</option><option value="curso" <?=($sugerenciaActual['destino_tipo']??'')==='curso'?'selected':''?>>Curso</option><option value="evento" <?=($sugerenciaActual['destino_tipo']??'')==='evento'?'selected':''?>>Evento</option></select></div><div class="col-md-9"><select class="form-select" name="sugerido_id" id="sugeridoId"></select></div></div></div>
+  </details>
+
+  <details class="col-12 pf-editor-collapsible">
+  <summary><strong><?= $tipo === 'curso' ? '🎓 Configuración del curso' : '📅 Configuración del evento' ?></strong><span>Precio, acceso, imagen y publicación</span></summary>
+  <div class="row g-3 p-3 pt-2">
   <?php if ($tipo === 'curso'): ?>
     <div class="col-md-4">
       <label class="form-label">Nivel</label>
@@ -532,8 +593,14 @@ include __DIR__ . '/_header.php';
     <input type="checkbox" class="form-check-input" role="switch" name="mostrar_codigo_promocion" id="mostrar_codigo_promocion" <?= (int) $item['mostrar_codigo_promocion'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="mostrar_codigo_promocion">Mostrar campo de "código de cupón" en el checkout</label>
   </div>
+  </div>
+  </details>
 
-  <div class="col-12"><hr></div>
+  <?php $promocionTipoItem = $tipo; $promocionPrecioRegular = (float) $item['precio']; include __DIR__ . '/_promocion_embebida.php'; ?>
+
+  <details class="col-12 pf-editor-collapsible">
+  <summary><strong>🎁 Prestaciones y regalos</strong><span>Accesos y descuentos que puede compartir el estudiante</span></summary>
+  <div class="row g-3 p-3 pt-2">
   <div class="col-12">
     <h2 class="h6">🎁 Prestaciones y regalos</h2>
     <p class="text-muted small">Quien tenga acceso a este <?= $tipo === 'curso' ? 'curso' : 'evento' ?> podrá generar enlaces para regalarlo.</p>
@@ -632,6 +699,8 @@ include __DIR__ . '/_header.php';
       });
     })();
   </script>
+  </div>
+  </details>
 
   <div class="col-12 d-flex gap-2 align-items-center">
     <button class="btn btn-success">Guardar</button>
@@ -645,6 +714,10 @@ include __DIR__ . '/_header.php';
      "contenido" para todas, sin importar si es curso o evento. -->
 <script src="../../assets/pf_editor.js?v=3"></script>
 <script>
+  const contenidosSugeribles = {curso: <?=json_encode($cursosSugeribles)?>, evento: <?=json_encode($eventosSugeribles)?>};
+  const sugeridoInicial = <?=json_encode($sugerenciaActual)?>;
+  function actualizarSugeribles() { const t=document.getElementById('sugeridoTipo').value,s=document.getElementById('sugeridoId'); s.innerHTML='<option value="">— Selecciona —</option>'+((contenidosSugeribles[t]||[]).map(x=>'<option value="'+x.id+'">'+$('<div>').text(x.titulo).html()+'</option>').join('')); if(sugeridoInicial&&sugeridoInicial.destino_tipo===t)s.value=sugeridoInicial.destino_id; }
+  document.getElementById('sugeridoTipo').addEventListener('change', actualizarSugeribles); actualizarSugeribles();
   const editor = PfEditor.crear({
     contenedor: '#editorDescripcion',
     contexto: 'admin',
@@ -654,14 +727,29 @@ include __DIR__ . '/_header.php';
     capacidades: { colapsables: true, tamanoAlineacion: true, undoRedo: true },
   });
   const quillDescripcion = editor.quill;
+  <?php if ($tipo === 'evento'): ?>
+  const editorContenidoEvento = PfEditor.crear({
+    contenedor: '#editorContenidoEvento',
+    contexto: 'admin',
+    placeholder: 'Desarrolla aquí el contenido completo del evento.',
+    csrfToken: <?= json_encode(csrf_token()) ?>,
+    contenidoInicialHtml: <?= json_encode((string) ($evento['contenido'] ?? '')) ?>,
+    capacidades: { video: true, colapsables: true, tamanoAlineacion: true, undoRedo: true },
+  });
+  <?php else: ?>
+  const editorContenidoEvento = null;
+  <?php endif; ?>
 
   function sincronizarDescripcion() {
     document.getElementById('descripcionOculta').value = editor.sincronizar();
+    if (editorContenidoEvento) {
+      document.getElementById('contenidoEventoOculto').value = editorContenidoEvento.sincronizar();
+    }
   }
   // Corta el guardado (y a sincronizarDescripcion, el siguiente listener) si
   // todavía falta una imagen pegada por subir.
   document.querySelector('form[data-ajax-form]').addEventListener('submit', function (e) {
-    if (editor.bloquearSiHayCargasPendientes()) {
+    if (editor.bloquearSiHayCargasPendientes() || (editorContenidoEvento && editorContenidoEvento.bloquearSiHayCargasPendientes())) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
@@ -702,6 +790,7 @@ include __DIR__ . '/_header.php';
         document.querySelector('input[name="id"]').value = data.id;
       },
       verificarSesionUrl: '../../backend/session_check.php',
+      quills: editorContenidoEvento ? [editorContenidoEvento.quill] : [],
     });
   }, 300);
 

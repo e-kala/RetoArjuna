@@ -26,7 +26,6 @@ if ($usuarioNav) {
     $puedeStripeModoPrueba = stripe_modo_prueba_permitido();
 }
 ?>
-<?php if ($puedeStripeModoPrueba): echo stripe_modo_prueba_banner_html(); endif; ?>
 <nav class="pf-nav" id="navbar">
   <div class="pf-container">
     <a href="<?= htmlspecialchars($navPrefijo) ?>index.php" class="pf-logo pf-logo-img">
@@ -113,6 +112,15 @@ if ($usuarioNav) {
     </div>
   </div>
 </nav>
+<?php if ($puedeStripeModoPrueba): echo stripe_modo_prueba_banner_html(); endif; ?>
+<?php if ($usuarioNav && empty($usuarioNav['email_verificado'])): ?>
+  <div class="alert alert-warning rounded-0 mb-0 text-center py-2" role="status">
+    <strong>Tu correo está pendiente de confirmación.</strong> Puedes usar la plataforma normalmente; revisa tu bandeja de entrada.
+    <form method="post" action="<?=htmlspecialchars(BASE_URL)?>/backend/email_verificacion_reenviar.php" class="d-inline ms-2">
+      <?=csrf_field()?><input type="hidden" name="volver" value="<?=htmlspecialchars((string)($_SERVER['REQUEST_URI']??''))?>"><button class="btn btn-sm btn-outline-dark">Reenviar correo</button>
+    </form>
+  </div>
+<?php endif; ?>
 
 <div id="pfToast" class="pf-toast" role="status" aria-live="polite">
   <i class="bi bi-check-circle-fill"></i>

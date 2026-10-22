@@ -64,7 +64,7 @@ $stmt->close();
             <?= $asistioMisEventos ? 'Asististe' : 'Inscrito' ?>
           </span>
           <?php if ($accesoPorMembresiaMisEventos): ?>
-            <span class="badge rounded-pill mb-2 d-inline-flex align-items-center gap-1" style="background:#6f42c1;color:#fff;"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
+            <span class="badge rounded-pill pf-badge-incluido mb-2 d-inline-flex align-items-center gap-1"><img src="<?= htmlspecialchars(BASE_URL) ?>/img/logo-membresia-camino-arjuna-icono.png" class="pf-icono-membresia" alt=""> Incluido con tu membresía</span>
           <?php endif; ?>
           <?php if ($esPasadoMisEventos && !$asistioMisEventos && $totalLeccionesMisEventos > 0): ?>
             <div class="progress mb-1" style="height:6px;">

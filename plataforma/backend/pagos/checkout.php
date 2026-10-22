@@ -196,6 +196,10 @@ $stripeListo = config_esta_lista(STRIPE_PUBLISHABLE_KEY) && config_esta_lista(ST
 $paramName = $item['tipo'] . '_id';
 $publishableKeyActiva = stripe_publishable_key_activa();
 $etiquetaTipo = ['curso' => 'Curso', 'evento' => 'Evento', 'producto' => 'Producto'][$item['tipo']] ?? 'Compra';
+$urlRegresarCheckout = BASE_URL . '/index.php?action=' . urlencode((string) $item['tipo']) . '&slug=' . urlencode((string) $item['slug']);
+if ($codigoCupon) {
+    $urlRegresarCheckout .= '&cupon=' . urlencode((string) $codigoCupon);
+}
 
 // Combo Membresía + Evento/Curso: se ofrece como promoción de la membresía
 // en sí ("hazte miembro y sostén tu práctica"), no solo cuando ESTE
@@ -224,10 +228,20 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
   <title>Comprar · <?= htmlspecialchars($item['titulo']) ?> · Reto Arjuna</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.12.1/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="../../assets/css/platform.css?v=3.0">
+  <link rel="stylesheet" href="../../assets/css/platform.css?v=3.8">
   <?php if ($stripeListo): ?><script src="https://js.stripe.com/v3/"></script><?php endif; ?>
   <style>
     body.pf-checkout-body { background: var(--pf-bg); min-height: 100vh; }
+    .pf-checkout-nav { max-width: 1040px; margin: 22px auto -34px; padding: 0 16px; }
+    .pf-checkout-nav.pf-checkout-nav-compact { max-width: 560px; }
+    .pf-checkout-back {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 10px; border-radius: 999px;
+      color: var(--pf-muted); font-size: 13px; font-weight: 700;
+      text-decoration: none; transition: color .15s ease, background-color .15s ease;
+    }
+    .pf-checkout-back:hover { color: var(--pf-ink); background: rgba(35,38,43,.055); }
+    .pf-checkout-back:focus-visible { outline: 3px solid rgba(247,147,30,.28); outline-offset: 2px; }
     .pf-checkout-wrap { max-width: 560px; margin: 56px auto; padding: 0 16px; }
     .pf-checkout-wrap.pf-checkout-wrap-grid { max-width: 1040px; }
     .pf-checkout-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -358,6 +372,12 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
 </head>
 <body class="pf-body pf-checkout-body">
   <?= stripe_modo_prueba_banner_html() ?>
+  <div class="pf-checkout-nav<?= $voucherOxxo ? ' pf-checkout-nav-compact' : '' ?>">
+    <a href="<?= htmlspecialchars($urlRegresarCheckout) ?>" class="pf-checkout-back" aria-label="Regresar a <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>
+      <span>Regresar</span>
+    </a>
+  </div>
   <?php if ($voucherOxxo): ?>
   <div class="pf-checkout-wrap">
     <div class="pf-checkout-card">
@@ -588,7 +608,7 @@ if (!$membresiaVisible || !config_esta_lista((string) ($membresiaVisible['stripe
         // de funcionar — no hay una relación en BD que lo detecte solo (a
         // diferencia de landing_page_id en cursos/eventos, membresias no tiene
         // ese campo hoy). ?>
-        <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=landing&slug=membresia-camino-arjuna" target="_blank" style="color:var(--pf-accent-ink);font-weight:700;font-size:13.5px;">Ver todos los beneficios de la membresía →</a>
+        <a href="<?= htmlspecialchars(BASE_URL) ?>/index.php?action=landing&amp;slug=membresia-camino-arjuna" target="_blank" rel="noopener" style="color:var(--pf-accent-ink);font-weight:700;font-size:13.5px;">Ver todos los beneficios de la membresía →</a>
         <div class="pf-checkout-side-nota">
           <i class="bi bi-lightbulb-fill"></i>
           <span><strong>Tú eliges.</strong> Si por ahora solo quieres este <?= htmlspecialchars(mb_strtolower($etiquetaTipo)) ?>, también puedes adquirirlo de forma individual.</span>

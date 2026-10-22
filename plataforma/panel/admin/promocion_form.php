@@ -136,7 +136,7 @@ include __DIR__ . '/_header.php';
   <div class="col-md-6"><label class="form-label">Fecha y hora de fin</label><input type="datetime-local" class="form-control" name="fecha_fin" value="<?= htmlspecialchars(str_replace(' ', 'T', substr((string) $promo['fecha_fin'], 0, 16))) ?>" required></div>
   <div class="col-md-6 form-check form-switch">
     <input type="checkbox" class="form-check-input" role="switch" name="combinable" id="combinable" <?= (int) $promo['combinable'] === 1 ? 'checked' : '' ?>>
-    <label class="form-check-label" for="combinable">Se puede combinar con un cupón (si no, gana el mejor precio de los dos)</label>
+    <label class="form-check-label" for="combinable">Acumular esta oferta con descuento de membresía y/o cupón (opcional; si se desactiva, se aplica únicamente el mejor precio)</label>
   </div>
   <div class="col-md-6 form-check form-switch">
     <input type="checkbox" class="form-check-input" role="switch" name="activo" id="activo" <?= (int) $promo['activo'] === 1 ? 'checked' : '' ?>>

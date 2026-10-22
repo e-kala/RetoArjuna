@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../backend/auth.php';
 require_once __DIR__ . '/../../backend/uploads.php';
+require_once __DIR__ . '/_promocion_embebida_helper.php';
 require_role('admin');
 requerir_csrf_form();
 
@@ -16,9 +17,11 @@ if ($id) {
     $producto = $stmt->get_result()->fetch_assoc() ?: $producto;
     $stmt->close();
 }
+$promocionEmbebida = promocion_embebida_cargar($conn, 'producto', $id);
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $error = promocion_embebida_validar($_POST, 'producto');
     $esAjax = es_peticion_ajax();
     $tipo = $_POST['tipo'] ?? 'fisico';
     $nombre = trim($_POST['nombre'] ?? '');
@@ -32,7 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (trim(str_replace(['<p><br></p>', '<p><br/></p>'], '', $descripcion)) === '') {
         $descripcion = '';
     }
-    $precio = (float) ($_POST['precio'] ?? 0);
+    $precio = isset($_POST['promo_activa']) && trim((string) ($_POST['promo_precio_regular'] ?? '')) !== ''
+        ? (float) $_POST['promo_precio_regular']
+        : (float) ($_POST['precio'] ?? 0);
     $imagen = (string) $producto['imagen'];
     $archivoDigital = (string) $producto['archivo_digital'];
     $stock = ($tipo === 'fisico' && $_POST['stock'] !== '') ? (int) $_POST['stock'] : null;
@@ -72,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ssssdssiii', $tipo, $nombre, $slug, $descripcion, $precio, $imagen, $archivoDigital, $stock, $activo, $mostrarCodigoPromocion);
         }
         if ($stmt->execute()) {
+            $itemId = $id ?: $stmt->insert_id;
+            promocion_embebida_guardar($conn, 'producto', $itemId, $_POST, (int) ($promocionEmbebida['id'] ?? 0));
             if ($esNuevo && $activo) {
                 notificacion_difundir('nuevo_producto', 'Nuevo producto: ' . $nombre, $descripcion !== '' ? mb_strimwidth(trim(strip_tags($descripcion)), 0, 140, '…') : null, 'index.php?action=producto&slug=' . urlencode($slug));
             }
@@ -99,6 +106,9 @@ include __DIR__ . '/_header.php';
 <form method="post" class="row g-3" enctype="multipart/form-data" data-ajax-form>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $id ?>">
+  <details class="col-12 pf-editor-collapsible" open>
+  <summary><strong>📝 Información principal</strong><span>Tipo, nombre, precio y descripción</span></summary>
+  <div class="row g-3 p-3 pt-2">
   <div class="col-md-4">
     <label class="form-label">Tipo</label>
     <select class="form-select" name="tipo" id="tipoProducto" onchange="document.getElementById('stockWrap').style.display = this.value === 'fisico' ? 'block' : 'none'; document.getElementById('archivoDigitalWrap').style.display = this.value === 'digital' ? 'block' : 'none';">
@@ -114,6 +124,11 @@ include __DIR__ . '/_header.php';
     <div id="editorDescripcionProducto" style="background:#fff;height:200px;"></div>
     <textarea name="descripcion" id="descripcionProductoOculta" class="d-none"><?= htmlspecialchars((string) $producto['descripcion']) ?></textarea>
   </div>
+  </div>
+  </details>
+  <details class="col-12 pf-editor-collapsible">
+  <summary><strong>📦 Entrega y publicación</strong><span>Imagen, inventario, archivo y visibilidad</span></summary>
+  <div class="row g-3 p-3 pt-2">
   <?php
   $imgPickerId = 'producto';
   $imgPickerCampo = 'imagen_file';
@@ -147,6 +162,9 @@ include __DIR__ . '/_header.php';
     <input type="checkbox" class="form-check-input" role="switch" name="mostrar_codigo_promocion" id="mostrar_codigo_promocion" <?= (int) $producto['mostrar_codigo_promocion'] === 1 ? 'checked' : '' ?>>
     <label class="form-check-label" for="mostrar_codigo_promocion">Mostrar campo de "código de cupón" en el checkout</label>
   </div>
+  </div>
+  </details>
+  <?php $promocionTipoItem = 'producto'; $promocionPrecioRegular = (float) $producto['precio']; include __DIR__ . '/_promocion_embebida.php'; ?>
   <div class="col-12"><button class="btn btn-success">Guardar</button></div>
 </form>
 <script src="../../assets/pf_editor.js?v=3"></script>

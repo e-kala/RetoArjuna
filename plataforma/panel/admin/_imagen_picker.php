@@ -12,6 +12,24 @@
 //   $imgPickerActual  string  ruta ya guardada (relativa a la raíz del sitio), o ''
 //   $imgPickerLabel   string  etiqueta visible
 $campoExistente = $imgPickerCampo . '_existente';
+$normalizarUrlImagenAdmin = static function (string $ruta): string {
+    $ruta = trim($ruta);
+    if ($ruta === '' || preg_match('~^https?://~i', $ruta) || str_starts_with($ruta, '/')) {
+        return $ruta;
+    }
+    // Algunas imágenes históricas se guardaron como plataforma/uploads/… y
+    // las nuevas como uploads/…. Desde panel/admin, ../../ siempre apunta a
+    // la raíz pública de la plataforma. No dependemos de BASE_URL porque en
+    // hostings donde DOCUMENT_ROOT es un symlink su cálculo puede quedar vacío
+    // y convertir la ruta correcta en /uploads/… (fuera de /plataforma).
+    $ruta = preg_replace('~^plataforma/~', '', $ruta);
+    return '../../' . ltrim($ruta, '/');
+};
+$imgPickerActualUrl = $normalizarUrlImagenAdmin((string) $imgPickerActual);
+$imgPickerImagenes = array_map(
+    static fn (string $ruta): array => ['ruta' => $ruta, 'url' => $normalizarUrlImagenAdmin($ruta)],
+    listar_imagenes_subidas($imgPickerSubdir)
+);
 ?>
 <div class="col-md-6">
   <label class="form-label"><?= htmlspecialchars($imgPickerLabel) ?></label>
@@ -21,7 +39,7 @@ $campoExistente = $imgPickerCampo . '_existente';
   <div class="pf-dropzone" id="imgDropzone_<?= htmlspecialchars($imgPickerId) ?>">
     <div id="imgPreview_<?= htmlspecialchars($imgPickerId) ?>" class="pf-dropzone-preview">
       <?php if ($imgPickerActual): ?>
-        <img src="../../<?= htmlspecialchars($imgPickerActual) ?>" alt="">
+        <img src="<?= htmlspecialchars($imgPickerActualUrl) ?>" alt="">
       <?php else: ?>
         <i class="bi bi-image text-muted" style="font-size:28px;"></i>
       <?php endif; ?>
@@ -74,7 +92,7 @@ $campoExistente = $imgPickerCampo . '_existente';
     .pf-galeria-vacio { font-size: 13px; color: var(--pf-muted, #666); padding: 6px; }
   </style>
   <script>
-  function pfInitImagePicker(id, subdir) {
+  function pfInitImagePicker(id, imagenesIniciales) {
     var dropzone = document.getElementById('imgDropzone_' + id);
     var fileInput = document.getElementById('imgFile_' + id);
     var existenteInput = document.getElementById('imgExistente_' + id);
@@ -116,33 +134,28 @@ $campoExistente = $imgPickerCampo . '_existente';
       }
       galeria.classList.add('show');
       if (galeriaCargada) return;
-      galeria.innerHTML = '<div class="pf-galeria-vacio">Cargando…</div>';
-      fetch('uploads_listar.php?subdir=' + encodeURIComponent(subdir))
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          galeriaCargada = true;
-          galeria.innerHTML = '';
-          var imagenes = data.imagenes || [];
-          if (!imagenes.length) {
-            galeria.innerHTML = '<div class="pf-galeria-vacio">Todavía no hay imágenes subidas aquí.</div>';
-            return;
-          }
-          imagenes.forEach(function (url) {
+      galeriaCargada = true;
+      galeria.innerHTML = '';
+      var imagenes = imagenesIniciales || [];
+      if (!imagenes.length) {
+        galeria.innerHTML = '<div class="pf-galeria-vacio">Todavía no hay imágenes subidas aquí.</div>';
+        return;
+      }
+      imagenes.forEach(function (imagen) {
             var thumb = document.createElement('img');
-            thumb.src = '../../' + url;
+            thumb.src = imagen.url;
             thumb.className = 'pf-galeria-thumb';
             thumb.title = 'Usar esta imagen';
             thumb.addEventListener('click', function () {
-              existenteInput.value = url;
+              existenteInput.value = imagen.ruta;
               fileInput.value = '';
-              mostrarPreview('../../' + url);
+              mostrarPreview(imagen.url);
               galeria.classList.remove('show');
             });
             galeria.appendChild(thumb);
-          });
-        });
+      });
     });
   }
   </script>
 <?php endif; ?>
-<script>pfInitImagePicker('<?= htmlspecialchars($imgPickerId) ?>', '<?= htmlspecialchars($imgPickerSubdir) ?>');</script>
+<script>pfInitImagePicker(<?= json_encode($imgPickerId) ?>, <?= json_encode($imgPickerImagenes, JSON_UNESCAPED_SLASHES) ?>);</script>

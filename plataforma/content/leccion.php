@@ -15,11 +15,20 @@ function pf_hidratar_audios_embebidos(string $html, bool $esPreview): string
             $audioId = (int) $m[1];
             ob_start();
             ?>
-            <div class="mb-3">
-              <button type="button" class="btn btn-sm btn-outline-dark btn-cargar-audio" data-audio-id="<?= $audioId ?>" <?= $esPreview ? 'data-preview="1"' : '' ?>>
-                <i class="bi bi-play-fill"></i> Reproducir audio
+            <div class="pf-audio-player" data-audio-id="<?= $audioId ?>" <?= $esPreview ? 'data-preview="1"' : '' ?>>
+              <button type="button" class="pf-audio-player-boton btn-cargar-audio" data-audio-id="<?= $audioId ?>" <?= $esPreview ? 'data-preview="1"' : '' ?> aria-label="Reproducir audio">
+                <i class="bi bi-play-fill"></i>
               </button>
-              <audio class="d-none" controls style="width:100%;" controlsList="nodownload noremoteplayback" oncontextmenu="return false;"></audio>
+              <div class="pf-audio-player-cuerpo">
+                <div class="pf-audio-player-barra" role="slider" aria-label="Progreso del audio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+                  <div class="pf-audio-player-barra-relleno"></div>
+                </div>
+                <div class="pf-audio-player-tiempos">
+                  <span class="pf-audio-player-actual">0:00</span>
+                  <span class="pf-audio-player-total">&nbsp;</span>
+                </div>
+              </div>
+              <audio class="d-none" controlsList="nodownload noremoteplayback" oncontextmenu="return false;" preload="none"></audio>
             </div>
             <?php
             return (string) ob_get_clean();
@@ -337,29 +346,93 @@ $pctProgreso = $totalHermanas > 0 ? round($totalCompletadas / $totalHermanas * 1
   // memoria, para que no quede un link real que se pueda copiar del
   // inspector y pegar en otra pestaña o descargar directo. Delegado en
   // document porque puede haber cualquier cantidad de audios embebidos.
+  //
+  // Reproductor propio (botón circular + barra de progreso con seek) en vez
+  // del <audio controls> nativo — ese control se ve distinto en cada
+  // navegador y no se puede re-estilizar de forma confiable entre todos.
+  function pfFormatoTiempo(segundos) {
+    if (!isFinite(segundos) || segundos < 0) return '0:00';
+    const m = Math.floor(segundos / 60);
+    const s = Math.floor(segundos % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
   document.addEventListener('click', async function (event) {
-    const boton = event.target.closest('.btn-cargar-audio');
-    if (!boton) return;
-    const audioEl = boton.nextElementSibling;
-    const textoOriginal = boton.innerHTML;
-    boton.disabled = true;
-    boton.innerHTML = 'Cargando…';
-    try {
-      const urlAudio = 'backend/audio_stream.php?id=' + boton.dataset.audioId + (boton.dataset.preview ? '&preview=1' : '');
-      const res = await fetch(urlAudio, { credentials: 'same-origin' });
-      if (!res.ok) {
-        throw new Error('No autorizado');
-      }
-      const blob = await res.blob();
-      audioEl.src = URL.createObjectURL(blob);
-      audioEl.classList.remove('d-none');
-      boton.classList.add('d-none');
-      audioEl.play();
-    } catch (e) {
-      boton.disabled = false;
-      boton.innerHTML = textoOriginal;
-      alert('No se pudo cargar el audio, intenta de nuevo.');
+    // Una vez cargado, el mismo botón alterna play/pausa — se revisa ANTES
+    // que el caso "cargar" porque el botón conserva .btn-cargar-audio (así
+    // el selector del CSS no cambia), solo cambia el estado del contenedor
+    // padre (.pf-audio-player-cargado).
+    const botonCargado = event.target.closest('.pf-audio-player-cargado .pf-audio-player-boton');
+    if (botonCargado) {
+      const audioEl = botonCargado.closest('.pf-audio-player').querySelector('audio');
+      if (audioEl.paused) audioEl.play(); else audioEl.pause();
+      return;
     }
+
+    const boton = event.target.closest('.btn-cargar-audio');
+    if (boton) {
+      const jugador = boton.closest('.pf-audio-player');
+      const audioEl = jugador.querySelector('audio');
+      const textoOriginal = boton.innerHTML;
+      boton.disabled = true;
+      boton.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+      try {
+        const urlAudio = 'backend/audio_stream.php?id=' + boton.dataset.audioId + (boton.dataset.preview ? '&preview=1' : '');
+        const res = await fetch(urlAudio, { credentials: 'same-origin' });
+        if (!res.ok) {
+          throw new Error('No autorizado');
+        }
+        const blob = await res.blob();
+        audioEl.src = URL.createObjectURL(blob);
+        jugador.classList.add('pf-audio-player-cargado');
+        boton.disabled = false;
+        boton.innerHTML = '<i class="bi bi-pause-fill"></i>';
+        audioEl.play();
+      } catch (e) {
+        boton.disabled = false;
+        boton.innerHTML = textoOriginal;
+        alert('No se pudo cargar el audio, intenta de nuevo.');
+      }
+      return;
+    }
+
+    // Seek: click en cualquier punto de la barra de progreso.
+    const barra = event.target.closest('.pf-audio-player-barra');
+    if (barra) {
+      const jugador = barra.closest('.pf-audio-player');
+      const audioEl = jugador.querySelector('audio');
+      if (!audioEl.duration) return;
+      const rect = barra.getBoundingClientRect();
+      const fraccion = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      audioEl.currentTime = fraccion * audioEl.duration;
+    }
+  });
+
+  // Sincroniza ícono/barra/tiempos con el estado real del <audio> — delegado
+  // una sola vez por evento, en vez de un listener por reproductor (puede
+  // haber cualquier cantidad embebidos en una misma lección).
+  ['play', 'pause', 'timeupdate', 'loadedmetadata', 'ended'].forEach(function (evento) {
+    document.addEventListener(evento, function (e) {
+      if (e.target.tagName !== 'AUDIO') return;
+      const jugador = e.target.closest('.pf-audio-player');
+      if (!jugador) return;
+      const boton = jugador.querySelector('.pf-audio-player-boton');
+      const relleno = jugador.querySelector('.pf-audio-player-barra-relleno');
+      const sliderBarra = jugador.querySelector('.pf-audio-player-barra');
+      const actual = jugador.querySelector('.pf-audio-player-actual');
+      const total = jugador.querySelector('.pf-audio-player-total');
+      const audioEl = e.target;
+
+      if (evento === 'play') boton.innerHTML = '<i class="bi bi-pause-fill"></i>';
+      if (evento === 'pause' || evento === 'ended') boton.innerHTML = '<i class="bi bi-play-fill"></i>';
+      if (audioEl.duration) {
+        const pct = (audioEl.currentTime / audioEl.duration) * 100;
+        relleno.style.width = pct + '%';
+        sliderBarra.setAttribute('aria-valuenow', Math.round(pct));
+        total.textContent = pfFormatoTiempo(audioEl.duration);
+      }
+      actual.textContent = pfFormatoTiempo(audioEl.currentTime);
+    }, true);
   });
 
   <?php if ($usuario && $tieneAcceso && $leccion['tipo_contenido'] !== 'quiz'): ?>
@@ -485,6 +558,70 @@ $pctProgreso = $totalHermanas > 0 ? round($totalCompletadas / $totalHermanas * 1
   <?php endif; ?>
 </script>
 <style>
+  /* Reproductor de audio embebido en el contenido de la lección — grande,
+     con la paleta del sitio, igual en todos los navegadores (el <audio
+     controls> nativo no se puede estilizar de forma confiable entre todos). */
+  .pf-audio-player {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: var(--pf-surface, #fffdfa);
+    border: 1px solid var(--pf-line, #e6ded1);
+    border-radius: var(--pf-radius-lg, 22px);
+    box-shadow: var(--pf-shadow-sm, 0 6px 18px rgba(55,45,30,.07));
+    padding: 20px 26px;
+    margin: 18px 0;
+  }
+  .pf-audio-player-boton {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    background: var(--pf-accent, #f7931e);
+    color: #fff;
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .pf-audio-player-boton:hover { background: var(--pf-accent-strong, #c6650c); }
+  .pf-audio-player-boton:active { transform: scale(.96); }
+  .pf-audio-player-boton:disabled { opacity: .7; cursor: default; }
+  .pf-audio-player-boton i { line-height: 1; }
+  .pf-audio-player-cuerpo { flex: 1 1 auto; min-width: 0; }
+  .pf-audio-player-barra {
+    position: relative;
+    height: 10px;
+    border-radius: 6px;
+    background: var(--pf-surface-soft, #f1eadf);
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .pf-audio-player-barra-relleno {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    background: var(--pf-accent, #f7931e);
+    border-radius: 6px 0 0 6px;
+    transition: width .1s linear;
+  }
+  .pf-audio-player:not(.pf-audio-player-cargado) .pf-audio-player-barra { opacity: .5; cursor: default; }
+  .pf-audio-player-tiempos {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--pf-muted, #6d6a63);
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 480px) {
+    .pf-audio-player { padding: 14px 16px; gap: 14px; }
+    .pf-audio-player-boton { width: 52px; height: 52px; font-size: 22px; }
+  }
+
   .pf-detalle-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
   .pf-detalle-grid.pf-detalle-sin-sidebar { grid-template-columns: minmax(0, 1fr); }
   .pf-detalle-grid.pf-detalle-sin-sidebar > .pf-detalle-sidebar { display: none; }
